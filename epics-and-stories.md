@@ -317,6 +317,10 @@ Each counterfactual group has:
 * One varied parameter.
 * At least two different labels across the group.
 * Group ID stored.
+* Variant ID stored for every member.
+* Base object-pair ID stored for every member.
+* Changed parameter and changed value stored for every member.
+* Group members are marked as split-inseparable.
 
 **Counterfactual dimensions**
 
@@ -334,13 +338,37 @@ Each counterfactual group has:
 ```json
 {
   "counterfactual_group_id": "cfg_000042",
-  "changed_parameter": "translation_x"
+  "variant_id": "cfg_000042_v1",
+  "base_object_pair_id": "pair_000091",
+  "changed_parameter": "translation_x",
+  "changed_value": 9.9,
+  "answer": "yes",
+  "labels": {
+    "relation": "intersecting",
+    "intersection_volume": 1.0,
+    "minimum_distance": 0.0
+  }
 }
 ```
 
 ---
 
-## Story 3.7 — Generate multi-object assemblies
+## Story 3.7 — Materialize counterfactual prompt formats
+
+**As a training-data designer**, I want counterfactual groups exportable as individual rows, pairwise prompts, and ranking prompts so that the same source examples can support SFT, evaluation, and RL.
+
+**Acceptance criteria**
+
+* Individual-row format exists for SFT and standard evaluation.
+* Pairwise comparison format exists with answer choices `A`, `B`, `both`, and `neither`.
+* Ranking format exists for 3-5 variants ordered by normalized intersection volume.
+* Derived prompts reference source `counterfactual_group_id` and variant IDs.
+* Pairwise and ranking labels are generated from exact geometry metadata.
+* Group members are not split across train/validation/test unless an interpolation experiment explicitly opts in.
+
+---
+
+## Story 3.8 — Generate multi-object assemblies
 
 **As a dataset builder**, I want assemblies with 3–10 parts so that pairwise reasoning can be evaluated.
 
@@ -622,7 +650,22 @@ Create robust train/test splits that prevent leakage and support meaningful eval
 
 ---
 
-## Story 6.3 — Implement topology-held-out split
+## Story 6.3 — Implement object-pair and counterfactual group holdout
+
+**As a researcher**, I want near-identical variants kept in the same split so that evaluation does not leak by construction.
+
+**Acceptance criteria**
+
+* Examples sharing `base_object_pair_id` are not split across train and test.
+* Examples sharing `assembly_group_id` are not split across train and test.
+* Examples sharing `counterfactual_group_id` are not split across train and test.
+* Pairwise and ranking prompts inherit the strictest split group from their source variants.
+* Split reports include counts by generator group, object-pair group, assembly group, and counterfactual group.
+* Any intentional interpolation split is named separately and cannot be confused with the main held-out tests.
+
+---
+
+## Story 6.4 — Implement topology-held-out split
 
 **As a researcher**, I want to test generalization to unseen shape motifs.
 
@@ -643,7 +686,7 @@ Train/test topology assignments are stored.
 
 ---
 
-## Story 6.4 — Implement operation-held-out split
+## Story 6.5 — Implement operation-held-out split
 
 **As a researcher**, I want to test generalization to unseen CadQuery operations.
 
@@ -663,7 +706,7 @@ Examples are tagged by operation use.
 
 ---
 
-## Story 6.5 — Implement near-boundary hard split
+## Story 6.6 — Implement near-boundary hard split
 
 **As a researcher**, I want a hard split focused on tiny clearances and overlaps.
 
@@ -679,7 +722,7 @@ Hard split includes:
 
 ---
 
-## Story 6.6 — Balance dataset classes
+## Story 6.7 — Balance dataset classes
 
 **As a dataset builder**, I want label distributions controlled so that accuracy is meaningful.
 
@@ -802,12 +845,29 @@ Evaluate models and heuristics to demonstrate benchmark difficulty and usefulnes
 **Acceptance criteria**
 
 * Fine-tuning run includes counterfactual groups.
+* Individual-row counterfactual SFT is compared with pairwise or ranking counterfactual training.
 * Held-out counterfactual groups are not leaked.
 * Improvement is reported on near-boundary hard split.
 
 ---
 
-## Story 7.9 — Evaluate tool-assisted upper bound
+## Story 7.9 — Run verifier-guided RL/GRPO experiment
+
+**As a researcher**, I want to train on mechanically verifiable CAD tasks so that the paper tests RL in addition to SFT.
+
+**Acceptance criteria**
+
+* At least one RL/GRPO run uses deterministic verifier rewards.
+* Candidate tasks include ranking, repair direction, multi-object pair detection, volume bucket, or clearance pass/fail.
+* Binary-only RL is not the primary RL result unless dense tasks are unavailable.
+* Rewards penalize invalid final-answer format.
+* Ranking reward supports partial credit through pairwise ranking accuracy or Kendall tau.
+* Repair reward executes the proposed transform and penalizes unnecessary movement.
+* Evaluation compares the RL/GRPO model against answer-only SFT and counterfactual SFT.
+
+---
+
+## Story 7.10 — Evaluate tool-assisted upper bound
 
 **As a researcher**, I want to compare closed-book models to tool-assisted CAD verification.
 
@@ -890,6 +950,13 @@ Schema includes:
 * `id`
 * `source`
 * `split`
+* `generator_id`
+* `base_object_pair_id`
+* `assembly_group_id`
+* `counterfactual_group_id`
+* `variant_id`
+* `changed_parameter`
+* `changed_value`
 * `task_type`
 * `prompt`
 * `answer`
@@ -913,13 +980,15 @@ train.jsonl
 validation.jsonl
 test_random.jsonl
 test_generator_heldout.jsonl
-test_topology_heldout.jsonl
+test_object_pair_heldout.jsonl
 test_near_boundary.jsonl
 ```
 
 Optional:
 
 ```text
+test_topology_heldout.jsonl
+test_operation_heldout.jsonl
 renders/
 metadata.parquet
 ```
@@ -1024,8 +1093,9 @@ Reported across:
 
 * random test
 * generator-held-out
-* topology-held-out
+* object-pair / assembly-group held-out
 * near-boundary hard
+* topology-held-out if implemented
 
 ---
 
@@ -1076,7 +1146,9 @@ Compare:
 * answer-only SFT
 * rationale SFT
 * counterfactual SFT
+* pairwise/ranking counterfactual SFT
 * mixed-task SFT
+* verifier-guided RL/GRPO
 
 ---
 
@@ -1408,8 +1480,11 @@ Ensure the dataset and paper are credible, reproducible, and review-ready.
 **Acceptance criteria**
 
 * No shared generator IDs between generator-held-out train/test.
+* No shared base object-pair IDs between object-pair-held-out train/test.
+* No shared assembly-group IDs between assembly-held-out train/test.
 * Near-duplicate scripts are detected where possible.
 * Counterfactual groups are not split across train/test unless intentionally used for a specific experiment.
+* Chamfer-distance or point-cloud geometry filtering is documented as optional future leakage control, not a v1 release blocker.
 
 ---
 
@@ -1486,8 +1561,10 @@ Deliverables:
 * Boundary-targeted generation
 * Cavity-targeted generation
 * Counterfactual groups
+* Counterfactual individual, pairwise, and ranking prompt formats
 * Random split
 * Generator-held-out split
+* Object-pair / assembly-group held-out split
 * Near-boundary hard split
 
 ---
@@ -1516,6 +1593,7 @@ Deliverables:
 * Answer-only SFT
 * Rationale SFT
 * Counterfactual SFT
+* Small verifier-guided RL/GRPO experiment
 * Evaluation across all splits
 * Ablation table
 
@@ -1625,8 +1703,9 @@ Stories:
 * 3.4 Generate boundary-targeted examples
 * 3.5 Generate cavity-targeted examples
 * 3.6 Generate counterfactual groups
+* 3.7 Materialize counterfactual prompt formats
 * 4.4 Compute bounding-box diagnostics
-* 6.5 Implement near-boundary hard split
+* 6.6 Implement near-boundary hard split
 
 Sprint output:
 
@@ -1640,7 +1719,7 @@ Sprint output:
 
 Stories:
 
-* 3.7 Generate multi-object assemblies
+* 3.8 Generate multi-object assemblies
 * 5.5 Implement pairwise multi-object prompt generator
 * 5.6 Implement ranking prompt generator
 * 5.7 Implement repair-direction prompt generator
@@ -1660,15 +1739,14 @@ Stories:
 
 * 6.1 Implement random split
 * 6.2 Implement generator-held-out split
-* 6.3 Implement topology-held-out split
-* 6.4 Implement operation-held-out split
-* 6.6 Balance dataset classes
+* 6.3 Implement object-pair and counterfactual group holdout
+* 6.7 Balance dataset classes
 * 9.1 Define final dataset schema
 * 9.2 Export dataset files
 
 Sprint output:
 
-* Dataset v0.1 with train/validation/test splits.
+* Dataset v0.1 with leakage-resistant train/validation/test splits.
 
 ---
 
@@ -1700,6 +1778,7 @@ Stories:
 * 7.6 Fine-tune small code model
 * 7.7 Fine-tune with structured rationales
 * 7.8 Evaluate counterfactual training
+* 7.9 Run verifier-guided RL/GRPO experiment
 * 10.5 Run ablation on training data
 * 10.6 Analyze failure cases
 
@@ -1762,7 +1841,10 @@ If you want the smallest credible version, implement only this first:
 * Volume bucket
 * Boundary-targeted examples
 * Counterfactual groups
+* Individual-row and pairwise counterfactual prompts
 * Random split
+* Generator-held-out split
+* Object-pair / assembly-group holdout
 * Near-boundary hard split
 
 ## MVP baselines
@@ -1771,11 +1853,12 @@ If you want the smallest credible version, implement only this first:
 * OBB or approximate OBB baseline
 * One zero-shot LLM
 * One fine-tuned open code model
+* One small verifier-guided RL/GRPO run if training budget allows
 * Exact CAD-kernel upper bound
 
 ## MVP paper claim
 
-> IntersectionQA shows that current language/code models struggle to infer geometric interference from CAD programs, especially on near-boundary, rotated, and concavity-heavy examples, and that counterfactual supervised training improves this capability.
+> IntersectionQA shows that current language/code models struggle to infer geometric interference from CAD programs, especially on near-boundary, rotated, and concavity-heavy examples, and that counterfactual SFT plus verifier-scored training can improve this capability.
 
 ---
 
@@ -1791,7 +1874,7 @@ If you want the smallest credible version, implement only this first:
 * Relation task
 * Near-boundary examples
 * Counterfactual groups
-* Random and hard splits
+* Random, generator-held-out, object-pair-held-out, and hard splits
 * AABB baseline
 * Zero-shot model evaluation
 * Dataset statistics
@@ -1801,10 +1884,11 @@ If you want the smallest credible version, implement only this first:
 
 * Volume buckets
 * Clearance buckets
-* Generator-held-out split
+* Pairwise/ranking counterfactual prompt formats
 * Cavity-targeted examples
 * OBB baseline
 * Fine-tuning experiment
+* Verifier-guided RL/GRPO experiment
 * Failure-case analysis
 * Dataset card
 
@@ -1817,10 +1901,12 @@ If you want the smallest credible version, implement only this first:
 * Rendered images
 * Multimodal evaluation
 * Convex-hull baseline
+* Topology-held-out split
 * Operation-held-out split
 
 ## P3 — Future work
 
+* Chamfer / point-cloud geometry leakage filtering
 * Motion/interference over trajectories
 * Assembly sequence feasibility
 * Constraint satisfaction

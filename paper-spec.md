@@ -174,9 +174,9 @@ translate object_b by +3.2 mm along X
 
 This converts the dataset from passive QA into CAD-agent training data.
 
-## 3. Add counterfactual pairs
+## 3. Add counterfactual groups
 
-A major missing piece: generate paired examples where only one parameter changes.
+IntersectionQA should include counterfactual groups: sets of examples that share the same base CAD objects and assembly structure but differ in exactly one controlled parameter.
 
 Example:
 
@@ -191,7 +191,98 @@ versus:
 box_b.translate((10.1, 0, 0))  # does not intersect
 ```
 
-This is extremely valuable because it forces sensitivity to exact geometry and transforms.
+This is extremely valuable because it forces sensitivity to exact geometry and transforms. It also makes the training and evaluation story clearer: the same source group can be materialized as individual QA rows, pairwise comparison prompts, or ranking prompts.
+
+### Default format: separate rows with shared metadata
+
+For normal supervised fine-tuning and standard evaluation, the two variants should usually be separate dataset rows.
+
+```json
+{
+  "id": "intersectionqa_000123",
+  "counterfactual_group_id": "cfg_00042",
+  "variant_id": "cfg_00042_v1",
+  "base_object_pair_id": "pair_00091",
+  "changed_parameter": "translation_x",
+  "changed_value": 9.9,
+  "task_type": "binary_interference",
+  "answer": "yes",
+  "labels": {
+    "relation": "intersecting",
+    "intersection_volume": 1.0,
+    "minimum_distance": 0.0
+  }
+}
+```
+
+```json
+{
+  "id": "intersectionqa_000124",
+  "counterfactual_group_id": "cfg_00042",
+  "variant_id": "cfg_00042_v2",
+  "base_object_pair_id": "pair_00091",
+  "changed_parameter": "translation_x",
+  "changed_value": 10.1,
+  "task_type": "binary_interference",
+  "answer": "no",
+  "labels": {
+    "relation": "disjoint",
+    "intersection_volume": 0.0,
+    "minimum_distance": 0.1
+  }
+}
+```
+
+Use this format for:
+
+* SFT
+* standard evaluation
+* binary classification
+* relation classification
+* volume and clearance bucket prediction
+
+### Derived format: pairwise comparison prompt
+
+For contrastive training and hard sensitivity evaluation, two variants from the same group can be placed into one prompt.
+
+```text
+You are given two assemblies.
+
+Assembly A:
+box_b is translated to (9.9, 0, 0)
+
+Assembly B:
+box_b is translated to (10.1, 0, 0)
+
+Which assembly has positive-volume interference?
+
+Answer:
+A
+B
+both
+neither
+```
+
+This format is useful for counterfactual SFT and RL because the verifier can score the selected option directly.
+
+### Derived format: ranking prompt
+
+For 3-5 variants:
+
+```text
+Rank these assemblies by normalized intersection volume, highest to lowest.
+
+A: box_b.translate((9.5, 0, 0))
+B: box_b.translate((9.9, 0, 0))
+C: box_b.translate((10.0, 0, 0))
+D: box_b.translate((10.2, 0, 0))
+
+Answer format: four letters.
+```
+
+Ranking prompts provide denser reward than binary prompts because partial order errors can receive partial credit.
+
+All examples from the same `counterfactual_group_id` must stay in the same train/validation/test split unless the experiment is explicitly designed to test interpolation. Otherwise the dataset leaks near-identical variants across splits.
 
 Recommended counterfactual dimensions:
 
@@ -256,25 +347,47 @@ This is the most useful for evaluation, but the most label-sensitive.
 
 If you use CADEvolve, DeepCAD-derived code, or generated CadQuery corpora, avoid splitting randomly by script. CADEvolve specifically expands generators into many scripts, so script-level random splits could leak near-identical geometry/program patterns between train and test. ([Hugging Face][2])
 
-Use split levels like:
+Random splitting is useful only as a sanity check. The credible split is group-based.
 
-| Split type       | What to hold out                                                            |
-| ---------------- | --------------------------------------------------------------------------- |
-| generator split  | entire base generator families                                              |
-| topology split   | unseen object classes/topologies                                            |
-| operation split  | scripts containing held-out CadQuery operations                             |
-| transform split  | unseen rotation/translation distributions                                   |
-| difficulty split | train on easy, test on harder                                               |
-| source split     | train on CADEvolve, test on separate human-written / reconstructed CadQuery |
+Minimum credible holdout for v1:
 
-For a paper, I would include at least:
+1. Random split for smoke-test and sanity-check comparisons.
+2. Generator-family split, where examples from the same source generator never cross train/test.
+3. Object-pair or assembly-group split, where variants using the same base object pair and transform family stay together.
+4. Counterfactual-group split, where all variants from the same counterfactual group stay together.
+5. Near-boundary hard test set, built from touching, epsilon-clearance, epsilon-interference, and AABB-failing cases.
 
-1. random split
-2. generator-family split
-3. held-out topology split
-4. hard near-boundary test set
+The split metadata should make these constraints explicit:
 
-The generator-family split is the credible one.
+```json
+{
+  "source_id": "cadevolve_...",
+  "generator_id": "gen_042",
+  "topology_class": "bracket",
+  "operation_signature": ["box", "extrude", "cut", "fillet"],
+  "base_object_pair_id": "pair_00091",
+  "assembly_group_id": "objectA_gen_042__objectB_gen_117__transform_family_003",
+  "counterfactual_group_id": "cfg_00042",
+  "split_group": "gen_042"
+}
+```
+
+Stronger leakage controls can be added later:
+
+* topology-held-out split
+* operation-held-out split
+* token or AST similarity filtering over CadQuery scripts
+* geometry similarity clustering over sampled point clouds
+* assembly-level geometry similarity filtering
+
+Do not make Chamfer-distance filtering a v1 dependency. It is useful for leakage audits, but it adds meshing, point sampling, normalization, nearest-neighbor search, and threshold calibration. For the first paper, generator-family holdout plus intact object-pair, assembly, and counterfactual groups is a much better complexity-to-value tradeoff.
+
+If geometry similarity filtering is added later, use it as a complement rather than a replacement for group-based splitting:
+
+* object-shape similarity: center each object independently by center of mass or bounding-box center, scale by bounding-box diagonal, optionally PCA-align, then compare point clouds
+* assembly-configuration similarity: center and scale the whole assembly jointly while preserving relative object transforms, then compare the combined point cloud
+
+This distinguishes duplicate object geometry from duplicate assembled configurations.
 
 ## 6. Include “shortcut baselines”
 
@@ -354,8 +467,15 @@ Suggested record schema:
 {
   "id": "intersectionqa_000123",
   "source": "cadevolve",
+  "task_type": "binary_interference",
   "generator_id_a": "...",
   "generator_id_b": "...",
+  "base_object_pair_id": "pair_00091",
+  "assembly_group_id": "pair_00091__transform_family_003",
+  "counterfactual_group_id": "cfg_00042",
+  "variant_id": "cfg_00042_v1",
+  "changed_parameter": "translation_x",
+  "changed_value": 8.7,
   "script_a": "...",
   "script_b": "...",
   "assembly_script": "...",
@@ -379,6 +499,7 @@ Suggested record schema:
   "convex_hull_overlap": true,
   "exact_overlap": true,
   "cadquery_ops": ["box", "extrude", "cut", "fillet"],
+  "answer": "yes",
   "split_group": "generator_042"
 }
 ```
@@ -539,19 +660,60 @@ reason: object_b passes through a cutout cavity
 
 This is more useful than generic chain-of-thought.
 
-### Method 4: verifier-guided RL / rejection sampling
+### Method 4: verifier-guided RL / GRPO / rejection sampling
 
-Have the model answer. Use exact CadQuery/OpenCASCADE execution as the verifier during training.
+IntersectionQA is unusually suitable for RL because the answer can be scored mechanically. Have the model answer, parse the final response, and use exact CadQuery/OpenCASCADE labels or a deterministic verifier to score the completion.
 
 Reward:
 
 * correct yes/no
 * correct relation class
 * correct volume bucket
+* correct clearance bucket
+* correct pair set in multi-object assemblies
+* correct ranking over counterfactual variants
+* repair transform that actually removes interference
 * penalize invalid final format
 * optionally reward calibrated confidence
 
-This is attractive because labels are cheap once the geometry pipeline exists.
+For GRPO-style training, sample multiple completions for the same prompt and score each completion with the verifier. Binary prompts are valid but sparse; ranking, repair, and multi-pair prompts provide better reward signal.
+
+Example rewards:
+
+```python
+def binary_reward(pred, truth):
+    return 1.0 if pred == truth else 0.0
+```
+
+```python
+def volume_bucket_reward(pred_bucket, true_bucket):
+    bucket_error = abs(pred_bucket.index - true_bucket.index)
+    return max(0.0, 1.0 - 0.25 * bucket_error)
+```
+
+```python
+def ranking_reward(pred_order, true_order):
+    return pairwise_ranking_accuracy(pred_order, true_order)
+```
+
+```python
+def repair_reward(predicted_transform, assembly):
+    repaired = apply_transform(assembly, predicted_transform)
+
+    if has_interference(repaired):
+        return -1.0
+
+    movement = transform_distance(predicted_transform)
+    return 1.0 / (1.0 + movement)
+```
+
+SFT is still useful as a warmup because it teaches the prompt format, output schema, and basic geometry vocabulary. The intended training story is:
+
+1. answer-only SFT on clean examples
+2. counterfactual SFT on near-identical variants
+3. verifier-guided RL/GRPO on ranking, repair, pairwise-interference, volume-bucket, and clearance tasks
+
+This is attractive because labels are cheap once the geometry pipeline exists and because RL optimizes directly against the same CAD-kernel semantics used for evaluation.
 
 ### Method 5: tool-use agent training
 
@@ -772,7 +934,7 @@ For a tight first paper, do not overbuild. I would ship:
 
    * random
    * generator-held-out
-   * topology-held-out
+   * object-pair / assembly-group held-out
    * near-boundary hard set
 
 Models to evaluate:
@@ -789,7 +951,7 @@ Training experiments:
 * SFT answer-only
 * SFT with structured traces
 * counterfactual pair training
-* verifier-guided rejection sampling or RL if time permits
+* verifier-guided RL/GRPO on at least one dense task such as ranking, repair, or multi-pair detection
 
 ## 18. The highest-value improvement
 
@@ -797,7 +959,7 @@ The single best improvement is:
 
 > Make IntersectionQA counterfactual and diagnostic, not just large.
 
-A smaller dataset with hard, controlled, near-boundary, topology-held-out examples will be more publishable than a million random yes/no intersections.
+A smaller dataset with hard, controlled, near-boundary, leakage-resistant examples will be more publishable than a million random yes/no intersections.
 
 The second best improvement is:
 

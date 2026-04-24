@@ -1,0 +1,815 @@
+schema_version: 1
+project: IntersectionQA
+source_documents:
+  - epics-and-stories.md
+  - implementation-complexity-priority-matrix.md
+  - benchmark-task-spec.md
+  - label_rules.md
+status_values:
+  - planned
+  - work-in-progress
+  - implemented
+status_definitions:
+  planned: Specified, but no concrete implementation or completed artifact is present yet.
+  work-in-progress: Partially specified or partially built, with remaining acceptance criteria open.
+  implemented: A concrete artifact exists for the story, but it is not necessarily final-pipeline verified.
+stable_definition: true only after the feature has been confirmed to work in the final dataset pipeline.
+ordering:
+  source: implementation-complexity-priority-matrix.md
+  rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
+current_snapshot:
+  date: "2026-04-24"
+  codebase_state: Specification-heavy skeleton; final generation/evaluation pipeline is not yet implemented.
+  stable_features: []
+
+epics:
+  - id: epic-1
+    title: Research scope and paper framing
+    scope: Freeze the research contribution, task scope, benchmark claims, and paper narrative.
+    priority: P0
+    implementation_complexity: Low
+    debugging_difficulty: Low
+    recommendation: Build now
+    status: implemented
+    stable: false
+    stories:
+      - id: "1.1"
+        title: Benchmark thesis
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+      - id: "1.2"
+        title: Task families
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+      - id: "1.3"
+        title: Evaluation regimes
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+      - id: "1.4"
+        title: Paper success metrics
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+
+  - id: epic-2
+    title: Dataset source ingestion
+    scope: Ingest CadQuery programs from external or generated sources and normalize them into a common representation.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: work-in-progress
+    stable: false
+    stories:
+      - id: "2.1"
+        title: Select initial sources
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: work-in-progress
+        stable: false
+      - id: "2.2"
+        title: Loader interface
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "2.3"
+        title: Normalize object functions
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "2.4"
+        title: Validate source CAD objects
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "2.5"
+        title: Synthetic primitive and motif source
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "2.6"
+        title: CADEvolve source loader
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+
+  - id: epic-3
+    title: Assembly generation
+    scope: Generate two-object and multi-object assemblies with controlled transforms, difficulty, and geometric relations.
+    priority: P0
+    implementation_complexity: High
+    debugging_difficulty: High
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "3.1"
+        title: Rigid transform representation
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "3.2"
+        title: Assembly script generator
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "3.3"
+        title: Random broad-placement examples
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "3.4"
+        title: Boundary-targeted examples
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "3.5"
+        title: Cavity-targeted examples
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "3.6"
+        title: Counterfactual groups
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "3.7"
+        title: Counterfactual prompt formats
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "3.8"
+        title: Multi-object assemblies
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Defer
+        status: planned
+        stable: false
+
+  - id: epic-4
+    title: Geometry labeling and verification
+    scope: Compute reliable labels using exact CAD-kernel operations and store diagnostic metadata.
+    priority: P0
+    implementation_complexity: High
+    debugging_difficulty: High
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "4.1"
+        title: Exact intersection volume
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "4.2"
+        title: Minimum clearance distance
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "4.3"
+        title: Relation classifier
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "4.4"
+        title: Bounding-box diagnostics
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "4.5"
+        title: Containment detection
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "4.6"
+        title: Label consistency validation
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+
+  - id: epic-5
+    title: Prompt and task generation
+    scope: Generate final prompts and labels for each task type in a stable, reproducible format.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "5.1"
+        title: Binary prompt generator
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "5.2"
+        title: Relation prompt generator
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "5.3"
+        title: Volume-bucket prompt generator
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "5.4"
+        title: Clearance-bucket prompt generator
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "5.5"
+        title: Pairwise multi-object prompt
+        priority: P2
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "5.6"
+        title: Ranking prompt generator
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "5.7"
+        title: Repair-direction prompt
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "5.8"
+        title: Tolerance-aware fit prompt
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+
+  - id: epic-6
+    title: Dataset splits and balancing
+    scope: Create robust train/test splits that prevent leakage and support meaningful evaluation.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "6.1"
+        title: Random split
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "6.2"
+        title: Generator-held-out split
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "6.3"
+        title: Object-pair and counterfactual holdout
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "6.4"
+        title: Topology-held-out split
+        priority: P2
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "6.5"
+        title: Operation-held-out split
+        priority: P2
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "6.6"
+        title: Near-boundary hard split
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "6.7"
+        title: Class balancing
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+
+  - id: epic-7
+    title: Baselines and model evaluation
+    scope: Evaluate models and heuristics to demonstrate benchmark difficulty and usefulness.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "7.1"
+        title: AABB baseline
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "7.2"
+        title: OBB baseline
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "7.3"
+        title: Convex-hull baseline
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "7.4"
+        title: Zero-shot LLM evaluation
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "7.5"
+        title: Few-shot LLM evaluation
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "7.6"
+        title: Fine-tune small code model
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "7.7"
+        title: Structured rationale fine-tune
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "7.8"
+        title: Counterfactual training
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "7.9"
+        title: Verifier-guided RL/GRPO
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "7.10"
+        title: Tool-assisted upper bound
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+
+  - id: epic-8
+    title: Rendering and multimodal extensions
+    scope: Optionally support visual prompts and visual analysis for CAD assemblies.
+    priority: P2
+    implementation_complexity: High
+    debugging_difficulty: Medium
+    recommendation: Defer
+    status: planned
+    stable: false
+    stories:
+      - id: "8.1"
+        title: Object and assembly renders
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "8.2"
+        title: Orthographic views
+        priority: P2
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+      - id: "8.3"
+        title: Multimodal prompt variant
+        priority: P2
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+
+  - id: epic-9
+    title: Dataset packaging and release
+    scope: Package the dataset in a reproducible and usable form.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Low
+    recommendation: Build now
+    status: work-in-progress
+    stable: false
+    stories:
+      - id: "9.1"
+        title: Final dataset schema
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: work-in-progress
+        stable: false
+      - id: "9.2"
+        title: Export JSONL files
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "9.3"
+        title: Dataset card
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "9.4"
+        title: Reproducibility scripts
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "9.5"
+        title: Versioning
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+
+  - id: epic-10
+    title: Paper experiments
+    scope: Run the experiments needed to support the claims in the paper.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "10.1"
+        title: Dataset statistics
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "10.2"
+        title: Baseline comparison table
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "10.3"
+        title: Task-family comparison
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "10.4"
+        title: Diagnostic subset analysis
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "10.5"
+        title: Training-data ablation
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+      - id: "10.6"
+        title: Failure-case analysis
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+
+  - id: epic-11
+    title: Paper writing
+    scope: Write and polish the final research paper.
+    priority: P0
+    implementation_complexity: Low
+    debugging_difficulty: Low
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "11.1"
+        title: Abstract
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.2"
+        title: Introduction
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.3"
+        title: Related work
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.4"
+        title: Dataset construction section
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.5"
+        title: Task section
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.6"
+        title: Experiments section
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.7"
+        title: Discussion
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.8"
+        title: Limitations
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "11.9"
+        title: Conclusion
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+
+  - id: epic-12
+    title: Repository and engineering infrastructure
+    scope: Create a usable codebase for dataset generation, evaluation, and release.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: work-in-progress
+    stable: false
+    stories:
+      - id: "12.1"
+        title: Repository structure
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: work-in-progress
+        stable: false
+      - id: "12.2"
+        title: Configuration system
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "12.3"
+        title: Logging and failure tracking
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "12.4"
+        title: Unit tests
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "12.5"
+        title: Smoke-test dataset generation
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+
+  - id: epic-13
+    title: Quality assurance and review
+    scope: Ensure the dataset and paper are credible, reproducible, and review-ready.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build now
+    status: planned
+    stable: false
+    stories:
+      - id: "13.1"
+        title: Manual audit sample
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "13.2"
+        title: Reproducibility audit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "13.3"
+        title: Leakage audit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+      - id: "13.4"
+        title: Reviewer-readiness checklist
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
