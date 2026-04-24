@@ -251,6 +251,7 @@ def _source_manifest(
 
 def _load_cadevolve_for_smoke(config: DatasetConfig):
     limit = config.smoke.object_validation_limit
+    offset = config.smoke.object_validation_offset
     member_index_cache_dir = (
         config.smoke.source_member_index_cache_dir
         if config.smoke.use_source_member_index_cache
@@ -260,7 +261,7 @@ def _load_cadevolve_for_smoke(config: DatasetConfig):
         config.cadevolve_archive,
         config.config_hash,
         member_index_cache_dir=member_index_cache_dir,
-    ).load(limit=limit)
+    ).load(limit=limit, offset=offset)
 
 
 def _geometry_label_cache_for_smoke(config: DatasetConfig) -> GeometryLabelCache | None:

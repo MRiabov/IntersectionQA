@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import multiprocessing as mp
 from queue import Empty
+import sys
 import time
 
 from intersectionqa.enums import FailureReason
@@ -108,7 +109,7 @@ def validate_source_objects_bounded(
             progress(len(results), len(records))
         return results
 
-    context = mp.get_context("spawn")
+    context = _validation_context()
     pending = list(enumerate(records))
     running: list[_RunningValidation] = []
     results: list[ObjectValidationRecord | None] = [None] * len(records)
@@ -177,7 +178,7 @@ def _validate_source_object_isolated(
     validated_at_version: str,
     timeout_seconds: float,
 ) -> ObjectValidationRecord:
-    context = mp.get_context("spawn")
+    context = _validation_context()
     queue: mp.Queue = context.Queue(maxsize=1)
     process = context.Process(target=_validation_worker, args=(record, queue))
     process.start()
@@ -287,6 +288,13 @@ def _validation_worker(record: SourceObjectRecord, queue: mp.Queue) -> None:
         queue.put({"status": "error", "failure_reason": exc.failure_reason.value})
     except Exception:
         queue.put({"status": "error", "failure_reason": FailureReason.UNKNOWN_ERROR.value})
+
+
+def _validation_context() -> mp.context.BaseContext:
+    main_file = getattr(sys.modules.get("__main__"), "__file__", None)
+    if main_file and main_file.startswith("<") and "fork" in mp.get_all_start_methods():
+        return mp.get_context("fork")
+    return mp.get_context("spawn")
 
 
 def _invalid_record(

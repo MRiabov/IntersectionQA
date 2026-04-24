@@ -53,6 +53,25 @@ def test_cadevolve_loader_sorts_members_before_limiting(tmp_path):
     ]
 
 
+def test_cadevolve_loader_applies_offset_after_sorting(tmp_path):
+    archive_path = tmp_path / "cadevolve.tar"
+    with tarfile.open(archive_path, "w") as archive:
+        for name in [
+            "./CADEvolve-P/z.py",
+            "./CADEvolve-P/a.py",
+            "./CADEvolve-P/m.py",
+        ]:
+            code = b"import cadquery as cq\nresult = cq.Workplane('XY').box(1, 1, 1)\n"
+            info = tarfile.TarInfo(name)
+            info.size = len(code)
+            archive.addfile(info, io.BytesIO(code))
+
+    result = CadevolveTarLoader(archive_path, "sha256:" + "0" * 64).load(limit=1, offset=1)
+
+    assert [record.source_path for record in result.records] == ["CADEvolve-P/m.py"]
+    assert [record.object_id for record in result.records] == ["obj_cadevolve_000001"]
+
+
 def test_cadevolve_loader_reuses_member_index_cache(tmp_path, monkeypatch):
     archive_path = tmp_path / "cadevolve.tar"
     with tarfile.open(archive_path, "w") as archive:
