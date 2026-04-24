@@ -18,9 +18,18 @@ intersectionqa-generate = "scripts.generate_dataset:main"
 intersectionqa-validate = "scripts.validate_dataset:main"
 intersectionqa-aabb-baseline = "scripts.evaluate_baseline:main"
 intersectionqa-evaluate-predictions = "scripts.evaluate_predictions:main"
+intersectionqa-audit-leakage = "scripts.audit_leakage:main"
 intersectionqa-stats = "scripts.dataset_stats:main"
 intersectionqa-inspect = "scripts.inspect_example:main"
+
+[tool.setuptools.packages.find]
+include = ["intersectionqa*", "scripts*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

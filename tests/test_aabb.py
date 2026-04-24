@@ -8,3 +8,5 @@ def test_aabb_baseline_runs_on_binary_rows():
     result = evaluate_aabb_binary(rows)
     assert result.total > 0
     assert 0.0 <= result.accuracy <= 1.0
+    assert result.per_relation_accuracy is not None
+    assert "disjoint" in result.per_relation_accuracy

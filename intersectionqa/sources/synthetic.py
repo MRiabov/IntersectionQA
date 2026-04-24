@@ -84,10 +84,16 @@ def synthetic_source_object(object_id: str, function_name: str, dimensions: tupl
     )
 
 
+def synthetic_source_records() -> list[SourceObjectRecord]:
+    return [
+        synthetic_source_object("obj_000001", "object_a", (10.0, 10.0, 10.0)),
+        synthetic_source_object("obj_000002", "object_b", (10.0, 10.0, 10.0)),
+        synthetic_source_object("obj_000003", "object_b", (6.0, 6.0, 6.0)),
+    ]
+
+
 def synthetic_fixtures(policy: LabelPolicy) -> list[SyntheticFixture]:
-    box10_a = synthetic_source_object("obj_000001", "object_a", (10.0, 10.0, 10.0))
-    box10_b = synthetic_source_object("obj_000002", "object_b", (10.0, 10.0, 10.0))
-    box6_b = synthetic_source_object("obj_000003", "object_b", (6.0, 6.0, 6.0))
+    box10_a, box10_b, box6_b = synthetic_source_records()
     bbox10 = box_aabb(10.0, 10.0, 10.0)
     bbox6 = box_aabb(6.0, 6.0, 6.0)
 
@@ -173,6 +179,7 @@ def synthetic_fixtures(policy: LabelPolicy) -> list[SyntheticFixture]:
 def fixture_geometry_records(policy: LabelPolicy, config_hash: str) -> list[GeometryRecord]:
     records: list[GeometryRecord] = []
     for index, fixture in enumerate(synthetic_fixtures(policy), start=1):
+        group = _fixture_group(index, fixture.name)
         labels, diagnostics = derive_labels(fixture.raw_geometry, policy)
         assembly = TwoObjectAssembly(
             fixture.object_a,
@@ -205,10 +212,10 @@ def fixture_geometry_records(policy: LabelPolicy, config_hash: str) -> list[Geom
                 source="synthetic",
                 object_a_id=fixture.object_a.object_id,
                 object_b_id=fixture.object_b.object_id,
-                base_object_pair_id=f"pair_{index:06d}",
-                assembly_group_id=f"asmgrp_{index:06d}",
-                counterfactual_group_id=f"cfg_{index:06d}",
-                variant_id=f"cfg_{index:06d}_v01",
+                base_object_pair_id=group["base_object_pair_id"],
+                assembly_group_id=group["assembly_group_id"],
+                counterfactual_group_id=group["counterfactual_group_id"],
+                variant_id=group["variant_id"],
                 changed_parameter="transform_b.translation[0]",
                 changed_value=fixture.changed_value,
                 transform_a=fixture.transform_a,
@@ -232,7 +239,45 @@ def fixture_geometry_records(policy: LabelPolicy, config_hash: str) -> list[Geom
                     "artifact_ids": ArtifactIds().model_dump(mode="json"),
                     "bbox_a": fixture.bbox_a.to_schema().model_dump(mode="json"),
                     "bbox_b": fixture.bbox_b.to_schema().model_dump(mode="json"),
+                    "fixture_name": fixture.name,
                 },
             )
         )
     return records
+
+
+def _fixture_group(index: int, name: str) -> dict[str, str]:
+    sweep_names = {
+        "separated_boxes": "v01",
+        "touching_boxes": "v02",
+        "tiny_overlap_boxes": "v03",
+        "near_miss_boxes": "v04",
+        "clear_overlap_boxes": "v05",
+    }
+    if name in sweep_names:
+        return {
+            "base_object_pair_id": "pair_000001",
+            "assembly_group_id": "asmgrp_000001",
+            "counterfactual_group_id": "cfg_000001",
+            "variant_id": f"cfg_000001_{sweep_names[name]}",
+        }
+    if name == "contained_boxes":
+        return {
+            "base_object_pair_id": "pair_000002",
+            "assembly_group_id": "asmgrp_000002",
+            "counterfactual_group_id": "cfg_000002",
+            "variant_id": "cfg_000002_v01",
+        }
+    if name == "rotated_disjoint_boxes":
+        return {
+            "base_object_pair_id": "pair_000003",
+            "assembly_group_id": "asmgrp_000003",
+            "counterfactual_group_id": "cfg_000003",
+            "variant_id": "cfg_000003_v01",
+        }
+    return {
+        "base_object_pair_id": f"pair_{index:06d}",
+        "assembly_group_id": f"asmgrp_{index:06d}",
+        "counterfactual_group_id": f"cfg_{index:06d}",
+        "variant_id": f"cfg_{index:06d}_v01",
+    }

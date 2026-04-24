@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
-from dataclasses import dataclass
 from typing import Iterable
 
-from intersectionqa.schema import GeometryRecord, PublicTaskRow
+from intersectionqa.schema import (
+    GeometryRecord,
+    GroupHoldoutRule,
+    LeakageAudit,
+    LeakageViolation,
+    PublicTaskRow,
+    SplitLabelDistributions,
+    SplitManifest,
+    SplitManifestSummary,
+)
 
 DEFAULT_SPLITS = [
     "train",
@@ -67,14 +75,6 @@ def _stable_bucket(value: str, seed: int, modulo: int) -> int:
     return int(digest[:12], 16) % modulo
 
 
-@dataclass(frozen=True)
-class LeakageAudit:
-    status: str
-    checked_group_fields: list[str]
-    violation_count: int
-    violations: list[dict[str, object]]
-
-
 def audit_group_leakage(
     rows: Iterable[PublicTaskRow],
     forbidden_pairs: list[tuple[str, str]] | None = None,
@@ -95,13 +95,13 @@ def audit_group_leakage(
             if value is not None:
                 split_values[row.split][field].add(value)
 
-    violations: list[dict[str, object]] = []
+    violations: list[LeakageViolation] = []
     for left, right in forbidden_pairs:
         for field in _fields_for_pair(left, right):
             overlap = sorted(split_values[left][field] & split_values[right][field])
             if overlap:
                 violations.append(
-                    {"split_pair": [left, right], "field": field, "values": overlap}
+                    LeakageViolation(split_pair=[left, right], field=field, values=overlap)
                 )
     return LeakageAudit(
         status="pass" if not violations else "fail",
@@ -118,60 +118,60 @@ def _fields_for_pair(left: str, right: str) -> list[str]:
     return fields
 
 
-def split_manifest(rows: list[PublicTaskRow]) -> dict[str, object]:
-    splits: dict[str, object] = {}
+def split_manifest(rows: list[PublicTaskRow]) -> SplitManifest:
+    splits: dict[str, SplitManifestSummary] = {}
     for split in DEFAULT_SPLITS:
         split_rows = [row for row in rows if row.split == split]
-        splits[split] = {
-            "row_count": len(split_rows),
-            "task_counts": _counts(row.task_type for row in split_rows),
-            "label_distributions": {
-                "relation": _counts(row.labels.relation for row in split_rows),
-                "binary_answer": _counts(
+        splits[split] = SplitManifestSummary(
+            row_count=len(split_rows),
+            task_counts=_counts(row.task_type for row in split_rows),
+            label_distributions=SplitLabelDistributions(
+                relation=_counts(row.labels.relation for row in split_rows),
+                binary_answer=_counts(
                     row.answer for row in split_rows if row.task_type == "binary_interference"
                 ),
-                "volume_bucket": _counts(
+                volume_bucket=_counts(
                     row.answer for row in split_rows if row.task_type == "volume_bucket"
                 ),
-            },
-            "generator_ids": sorted({row.generator_id for row in split_rows if row.generator_id}),
-            "base_object_pair_ids": sorted({row.base_object_pair_id for row in split_rows}),
-            "assembly_group_ids": sorted({row.assembly_group_id for row in split_rows}),
-            "counterfactual_group_ids": sorted(
+            ),
+            generator_ids=sorted({row.generator_id for row in split_rows if row.generator_id}),
+            base_object_pair_ids=sorted({row.base_object_pair_id for row in split_rows}),
+            assembly_group_ids=sorted({row.assembly_group_id for row in split_rows}),
+            counterfactual_group_ids=sorted(
                 {row.counterfactual_group_id for row in split_rows if row.counterfactual_group_id}
             ),
-            "group_holdout_rule_ids": ["counterfactual_inseparable", "object_pair_holdout"],
-        }
+            group_holdout_rule_ids=["counterfactual_inseparable", "object_pair_holdout"],
+        )
     audit = audit_group_leakage(rows)
-    return {
-        "dataset_version": "v0.1",
-        "split_names": DEFAULT_SPLITS,
-        "splits": splits,
-        "group_holdout_rules": [
-            {
-                "rule_id": "counterfactual_inseparable",
-                "description": "Rows sharing counterfactual_group_id must not cross splits.",
-                "group_fields": ["counterfactual_group_id"],
-                "forbidden_cross_split_pairs": [
+    return SplitManifest(
+        dataset_version="v0.1",
+        split_names=DEFAULT_SPLITS,
+        splits=splits,
+        group_holdout_rules=[
+            GroupHoldoutRule(
+                rule_id="counterfactual_inseparable",
+                description="Rows sharing counterfactual_group_id must not cross splits.",
+                group_fields=["counterfactual_group_id"],
+                forbidden_cross_split_pairs=[
                     ["train", "validation"],
                     ["train", "test_random"],
                     ["train", "test_near_boundary"],
                 ],
-                "status": audit.status,
-            },
-            {
-                "rule_id": "object_pair_holdout",
-                "description": "Rows sharing object-pair or assembly IDs must not cross object-pair tests.",
-                "group_fields": ["base_object_pair_id", "assembly_group_id"],
-                "forbidden_cross_split_pairs": [
+                status=audit.status,
+            ),
+            GroupHoldoutRule(
+                rule_id="object_pair_holdout",
+                description="Rows sharing object-pair or assembly IDs must not cross object-pair tests.",
+                group_fields=["base_object_pair_id", "assembly_group_id"],
+                forbidden_cross_split_pairs=[
                     ["train", "test_object_pair_heldout"],
                     ["validation", "test_object_pair_heldout"],
                 ],
-                "status": audit.status,
-            },
+                status=audit.status,
+            ),
         ],
-        "leakage_audit": audit.__dict__,
-    }
+        leakage_audit=audit,
+    )
 
 
 def _counts(values: Iterable[str]) -> dict[str, int]:
