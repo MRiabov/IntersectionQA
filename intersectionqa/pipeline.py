@@ -401,6 +401,16 @@ def _validate_sources_for_smoke(
                     f"cache_hits={cache_hits}, workers={worker_count}, elapsed={_elapsed(started)}"
                 )
 
+        def cache_completed(
+            missing_index: int,
+            _source: SourceObjectRecord,
+            record: ObjectValidationRecord,
+        ) -> None:
+            index, _original_source, cache_key = missing[missing_index]
+            records[index] = record
+            if cache is not None:
+                cache.set(cache_key, record)
+
         validated_missing = validate_source_objects_bounded(
             [source for _, source, _ in missing],
             config_hash=config.config_hash,
@@ -408,6 +418,7 @@ def _validate_sources_for_smoke(
             timeout_seconds=config.smoke.object_validation_timeout_seconds,
             worker_count=worker_count,
             progress=progress,
+            on_result=cache_completed,
         )
         for (index, _source, cache_key), record in zip(missing, validated_missing, strict=True):
             records[index] = record
