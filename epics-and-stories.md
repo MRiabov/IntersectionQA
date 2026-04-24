@@ -53,7 +53,7 @@ The roadmap reserves compatible later task types for:
 
 **Output**
 
-`benchmark-task-spec.md` describing task types, answer formats, parser behavior, and label derivation, with thresholds and bucket boundaries delegated to `label_rules.md`.
+`specs/benchmark-task-spec.md` describing task types, answer formats, parser behavior, and label derivation, with thresholds and bucket boundaries delegated to `specs/label_rules.md`.
 
 ---
 
@@ -121,7 +121,7 @@ Ingest CADEvolve CadQuery programs as the primary dataset source and normalize t
 
 **Output**
 
-`using-cadevolve-dataset-export.md` and the CADEvolve source-policy sections in `generation_policy.md`.
+`specs/using-cadevolve-dataset-export.md` and the CADEvolve source-policy sections in `specs/generation_policy.md`.
 
 ---
 
@@ -1518,9 +1518,9 @@ Checklist answers:
 
 Deliverables:
 
-* `benchmark-task-spec.md`
-* `label_rules.md`
-* `paper-spec.md`
+* `specs/benchmark-task-spec.md`
+* `specs/label_rules.md`
+* `specs/paper-spec.md`
 * Initial repo structure
 
 ---

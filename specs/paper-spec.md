@@ -6,8 +6,8 @@ CADEvolve is the primary source corpus for IntersectionQA because it provides ex
 
 This document captures the paper ambition and research narrative. For
 implementation, the v0.1 MVP is narrower than the full paper roadmap:
-`benchmark-task-spec.md`, `label_rules.md`, `schema.md`, and
-`generation_policy.md` are canonical for task scope, labels, schema fields, and
+`specs/benchmark-task-spec.md`, `specs/label_rules.md`, `specs/schema.md`, and
+`specs/generation_policy.md` are canonical for task scope, labels, schema fields, and
 generation rules. In particular, v0.1 implements `binary_interference`,
 `relation_classification`, and `volume_bucket`; clearance, pairwise, ranking,
 repair, and tolerance-fit tasks are reserved extensions unless a later release

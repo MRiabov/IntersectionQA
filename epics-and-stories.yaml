@@ -3,12 +3,12 @@ project: IntersectionQA
 source_documents:
   - epics-and-stories.md
   - implementation-complexity-priority-matrix.md
-  - benchmark-task-spec.md
-  - label_rules.md
-  - schema.md
-  - generation_policy.md
-  - paper-spec.md
-  - using-cadevolve-dataset-export.md
+  - specs/benchmark-task-spec.md
+  - specs/label_rules.md
+  - specs/schema.md
+  - specs/generation_policy.md
+  - specs/paper-spec.md
+  - specs/using-cadevolve-dataset-export.md
 status_values:
   - planned
   - work-in-progress

@@ -6,9 +6,9 @@ This file defines dataset generation policy for IntersectionQA. It specifies wha
 
 CADEvolve is the primary source corpus for real IntersectionQA dataset examples. The real benchmark should be built from executable CADEvolve CadQuery programs, not from a separate full synthetic CAD corpus.
 
-Generation proposes candidate object pairs, transforms, and task rows. Exact labels come from the geometry labeling pipeline and the threshold semantics in `label_rules.md`. For any candidate, exact CadQuery/OpenCASCADE-derived labels are final. Candidate strategy labels, bounding-box diagnostics, or intended perturbation class are never ground truth when they disagree with exact labels.
+Generation proposes candidate object pairs, transforms, and task rows. Exact labels come from the geometry labeling pipeline and the threshold semantics in `specs/label_rules.md`. For any candidate, exact CadQuery/OpenCASCADE-derived labels are final. Candidate strategy labels, bounding-box diagnostics, or intended perturbation class are never ground truth when they disagree with exact labels.
 
-Prompt/task semantics must remain consistent with `benchmark-task-spec.md`: code-only closed-book prompts expose object code and transforms, while official labels, diagnostics, thresholds, and failure reasons are stored outside the prompt text.
+Prompt/task semantics must remain consistent with `specs/benchmark-task-spec.md`: code-only closed-book prompts expose object code and transforms, while official labels, diagnostics, thresholds, and failure reasons are stored outside the prompt text.
 
 ## 2. MVP Generation Scope
 
@@ -50,7 +50,7 @@ For every source object record, store at least:
 
 All CADEvolve programs are untrusted Python. They must execute only inside isolated workers with timeouts and failure reporting. They must not run in the main generation process.
 
-The source loader must normalize common output conventions. A source program may expose its final shape as `result`, `shape`, `solid`, `part`, or another auditable CadQuery/CQ-compatible top-level value. If no usable output can be identified, reject the source object with `failure_reason: "missing_result_object"` or a more specific reason from `label_rules.md`.
+The source loader must normalize common output conventions. A source program may expose its final shape as `result`, `shape`, `solid`, `part`, or another auditable CadQuery/CQ-compatible top-level value. If no usable output can be identified, reject the source object with `failure_reason: "missing_result_object"` or a more specific reason from `specs/label_rules.md`.
 
 ## 4. CADEvolve Sampling Strategy
 
@@ -105,7 +105,7 @@ Required fixture examples:
 - contained boxes
 - simple ring or plate-with-hole where AABBs overlap but exact solids do not
 
-Fixture geometry should use simple, auditable dimensions in millimetres and should be traceable to expected labels in `label_rules.md`.
+Fixture geometry should use simple, auditable dimensions in millimetres and should be traceable to expected labels in `specs/label_rules.md`.
 
 ## 6. Object Validation Policy
 
@@ -119,7 +119,7 @@ A source object is accepted for candidate generation only if all of these are tr
 - the object is not degenerate under the active validation thresholds
 - object-level diagnostics can be serialized deterministically
 
-Rejected source objects must be recorded in a source validation manifest with a machine-readable failure reason. Use the failure categories in `label_rules.md` where possible, including:
+Rejected source objects must be recorded in a source validation manifest with a machine-readable failure reason. Use the failure categories in `specs/label_rules.md` where possible, including:
 
 - `source_parse_error`
 - `source_exec_error`
@@ -184,7 +184,7 @@ If values are rounded for prompt readability, the rounded values must be the val
 
 ## 9. Boundary and Epsilon Policy
 
-The active threshold policy comes from `label_rules.md` and must be stored with every dataset version. Generation may target boundary classes, but final relations are derived only from exact geometry fields and configured thresholds.
+The active threshold policy comes from `specs/label_rules.md` and must be stored with every dataset version. Generation may target boundary classes, but final relations are derived only from exact geometry fields and configured thresholds.
 
 Candidate perturbation classes:
 
@@ -297,7 +297,7 @@ Reject a candidate geometry record or task row when any required condition fails
 - missing required provenance, object-pair, assembly, or group IDs
 - missing or non-deterministic transform metadata
 - source code cannot be normalized into the prompt/task format
-- required exact label contradicts label consistency rules in `label_rules.md`
+- required exact label contradicts label consistency rules in `specs/label_rules.md`
 
 Rejected candidates must produce a failure reason and enough context to audit source, strategy, and attempted transform. Do not silently drop rejected candidates.
 

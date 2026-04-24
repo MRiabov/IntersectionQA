@@ -2,7 +2,7 @@
 
 This document freezes the task definitions for the first IntersectionQA implementation. It is intentionally implementation-facing: prompt generation, answer parsing, metrics, and dataset schema should be derivable from this file without guessing.
 
-Threshold constants, kernel tolerances, and exact numeric epsilon values belong in `label_rules.md`. This file defines task semantics, required fields, and answer contracts.
+Threshold constants, kernel tolerances, and exact numeric epsilon values belong in `specs/label_rules.md`. This file defines task semantics, required fields, and answer contracts.
 
 ## 1. Purpose
 
@@ -458,9 +458,9 @@ These task families are non-MVP. Their names, answers, and core semantics are re
 
 **Task purpose:** Predict the bucket for minimum positive clearance between two non-intersecting solids.
 
-**Input shown to model:** Object code, transforms, definition of clearance, fixed clearance buckets from `label_rules.md`, and exact answer format.
+**Input shown to model:** Object code, transforms, definition of clearance, fixed clearance buckets from `specs/label_rules.md`, and exact answer format.
 
-**Allowed answers:** Bucket labels defined in `label_rules.md`; expected starter labels are `touching`, `<1mm`, `1-5mm`, `5-20mm`, `>20mm`, plus an explicit intersecting/invalid policy if included.
+**Allowed answers:** Bucket labels defined in `specs/label_rules.md`; expected starter labels are `touching`, `<1mm`, `1-5mm`, `5-20mm`, `>20mm`, plus an explicit intersecting/invalid policy if included.
 
 **Exact answer format:** Exactly one canonical clearance bucket string.
 
@@ -504,7 +504,7 @@ These task families are non-MVP. Their names, answers, and core semantics are re
 
 **Exact answer format:** A permutation of all option letters, with no separators and no repeated letters.
 
-**Label derivation:** Sort options by stored `normalized_intersection` descending. Ties must be resolved by a deterministic policy in `label_rules.md` or excluded from the task.
+**Label derivation:** Sort options by stored `normalized_intersection` descending. Ties must be resolved by a deterministic policy in `specs/label_rules.md` or excluded from the task.
 
 **Evaluation metric:** Pairwise ranking accuracy. Exact-order accuracy may be reported secondarily. Always report invalid output rate.
 
@@ -580,7 +580,7 @@ Canonical answer grammars:
 
 ## 7. Relation Semantics
 
-The exact thresholds for volume epsilon, distance epsilon, and near-miss clearance belong in `label_rules.md`. The semantic meanings are fixed here:
+The exact thresholds for volume epsilon, distance epsilon, and near-miss clearance belong in `specs/label_rules.md`. The semantic meanings are fixed here:
 
 - `invalid`: Geometry failed or the label is unavailable.
 - `contained`: One solid is fully inside another, if containment detection is implemented.

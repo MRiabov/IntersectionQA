@@ -1054,7 +1054,7 @@ Schema-level checks:
 - Answers match labels for the task type.
 - `binary_interference` answers are `yes` for `intersecting` or `contained`, and `no` for `disjoint`, `touching`, or `near_miss`.
 - `relation_classification` answers equal `labels.relation`.
-- `volume_bucket` answers match the official bucket boundaries from `label_rules.md`.
+- `volume_bucket` answers match the official bucket boundaries from `specs/label_rules.md`.
 - Relations match `label_policy` using the official precedence: invalid, contained, intersecting, touching, near_miss, disjoint.
 - `labels.normalized_intersection` equals `labels.intersection_volume / min(labels.volume_a, labels.volume_b)` within configured numeric tolerance for valid positive-volume records.
 - `labels.normalized_intersection` is in `[0.0, 1.0 + epsilon_volume_ratio]` for valid records.

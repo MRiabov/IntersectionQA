@@ -2,7 +2,7 @@
 
 This document ranks the IntersectionQA implementation work by research/demo priority, implementation complexity, debugging difficulty, dependencies, likely modules, checks, risks, and build recommendation.
 
-It is based on `paper-spec.md`, `epics-and-stories.md`, and the current repo state.
+It is based on `specs/paper-spec.md`, `epics-and-stories.md`, and the current repo state.
 
 ## Assumptions
 
@@ -43,7 +43,7 @@ The specs imply this package structure:
 
 | Epic | Scope | P | Impl | Debug | Dependencies | Likely modules/files | Required checks | Key risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Research scope and paper framing | P0 | Low | Low | Existing specs | `benchmark-task-spec.md`, `label_rules.md`, `paper-spec.md` | Reviewer-objection checklist, frozen task definitions | Scope creep | Build now |
+| 1 | Research scope and paper framing | P0 | Low | Low | Existing specs | `specs/benchmark-task-spec.md`, `specs/label_rules.md`, `specs/paper-spec.md` | Reviewer-objection checklist, frozen task definitions | Scope creep | Build now |
 | 2 | Dataset source ingestion | P0 | Medium | Medium | Repo structure, schema | `sources/`, `schema.py`, `scripts/validate_sources.py` | Loader smoke tests, provenance checks, licensing notes | CADEvolve access/licensing, malformed scripts | Build now |
 | 3 | Assembly generation | P0 | High | High | Source objects, transforms, labels | `generation/`, `geometry/transforms.py` | Golden primitive assemblies, deterministic seeds | Transform convention bugs, trivial class distribution | Build now |
 | 4 | Geometry labeling and verification | P0 | High | High | CadQuery/OpenCASCADE | `geometry/cadquery_exec.py`, `geometry/labels.py`, `geometry/bbox.py` | Box-box golden tests, boolean failure logging, epsilon policy checks | Kernel tolerance, invalid solids, distance API reliability | Build now |
@@ -53,7 +53,7 @@ The specs imply this package structure:
 | 8 | Rendering and multimodal extensions | P2 | High | Medium | Geometry pipeline, rendering deps | `rendering/`, `prompts/multimodal.py` | Manual render audit, file linkage checks | Rendering stack friction, low MVP value | Defer |
 | 9 | Dataset packaging and release | P0 | Medium | Low | Schema, splits, generation | `export/`, `README.md`, dataset card | JSONL schema validation, version/config hash checks | Schema churn if done too late | Build now |
 | 10 | Paper experiments | P0 | Medium | Medium | Dataset, baselines, model runs | `evaluation/metrics.py`, `paper/`, result tables | Reproducible runs, result table scripts | Results may reveal weak benchmark difficulty | Build now |
-| 11 | Paper writing | P0 | Low | Low | Scope, dataset stats, results | `paper/`, `paper-spec.md` | Internal review, claims match evidence | Claims outrun implementation | Build now |
+| 11 | Paper writing | P0 | Low | Low | Scope, dataset stats, results | `paper/`, `specs/paper-spec.md` | Internal review, claims match evidence | Claims outrun implementation | Build now |
 | 12 | Repository and engineering infrastructure | P0 | Medium | Medium | None | package tree, `pyproject.toml`, `scripts/`, `tests/` | CI/smoke tests, import checks, lint if added | Overengineering before geometry works | Build now |
 | 13 | QA and review | P0 | Medium | Medium | Dataset export, diagnostics | `scripts/audit_dataset.py`, `tests/`, `docs/` | Manual audit sample, leakage audit, reproducibility audit | Hard examples mislabeled, silent leakage | Build now |
 
@@ -63,16 +63,16 @@ The specs imply this package structure:
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1.1 Benchmark thesis | P0 | Low | Low | Current specs | `paper-spec.md`, `benchmark-task-spec.md` | One-paragraph thesis matches MVP | Overbroad claims | Build now |
-| 1.2 Task families | P0 | Low | Low | Label definitions | `benchmark-task-spec.md`, `label_rules.md` | Each MVP task has answer format and metric; reserved tasks are marked later-scope | Too many P0 tasks | Build now |
-| 1.3 Evaluation regimes | P0 | Low | Low | Task families | `paper-spec.md` | Closed-book vs tool-assisted explicitly separated | Unfair baseline comparisons | Build now |
-| 1.4 Paper success metrics | P0 | Low | Low | Scope freeze | `paper-spec.md`, milestones | Paper-ready checklist exists | Moving target | Build now |
+| 1.1 Benchmark thesis | P0 | Low | Low | Current specs | `specs/paper-spec.md`, `specs/benchmark-task-spec.md` | One-paragraph thesis matches MVP | Overbroad claims | Build now |
+| 1.2 Task families | P0 | Low | Low | Label definitions | `specs/benchmark-task-spec.md`, `specs/label_rules.md` | Each MVP task has answer format and metric; reserved tasks are marked later-scope | Too many P0 tasks | Build now |
+| 1.3 Evaluation regimes | P0 | Low | Low | Task families | `specs/paper-spec.md` | Closed-book vs tool-assisted explicitly separated | Unfair baseline comparisons | Build now |
+| 1.4 Paper success metrics | P0 | Low | Low | Scope freeze | `specs/paper-spec.md`, milestones | Paper-ready checklist exists | Moving target | Build now |
 
 ### Epic 2: Dataset Source Ingestion
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2.1 Select initial sources | P0 | Low | Medium | Licensing/source access | `using-cadevolve-dataset-export.md`, `generation_policy.md`, `sources/README.md` | Source license and provenance recorded | CADEvolve may be inconvenient to access | Build now |
+| 2.1 Select initial sources | P0 | Low | Medium | Licensing/source access | `specs/using-cadevolve-dataset-export.md`, `specs/generation_policy.md`, `sources/README.md` | Source license and provenance recorded | CADEvolve may be inconvenient to access | Build now |
 | 2.2 Loader interface | P0 | Medium | Medium | Schema | `sources/base.py`, `sources/cadevolve.py`, `sources/synthetic.py` | Loader returns stable records, malformed records logged | CADEvolve archive paths and script conventions vary | Build now |
 | 2.3 Normalize object functions | P0 | Medium | High | Loader, execution sandbox | `sources/normalize.py`, `geometry/cadquery_exec.py` | Normalized functions execute and return solids | Arbitrary CadQuery scripts may have side effects | Build now |
 | 2.4 Validate source CAD objects | P0 | High | High | CadQuery install, normalized scripts | `geometry/cadquery_exec.py`, `sources/validation.py` | Positive volume, finite bbox, failure reasons | OpenCASCADE failures, invalid solids | Build now |
@@ -98,7 +98,7 @@ The specs imply this package structure:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 4.1 Exact intersection volume | P0 | High | High | CadQuery/OpenCASCADE, valid solids | `geometry/labels.py`, `geometry/cadquery_exec.py` | Box overlap/touch/disjoint/containment golden tests | Boolean tolerance and sliver solids | Build now |
 | 4.2 Minimum clearance distance | P0 | High | High | Valid solids, distance API | `geometry/labels.py`, `geometry/distance.py` | Known distance cases, touching threshold tests | CadQuery distance APIs may be brittle | Build now |
-| 4.3 Relation classifier | P0 | Medium | Medium | Volumes, distance, thresholds | `geometry/relations.py`, `label_rules.md` | Epsilon policy tests, relation snapshot tests | Ambiguous touching vs tiny overlap | Build now |
+| 4.3 Relation classifier | P0 | Medium | Medium | Volumes, distance, thresholds | `geometry/relations.py`, `specs/label_rules.md` | Epsilon policy tests, relation snapshot tests | Ambiguous touching vs tiny overlap | Build now |
 | 4.4 Bounding-box diagnostics | P0 | Medium | Low | Valid solids, transforms | `geometry/bbox.py`, `evaluation/aabb.py` | AABB overlap golden tests | OBB can remain a separate P1 baseline | Build now |
 | 4.5 Containment detection | P1 | High | High | Exact boolean labels | `geometry/labels.py` | Fully-contained primitive tests | Boolean classification edge cases | Build later |
 | 4.6 Label consistency validation | P0 | Medium | Medium | All raw label fields | `scripts/validate_dataset.py`, `geometry/validation.py` | Contradiction checks, schema checks | Silent mislabels if checks are weak | Build now |
@@ -155,7 +155,7 @@ The specs imply this package structure:
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 9.1 Final dataset schema | P0 | Medium | Medium | Task, label, split definitions | `schema.py`, `docs/schema.md` | JSON schema/Pydantic validation | Schema churn if delayed | Build now |
+| 9.1 Final dataset schema | P0 | Medium | Medium | Task, label, split definitions | `schema.py`, `specs/schema.md` | JSON schema/Pydantic validation | Schema churn if delayed | Build now |
 | 9.2 Export JSONL files | P0 | Medium | Low | Dataset records, splits | `export/jsonl.py`, `scripts/generate_dataset.py` | File counts, schema validation, stable IDs | Partial exports after failures | Build now |
 | 9.3 Dataset card | P1 | Low | Low | Data stats, sources, limitations | `dataset-card.md` | Matches released data and license | Missing limitation disclosure | Build later |
 | 9.4 Reproducibility scripts | P0 | Medium | Medium | Generation, validation, evaluation | `scripts/` | Commands work from clean checkout | Script/config drift | Build now |
@@ -176,10 +176,10 @@ The specs imply this package structure:
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 11.1-11.2 Abstract and introduction | P0 | Low | Low | Thesis and MVP scope | `paper/`, `paper-spec.md` | Claims match implemented tasks | Overclaiming | Build now |
+| 11.1-11.2 Abstract and introduction | P0 | Low | Low | Thesis and MVP scope | `paper/`, `specs/paper-spec.md` | Claims match implemented tasks | Overclaiming | Build now |
 | 11.3 Related work | P0 | Medium | Low | Citation gathering | `paper/related_work.md` | Citations verified | Missing relevant CAD benchmark | Build now |
 | 11.4 Dataset construction section | P0 | Medium | Low | Generation pipeline and stats | `paper/dataset.md` | Matches code and schema | Implementation/spec mismatch | Build now |
-| 11.5 Task section | P0 | Low | Low | Prompt specs | `paper/tasks.md`, `benchmark-task-spec.md` | Answer formats exact | Ambiguous labels | Build now |
+| 11.5 Task section | P0 | Low | Low | Prompt specs | `paper/tasks.md`, `specs/benchmark-task-spec.md` | Answer formats exact | Ambiguous labels | Build now |
 | 11.6 Experiments section | P0 | Medium | Medium | Results tables | `paper/experiments.md` | Tables regenerate | Weak or incomplete results | Build now |
 | 11.7-11.9 Discussion, limitations, conclusion | P0 | Low | Low | Failure analysis, QA checklist | `paper/discussion.md` | Limitations include kernel issues, CADEvolve source bias, and fixture limits | Hiding weaknesses | Build now |
 
