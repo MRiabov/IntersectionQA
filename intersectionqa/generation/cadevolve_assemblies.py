@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import sys
+import time
 from typing import Any
 
 from intersectionqa.enums import FailureReason, FailureStage, LabelStatus, Relation
@@ -11,7 +13,8 @@ from intersectionqa.geometry.bbox import AABB, transform_aabb
 from intersectionqa.geometry.cadquery_exec import (
     CadQueryExecutionError,
     cadquery_version,
-    measure_source_pair,
+    execute_source_object,
+    measure_shape_pair,
     ocp_version,
 )
 from intersectionqa.geometry.labels import derive_labels
@@ -54,6 +57,7 @@ def generate_cadevolve_geometry_records(
 ) -> CadevolveGeometryBuild:
     """Build a bounded deterministic set of exact-labeled CADEvolve assemblies."""
 
+    started = time.monotonic()
     valid_sources = [
         source
         for source in sorted(sources, key=lambda item: item.source_path or item.source_id)
@@ -62,16 +66,40 @@ def generate_cadevolve_geometry_records(
     records: list[GeometryRecord] = []
     failures: list[FailureRecord] = []
     if max_records <= 0 or len(valid_sources) < 2:
+        _progress(
+            "CADEvolve candidate generation skipped: "
+            f"valid_sources={len(valid_sources)}, max_records={max_records}"
+        )
         return CadevolveGeometryBuild(records=records, failures=failures)
 
+    measured_by_object_id, execution_failures = _execute_valid_sources(valid_sources, config_hash)
+    failures.extend(execution_failures)
+    valid_sources = [source for source in valid_sources if source.object_id in measured_by_object_id]
+    if len(valid_sources) < 2:
+        _progress(
+            "CADEvolve candidate generation skipped after source execution: "
+            f"valid_executed_sources={len(valid_sources)}, execution_failures={len(execution_failures)}"
+        )
+        return CadevolveGeometryBuild(records=records, failures=failures)
+
+    _progress(
+        f"generating CADEvolve geometry records: 0/{max_records}, "
+        f"valid_sources={len(valid_sources)}"
+    )
     pair_index = 0
+    attempts = 0
     for object_a, object_b in _deterministic_pairs(valid_sources):
         pair_index += 1
         validation_a = validations_by_object_id[object_a.object_id]
         validation_b = validations_by_object_id[object_b.object_id]
         for spec_index, spec in enumerate(_candidate_specs(validation_a, validation_b, policy), start=1):
             if len(records) >= max_records:
+                _progress(
+                    f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
+                    f"attempts={attempts}, failures={len(failures)}, elapsed={_elapsed(started)}"
+                )
                 return CadevolveGeometryBuild(records=records, failures=failures)
+            attempts += 1
             geometry_index = len(records) + 1
             try:
                 record = _measure_candidate(
@@ -79,6 +107,7 @@ def generate_cadevolve_geometry_records(
                     object_b,
                     validation_a,
                     validation_b,
+                    measured_by_object_id,
                     spec,
                     pair_index=pair_index,
                     spec_index=spec_index,
@@ -127,6 +156,15 @@ def generate_cadevolve_geometry_records(
                 )
                 continue
             records.append(record)
+            if len(records) == max_records or len(records) % 10 == 0:
+                _progress(
+                    f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
+                    f"attempts={attempts}, failures={len(failures)}, elapsed={_elapsed(started)}"
+                )
+    _progress(
+        f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
+        f"attempts={attempts}, failures={len(failures)}, elapsed={_elapsed(started)}"
+    )
     return CadevolveGeometryBuild(records=records, failures=failures)
 
 
@@ -136,6 +174,30 @@ def _is_validated(
 ) -> bool:
     validation = validations_by_object_id.get(source.object_id)
     return bool(validation and validation.valid and validation.bbox is not None)
+
+
+def _execute_valid_sources(
+    valid_sources: list[SourceObjectRecord],
+    config_hash: str,
+) -> tuple[dict[str, Any], list[FailureRecord]]:
+    started = time.monotonic()
+    total = len(valid_sources)
+    measured_by_object_id: dict[str, Any] = {}
+    failures: list[FailureRecord] = []
+    _progress(f"executing valid CADEvolve source shapes for reuse: 0/{total}")
+    for index, source in enumerate(valid_sources, start=1):
+        try:
+            measured_by_object_id[source.object_id] = execute_source_object(source)
+        except CadQueryExecutionError as exc:
+            failures.append(_source_execution_failure(source, index, exc.failure_reason, str(exc), config_hash))
+        except Exception as exc:
+            failures.append(_source_execution_failure(source, index, FailureReason.UNKNOWN_ERROR, str(exc), config_hash))
+        if index == total or index % 10 == 0:
+            _progress(
+                f"executing valid CADEvolve source shapes for reuse: {index}/{total}, "
+                f"executed={len(measured_by_object_id)}, failures={len(failures)}, elapsed={_elapsed(started)}"
+            )
+    return measured_by_object_id, failures
 
 
 def _deterministic_pairs(
@@ -205,6 +267,7 @@ def _measure_candidate(
     object_b: SourceObjectRecord,
     validation_a: ObjectValidationRecord,
     validation_b: ObjectValidationRecord,
+    measured_by_object_id: dict[str, Any],
     spec: _CandidateSpec,
     *,
     pair_index: int,
@@ -221,7 +284,13 @@ def _measure_candidate(
     transform_b = _bbox_guided_transform(local_a, local_b, spec)
     pair_object_a = _with_function_name(object_a, "object_a")
     pair_object_b = _with_function_name(object_b, "object_b")
-    raw_geometry = measure_source_pair(pair_object_a, pair_object_b, transform_a, transform_b, policy)
+    raw_geometry = measure_shape_pair(
+        measured_by_object_id[object_a.object_id].shape,
+        measured_by_object_id[object_b.object_id].shape,
+        transform_a,
+        transform_b,
+        policy,
+    )
     labels, diagnostics = derive_labels(raw_geometry, policy)
     assembly = TwoObjectAssembly(pair_object_a, pair_object_b, transform_a, transform_b)
     transform_hash = sha256_json(
@@ -395,6 +464,34 @@ def _failure_record(
     )
 
 
+def _source_execution_failure(
+    source: SourceObjectRecord,
+    index: int,
+    failure_reason: FailureReason,
+    error_summary: str,
+    config_hash: str,
+) -> FailureRecord:
+    return FailureRecord(
+        failure_id=f"fail_cadevolve_source_exec_{index:06d}",
+        stage=FailureStage.GEOMETRY_LABELING,
+        source="cadevolve",
+        source_id=source.source_id,
+        object_id=source.object_id,
+        geometry_id=None,
+        failure_reason=failure_reason,
+        error_summary=f"source shape execution for geometry cache failed: {error_summary}",
+        retry_count=0,
+        hashes=Hashes(
+            source_code_hash=source.hashes.source_code_hash,
+            object_hash=source.hashes.object_hash,
+            transform_hash=None,
+            geometry_hash=None,
+            config_hash=config_hash,
+            prompt_hash=None,
+        ),
+    )
+
+
 def _validation_summary(validation: ObjectValidationRecord) -> dict[str, Any]:
     return {
         "valid": validation.valid,
@@ -419,3 +516,11 @@ def _span(bbox: BoundingBox, axis: int) -> float:
 
 def _diagonal(bbox: BoundingBox) -> float:
     return sum((bbox.max[index] - bbox.min[index]) ** 2 for index in range(3)) ** 0.5
+
+
+def _progress(message: str) -> None:
+    print(f"[intersectionqa] {message}", file=sys.stderr, flush=True)
+
+
+def _elapsed(started: float) -> str:
+    return f"{time.monotonic() - started:.1f}s"

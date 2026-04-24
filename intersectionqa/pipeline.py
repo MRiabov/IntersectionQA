@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import sys
+import time
 
 from intersectionqa.enums import AuditStatus, FailureStage
 from intersectionqa.config import DatasetConfig
@@ -39,6 +41,10 @@ from intersectionqa.schema import (
 from intersectionqa.sources.cadevolve import CadevolveTarLoader
 from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
 from intersectionqa.sources.validation import validate_source_object
+from intersectionqa.sources.validation_cache import (
+    ObjectValidationCache,
+    object_validation_cache_key,
+)
 from intersectionqa.splits.grouped import (
     DEFAULT_SPLITS,
     assign_geometry_splits,
@@ -62,7 +68,12 @@ def build_smoke_geometry(config: DatasetConfig) -> tuple[list[GeometryRecord], S
 
 
 def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArtifacts:
+    started = time.monotonic()
     cadevolve = _load_cadevolve_for_smoke(config)
+    _progress(
+        f"loaded CADEvolve sources: {len(cadevolve.records)} records "
+        f"from {cadevolve.scanned_count} scanned members"
+    )
     records: list[GeometryRecord] = []
     source_records: list[SourceObjectRecord] = []
     object_validations: list[ObjectValidationRecord] = []
@@ -83,6 +94,12 @@ def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArti
         )
         records.extend(cadevolve_generation.records)
         failures.extend(cadevolve_generation.failures)
+        _progress(
+            "CADEvolve geometry generation complete: "
+            f"{len(cadevolve_generation.records)} records, "
+            f"{len(cadevolve_generation.failures)} generation failures, "
+            f"elapsed={_elapsed(started)}"
+        )
 
     synthetic_fixture_count = 0
     if config.smoke.use_synthetic_fixtures:
@@ -113,6 +130,7 @@ def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArti
         config_hash=config.config_hash,
         source_manifest=source_manifest,
     )
+    _progress(f"smoke geometry build complete: {len(records)} records, elapsed={_elapsed(started)}")
     return _SmokeGeometryArtifacts(
         records=records,
         report=report,
@@ -140,11 +158,16 @@ def build_smoke_rows(config: DatasetConfig) -> tuple[list[PublicTaskRow], SmokeR
 
 
 def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
+    started = time.monotonic()
     artifacts = _build_smoke_geometry_artifacts(config)
     split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
     rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
     validate_rows(rows)
     audit = audit_group_leakage(rows)
+    _progress(
+        f"materialized rows: {len(rows)} task rows from {len(artifacts.records)} geometry records, "
+        f"leakage={audit.status}, elapsed={_elapsed(started)}"
+    )
     report = SmokeRowsReport(
         **artifacts.report.model_dump(),
         task_rows=len(rows),
@@ -186,6 +209,7 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
     (output_dir / "smoke_report.json").write_text(
         smoke_report.model_dump_json(indent=2) + "\n", encoding="utf-8"
     )
+    _progress(f"dataset export complete: output_dir={output_dir}, elapsed={_elapsed(started)}")
     return smoke_report
 
 
@@ -228,15 +252,47 @@ def _validate_sources_for_smoke(
     config: DatasetConfig,
     source_records: list[SourceObjectRecord],
 ) -> list[ObjectValidationRecord]:
-    return [
-        validate_source_object(
+    started = time.monotonic()
+    total = len(source_records)
+    validation_version = "intersectionqa:v0.1-smoke"
+    cache = (
+        ObjectValidationCache(config.smoke.object_validation_cache_dir)
+        if config.smoke.use_object_validation_cache
+        else None
+    )
+    if total:
+        cache_status = f"cache={config.smoke.object_validation_cache_dir}" if cache else "cache=disabled"
+        _progress(f"validating source objects: 0/{total}, {cache_status}")
+    records: list[ObjectValidationRecord] = []
+    cache_hits = 0
+    for index, source in enumerate(source_records, start=1):
+        cache_key = object_validation_cache_key(
             source,
-            config_hash=config.config_hash,
-            validated_at_version="intersectionqa:v0.1-smoke",
             timeout_seconds=config.smoke.object_validation_timeout_seconds,
+            validated_at_version=validation_version,
         )
-        for source in source_records
-    ]
+        cached = cache.get(cache_key) if cache else None
+        if cached is not None:
+            record = cached
+            cache_hits += 1
+        else:
+            record = validate_source_object(
+                source,
+                config_hash=config.config_hash,
+                validated_at_version=validation_version,
+                timeout_seconds=config.smoke.object_validation_timeout_seconds,
+            )
+            if cache is not None:
+                cache.set(cache_key, record)
+        records.append(record)
+        if index == total or index % 10 == 0:
+            valid_count = sum(1 for record in records if record.valid)
+            _progress(
+                f"validating source objects: {index}/{total}, "
+                f"valid={valid_count}, invalid={index - valid_count}, "
+                f"cache_hits={cache_hits}, elapsed={_elapsed(started)}"
+            )
+    return records
 
 
 def _set_source_validation_counts(
@@ -300,3 +356,11 @@ def _counts(values: object) -> dict[str, int]:
     for value in values:  # type: ignore[assignment]
         counts[str(value)] = counts.get(str(value), 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _progress(message: str) -> None:
+    print(f"[intersectionqa] {message}", file=sys.stderr, flush=True)
+
+
+def _elapsed(started: float) -> str:
+    return f"{time.monotonic() - started:.1f}s"
