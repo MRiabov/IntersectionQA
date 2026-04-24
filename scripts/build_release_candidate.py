@@ -23,8 +23,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--cadevolve-archive", type=Path, default=None)
-    parser.add_argument("--cadevolve-source-cache-root", type=Path, default=None)
+    parser.add_argument(
+        "--cadevolve-archive",
+        type=Path,
+        default=None,
+        help="DEPRECATED: bootstrap-only tar archive used to prepare an extracted source directory",
+    )
+    parser.add_argument("--cadevolve-source-dir", type=Path, default=None)
+    parser.add_argument(
+        "--cadevolve-source-cache-root",
+        type=Path,
+        default=None,
+        help="DEPRECATED: alias for --cadevolve-source-dir",
+    )
     parser.add_argument("--shard-count", type=int, default=None)
     parser.add_argument("--source-shard-size", type=int, default=None)
     parser.add_argument("--force", action="store_true")
@@ -36,6 +47,8 @@ def main() -> None:
     config.output_dir = args.output_dir
     if args.cadevolve_archive is not None:
         config.cadevolve_archive = args.cadevolve_archive
+    if args.cadevolve_source_dir is not None:
+        config.smoke.cadevolve_source_dir = args.cadevolve_source_dir
     if args.cadevolve_source_cache_root is not None:
         config.smoke.cadevolve_source_cache_root = args.cadevolve_source_cache_root
 

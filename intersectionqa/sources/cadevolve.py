@@ -1,4 +1,4 @@
-"""CADEvolve tar archive source loader."""
+"""CADEvolve source loaders."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import re
 import tarfile
 from pathlib import Path
 from typing import Any
+
+from typing_extensions import deprecated
 
 from intersectionqa.hashing import sha256_json, sha256_text
 from intersectionqa.schema import Hashes, SourceObjectRecord
@@ -37,14 +39,19 @@ class CadevolveTarLoader:
         member_index_cache_dir: Path | None = None,
         extracted_source_cache_dir: Path | None = None,
         extracted_source_cache_root: Path | None = None,
+        source_dir: Path | None = None,
     ) -> None:
         self.archive_path = archive_path
         self.config_hash = config_hash
         self.member_index_cache_dir = member_index_cache_dir
         self.extracted_source_cache_dir = extracted_source_cache_dir
         self._explicit_extracted_source_cache_root = extracted_source_cache_root
+        self.source_dir = source_dir
 
     def load(self, limit: int | None = None, offset: int = 0) -> SourceLoadResult:
+        if self.source_dir is not None:
+            return self._load_source_dir(limit=limit, offset=offset)
+
         cache_root = self.extracted_source_cache_root()
         explicit_cache_root = self._explicit_extracted_source_cache_root is not None
         archive_available = self.archive_path is not None and self.archive_path.exists()
@@ -89,6 +96,35 @@ class CadevolveTarLoader:
                     records.append(_source_object_record(source_path, code, len(records) + 1, self.config_hash))
         return SourceLoadResult(records=records, failures=[], scanned_count=len(selected_members))
 
+    def _load_source_dir(self, limit: int | None, offset: int) -> SourceLoadResult:
+        if self.source_dir is None:
+            return SourceLoadResult(records=[], failures=[], scanned_count=0)
+        if not self.source_dir.exists() or not self.source_dir.is_dir():
+            raise FileNotFoundError(f"CADEvolve source directory not found: {self.source_dir}")
+
+        source_files = _build_executable_source_file_index(self.source_dir)
+        if not source_files:
+            raise FileNotFoundError(
+                "CADEvolve source directory contains no executable source files under "
+                f"{EXECUTABLE_PREFIXES}: {self.source_dir}"
+            )
+        offset = max(0, offset)
+        selected_files = (
+            source_files[offset : offset + limit]
+            if limit is not None
+            else source_files[offset:]
+        )
+        records = [
+            _source_object_record(
+                str(entry["path"]),
+                Path(entry["filesystem_path"]).read_text(encoding="utf-8", errors="replace"),
+                index,
+                self.config_hash,
+            )
+            for index, entry in enumerate(selected_files, start=1)
+        ]
+        return SourceLoadResult(records=records, failures=[], scanned_count=len(selected_files))
+
     def extracted_source_cache_root(self) -> Path | None:
         if self._explicit_extracted_source_cache_root is not None:
             return self._explicit_extracted_source_cache_root
@@ -99,6 +135,7 @@ class CadevolveTarLoader:
         key = sha256_json(_archive_fingerprint(self.archive_path)).removeprefix("sha256:")
         return self.extracted_source_cache_dir / key[:2] / key
 
+    @deprecated("Tar-based extraction is deprecated; load from an extracted CADEvolve source directory.")
     def prepare_extracted_sources(
         self,
         *,
@@ -277,6 +314,26 @@ def _build_executable_member_index(archive_path: Path) -> list[dict[str, Any]]:
             ),
             key=lambda item: item["path"],
         )
+
+
+def _build_executable_source_file_index(source_dir: Path) -> list[dict[str, Any]]:
+    root = source_dir.resolve()
+    return sorted(
+        (
+            {
+                "path": _normalized_path(str(path.resolve().relative_to(root))),
+                "size": path.stat().st_size,
+                "filesystem_path": str(path),
+            }
+            for path in source_dir.rglob("*.py")
+            if _is_executable_source_path(_normalized_path(str(path.resolve().relative_to(root))))
+        ),
+        key=lambda item: item["path"],
+    )
+
+
+def _is_executable_source_path(source_path: str) -> bool:
+    return source_path.endswith(".py") and source_path.startswith(EXECUTABLE_PREFIXES)
 
 
 def _read_indexed_member(raw_archive: Any, member: dict[str, Any]) -> bytes:
