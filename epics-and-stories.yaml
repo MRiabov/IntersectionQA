@@ -23,8 +23,21 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-24"
-  codebase_state: Specification-heavy skeleton; final generation/evaluation pipeline is not yet implemented.
-  stable_features: []
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only.
+  stable_features:
+    - package_structure
+    - pydantic_schema_models
+    - config_and_logging_primitives
+    - synthetic_smoke_fixtures
+    - cadquery_object_validation
+    - exact_cadquery_pair_measurement
+    - cadevolve_bbox_guided_assembly_generation
+    - cadevolve_public_task_generation
+    - mvp_prompt_generation
+    - jsonl_export_and_validation
+    - group_safe_splits
+    - aabb_diagnostic_baseline
+    - smoke_dataset_generation
 
 epics:
   - id: epic-1
@@ -86,7 +99,7 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "2.2"
         title: Loader interface
@@ -102,7 +115,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: High
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "2.4"
         title: Validate source CAD objects
@@ -161,7 +174,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
       - id: "3.4"
         title: Boundary-targeted examples
@@ -169,7 +182,7 @@ epics:
         implementation_complexity: High
         debugging_difficulty: High
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "3.5"
         title: Cavity-targeted examples
@@ -185,7 +198,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "3.7"
         title: Counterfactual prompt formats
@@ -211,7 +224,7 @@ epics:
     implementation_complexity: High
     debugging_difficulty: High
     recommendation: Build now
-    status: work-in-progress
+    status: implemented
     stable: false
     stories:
       - id: "4.1"
@@ -220,7 +233,7 @@ epics:
         implementation_complexity: High
         debugging_difficulty: High
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
       - id: "4.2"
         title: Minimum clearance distance
@@ -228,7 +241,7 @@ epics:
         implementation_complexity: High
         debugging_difficulty: High
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
       - id: "4.3"
         title: Relation classifier
@@ -252,7 +265,7 @@ epics:
         implementation_complexity: High
         debugging_difficulty: High
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "4.6"
         title: Label consistency validation
@@ -756,7 +769,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "12.4"
         title: Unit tests
