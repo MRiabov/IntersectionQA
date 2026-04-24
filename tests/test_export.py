@@ -1,4 +1,6 @@
-from intersectionqa.config import DatasetConfig
+import pytest
+
+from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.export.jsonl import (
     read_jsonl,
     read_metadata,
@@ -45,3 +47,32 @@ def test_smoke_export_writes_manifests(tmp_path):
     parquet_rows = read_parquet_rows(tmp_path / "parquet" / "train.parquet")
     assert parquet_rows
     assert {"id", "prompt", "answer", "labels_json"} <= set(parquet_rows[0])
+
+
+def test_public_row_limit_caps_exported_rows(tmp_path):
+    config = DatasetConfig(
+        output_dir=tmp_path,
+        smoke=SmokeConfig(
+            include_cadevolve_if_available=False,
+            public_row_limit=10,
+        ),
+    )
+
+    report = write_smoke_dataset(config)
+
+    assert report.task_rows == 10
+    assert len(validate_dataset_dir(tmp_path)) == 10
+    assert sum(report.task_counts.values()) == 10
+
+
+def test_public_row_limit_fails_when_underproduced(tmp_path):
+    config = DatasetConfig(
+        output_dir=tmp_path,
+        smoke=SmokeConfig(
+            include_cadevolve_if_available=False,
+            public_row_limit=100,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="public_row_limit=100"):
+        write_smoke_dataset(config)
