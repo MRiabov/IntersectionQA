@@ -2,7 +2,7 @@
 
 ## Product goal
 
-Deliver **IntersectionQA**, a research paper and accompanying dataset for evaluating and training models on CAD-code spatial reasoning, especially interference, contact, clearance, intersection-volume estimation, ranking, and repair-direction prediction from CadQuery assemblies.
+Deliver **IntersectionQA**, a research paper and accompanying dataset for evaluating and training models on CAD-code spatial reasoning, especially interference, contact, clearance, and intersection-volume estimation from CadQuery assemblies. The v0.1 MVP focuses on two-object closed-book tasks; ranking, repair-direction, tolerance-fit, multimodal, and multi-object tasks remain reserved extensions unless a later release promotes them.
 
 ---
 
@@ -37,11 +37,14 @@ IntersectionQA tests whether language and code models understand the spatial con
 
 **Acceptance criteria**
 
-The benchmark includes at least:
+The v0.1 MVP includes:
 
 * Binary interference classification
 * Relation classification
 * Intersection-volume bucket prediction
+
+The roadmap reserves compatible later task types for:
+
 * Clearance bucket prediction
 * Multi-object pairwise interference
 * Ranking by normalized intersection volume
@@ -50,7 +53,7 @@ The benchmark includes at least:
 
 **Output**
 
-A `tasks.md` specification describing all task types, answer formats, and label rules.
+`benchmark-task-spec.md` describing task types, answer formats, parser behavior, and label derivation, with thresholds and bucket boundaries delegated to `label_rules.md`.
 
 ---
 
@@ -118,7 +121,7 @@ Ingest CADEvolve CadQuery programs as the primary dataset source and normalize t
 
 **Output**
 
-`data_sources.md`
+`using-cadevolve-dataset-export.md` and the CADEvolve source-policy sections in `generation_policy.md`.
 
 ---
 
@@ -464,19 +467,17 @@ near_miss_threshold = 1.0
 
 **Acceptance criteria**
 
-For each pair, store:
+For each v0.1 pair, store at least:
 
 ```json
 {
   "aabb_overlap": true,
-  "obb_overlap": true,
-  "convex_hull_overlap": false,
   "exact_overlap": true
 }
 ```
 
 * AABB baseline can be evaluated.
-* OBB baseline can be evaluated or approximated.
+* OBB and convex-hull diagnostics can be added by later baseline jobs when implemented.
 * Cases where heuristic and exact labels disagree are tagged.
 
 ---
@@ -1517,9 +1518,9 @@ Checklist answers:
 
 Deliverables:
 
-* `tasks.md`
+* `benchmark-task-spec.md`
 * `label_rules.md`
-* `paper_outline.md`
+* `paper-spec.md`
 * Initial repo structure
 
 ---
@@ -1538,19 +1539,20 @@ Deliverables:
 
 ---
 
-## Milestone 3 — Full task prototype
+## Milestone 3 — MVP task prototype
 
-**Goal:** Support the main benchmark tasks.
+**Goal:** Support the v0.1 benchmark tasks.
 
 Deliverables:
 
 * Binary task
 * Relation task
 * Volume bucket task
-* Clearance task
-* Ranking task
-* Repair-direction task
 * Dataset schema v0.1
+
+Clearance, ranking, repair-direction, tolerance-fit, and multi-object prompt
+families remain reserved in the schema and task spec, but are later milestones
+rather than v0.1 MVP blockers.
 
 ---
 
@@ -1676,7 +1678,9 @@ Stories:
 
 Sprint output:
 
-* Validated labels for binary, relation, volume, and clearance tasks.
+* Validated labels for binary, relation, and volume-bucket tasks.
+* Minimum-distance labels are available where needed to distinguish `disjoint`,
+  `touching`, and `near_miss`; clearance-bucket prompts remain P1.
 
 ---
 
@@ -1718,7 +1722,7 @@ Sprint output:
 
 ---
 
-## Sprint 5 — Multi-object, ranking, and repair
+## Sprint 5 — Reserved task extensions
 
 **Duration:** 1 week
 
@@ -1732,7 +1736,8 @@ Stories:
 
 Sprint output:
 
-* Full IntersectionQA task family implemented.
+* Optional reserved task families implemented only after the v0.1 code-only
+  two-object pipeline, splits, validation, and baselines are stable.
 
 ---
 

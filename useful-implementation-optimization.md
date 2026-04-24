@@ -99,8 +99,8 @@ If optional artifacts are produced, link them by stable content IDs, not local a
 ```json
 {
   "artifact_ids": {
-    "debug_step": null,
-    "render_iso": "render_sha256_..."
+    "debug_step_id": null,
+    "render_iso_id": "render_sha256_..."
   }
 }
 ```
@@ -130,11 +130,13 @@ Example internal geometry record:
   "variant_id": "cfg_000008_v03",
   "transform_a": {
     "translation": [0.0, 0.0, 0.0],
-    "rotation_xyz_deg": [0.0, 0.0, 0.0]
+    "rotation_xyz_deg": [0.0, 0.0, 0.0],
+    "rotation_order": "XYZ"
   },
   "transform_b": {
     "translation": [9.95, 0.0, 0.0],
-    "rotation_xyz_deg": [0.0, 0.0, 0.0]
+    "rotation_xyz_deg": [0.0, 0.0, 0.0],
+    "rotation_order": "XYZ"
   },
   "labels": {
     "volume_a": 1000.0,
@@ -142,14 +144,20 @@ Example internal geometry record:
     "intersection_volume": 5.0,
     "normalized_intersection": 0.005,
     "minimum_distance": 0.0,
-    "relation": "intersecting"
+    "relation": "intersecting",
+    "contained": false,
+    "contains_a_in_b": false,
+    "contains_b_in_a": false
   },
   "diagnostics": {
     "aabb_overlap": true,
     "exact_overlap": true,
+    "boolean_status": "ok",
+    "distance_status": "skipped_positive_overlap",
     "label_status": "ok",
     "failure_reason": null
-  }
+  },
+  "difficulty_tags": ["axis_aligned", "near_boundary", "tiny_overlap"]
 }
 ```
 
@@ -170,8 +178,11 @@ Example public task row:
   },
   "diagnostics": {
     "aabb_overlap": true,
-    "difficulty": "near_boundary"
+    "exact_overlap": true,
+    "label_status": "ok",
+    "failure_reason": null
   },
+  "difficulty_tags": ["near_boundary"],
   "split": "train"
 }
 ```
@@ -189,7 +200,9 @@ Recommended hashes:
 - `config_hash`: full generation config
 - `prompt_hash`: prompt template version plus geometry IDs
 
-The geometry hash should include tolerance settings. A change to `epsilon_volume`, `epsilon_distance`, or near-miss thresholds can change relation labels and must invalidate affected cache entries.
+The geometry hash should include tolerance settings. A change to
+`epsilon_volume_ratio`, `epsilon_distance_mm`, or `near_miss_threshold_mm` can
+change relation labels and must invalidate affected cache entries.
 
 Do not cache only final task rows. Cache the expensive object validation and geometry label records so prompt formats can be regenerated cheaply.
 

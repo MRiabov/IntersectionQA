@@ -222,6 +222,29 @@ worker_crash
 unknown_error
 ```
 
+Canonical v0.1 `difficulty_tags` and diagnostic subset tags:
+
+```text
+axis_aligned
+rotated
+cadevolve_simple
+cadevolve_compound
+compound_boolean
+cavity_targeted
+contact_vs_interference
+near_boundary
+tiny_overlap
+near_miss
+aabb_exact_disagreement
+contained
+primitive_fixture
+invalid
+```
+
+Tags are multi-label diagnostics. Use `aabb_exact_disagreement` when a cheap
+bounding-box or broad-phase signal disagrees with the exact relation, for
+example AABBs overlap but exact solids are `disjoint` or `near_miss`.
+
 ## 4. Source Object Record
 
 Source object records are internal normalized records for one CAD object. They are generated before object validation and before assembly generation.
@@ -350,7 +373,7 @@ Geometry label records are internal expensive records for one assembled object p
 | `assembly_script` | string | yes | no | Complete deterministic script or script fragment sufficient to reconstruct the assembly from normalized object functions. |
 | `labels` | object | yes | no | Raw geometry values and derived relation fields. See below. |
 | `diagnostics` | object | yes | no | Computation statuses and consistency diagnostics. See below. |
-| `difficulty_tags` | array of strings | yes | no | Tags such as `axis_aligned`, `rotated`, `compound`, `cavity_targeted`, `near_boundary`, `tiny_overlap`, `contact_vs_interference`, or `aabb_overlap_exact_disjoint`. |
+| `difficulty_tags` | array of strings | yes | no | Canonical difficulty and diagnostic tags from Section 3. |
 | `label_policy` | `LabelPolicy` | yes | no | Threshold policy used for this record. |
 | `hashes` | `Hashes` | yes | no | `object_hash`, `transform_hash`, `geometry_hash`, and `config_hash` must be non-null. |
 | `metadata` | object | yes | no | Generation strategy, seeds, optional artifact IDs, source details, and debug metadata. |
@@ -482,9 +505,9 @@ The compact public-row examples below use primitive fixture code so the geometry
 | `changed_value` | string, number, boolean, array, object, or null | yes | yes | Changed parameter value. Null for non-counterfactual examples. |
 | `labels` | object | yes | no | Raw geometry labels needed for evaluation and slicing. Same core fields as geometry `labels`. |
 | `diagnostics` | object | yes | no | Computation diagnostics needed for audits and slicing. Same core fields as geometry `diagnostics`. |
-| `difficulty_tags` | array of strings | yes | no | Difficulty and diagnostic subset tags. Empty array is allowed. |
+| `difficulty_tags` | array of strings | yes | no | Canonical difficulty and diagnostic subset tags from Section 3. Empty array is allowed. |
 | `label_policy` | `LabelPolicy` | yes | no | Label policy used to derive `labels` and `answer`. |
-| `hashes` | `Hashes` | yes | no | `source_code_hash`, `geometry_hash`, `config_hash`, and `prompt_hash` must be non-null for public rows. |
+| `hashes` | `Hashes` | yes | no | `source_code_hash`, `object_hash`, `transform_hash`, `geometry_hash`, `config_hash`, and `prompt_hash` must be non-null for public rows. |
 | `metadata` | object | yes | no | Split metadata, prompt template version, source details, optional artifact IDs, and task-specific extras. |
 
 For non-counterfactual examples, `counterfactual_group_id`, `variant_id`, `changed_parameter`, and `changed_value` are required keys with value `null`.

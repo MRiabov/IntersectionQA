@@ -5,6 +5,10 @@ source_documents:
   - implementation-complexity-priority-matrix.md
   - benchmark-task-spec.md
   - label_rules.md
+  - schema.md
+  - generation_policy.md
+  - paper-spec.md
+  - using-cadevolve-dataset-export.md
 status_values:
   - planned
   - work-in-progress
@@ -127,7 +131,7 @@ epics:
 
   - id: epic-3
     title: Assembly generation
-    scope: Generate two-object and multi-object assemblies with controlled transforms, difficulty, and geometric relations.
+    scope: Generate two-object v0.1 assemblies with controlled transforms, difficulty, and geometric relations; keep multi-object assemblies as a reserved extension.
     priority: P0
     implementation_complexity: High
     debugging_difficulty: High
@@ -261,7 +265,7 @@ epics:
 
   - id: epic-5
     title: Prompt and task generation
-    scope: Generate final prompts and labels for each task type in a stable, reproducible format.
+    scope: Generate final prompts and labels for v0.1 MVP task types in a stable, reproducible format, with reserved task prompts added later.
     priority: P0
     implementation_complexity: Medium
     debugging_difficulty: Medium

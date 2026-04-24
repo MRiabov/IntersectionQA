@@ -4,6 +4,15 @@ The main improvement is to frame IntersectionQA not as “another CAD benchmark�
 
 CADEvolve is the primary source corpus for IntersectionQA because it provides executable CadQuery programs at scale: the paper reports 8k complex parametric generators expanded into about 1.3M scripts, with broad CadQuery operation coverage. IntersectionQA should derive its real benchmark examples from CADEvolve programs, while using synthetic primitives only as golden fixtures, smoke-test edge cases, and debugging examples. CADEvolve-derived examples still need duplicate control and leakage-safe grouping by generator family where available. ([arXiv][1])
 
+This document captures the paper ambition and research narrative. For
+implementation, the v0.1 MVP is narrower than the full paper roadmap:
+`benchmark-task-spec.md`, `label_rules.md`, `schema.md`, and
+`generation_policy.md` are canonical for task scope, labels, schema fields, and
+generation rules. In particular, v0.1 implements `binary_interference`,
+`relation_classification`, and `volume_bucket`; clearance, pairwise, ranking,
+repair, and tolerance-fit tasks are reserved extensions unless a later release
+explicitly promotes them.
+
 ## 1. The missing “usefulness” angle
 
 The dataset becomes much more useful if it maps to real CAD workflows, not just abstract collision trivia.
@@ -468,39 +477,45 @@ Suggested record schema:
   "id": "intersectionqa_000123",
   "source": "cadevolve",
   "task_type": "binary_interference",
-  "generator_id_a": "...",
-  "generator_id_b": "...",
+  "generator_id": "gen_042__gen_117",
   "base_object_pair_id": "pair_00091",
   "assembly_group_id": "pair_00091__transform_family_003",
   "counterfactual_group_id": "cfg_00042",
   "variant_id": "cfg_00042_v1",
   "changed_parameter": "translation_x",
   "changed_value": 8.7,
-  "script_a": "...",
-  "script_b": "...",
-  "assembly_script": "...",
+  "script": "...",
   "transform_a": {
     "translation": [0, 0, 0],
-    "rotation_euler_deg": [0, 0, 0]
+    "rotation_xyz_deg": [0, 0, 0],
+    "rotation_order": "XYZ"
   },
   "transform_b": {
     "translation": [8.7, 0, 0],
-    "rotation_euler_deg": [0, 0, 15]
+    "rotation_xyz_deg": [0, 0, 15],
+    "rotation_order": "XYZ"
   },
-  "volume_a": 1000.0,
-  "volume_b": 800.0,
-  "intersection_volume": 47.2,
-  "normalized_intersection": 0.059,
-  "min_distance": 0.0,
-  "relation": "intersecting",
-  "difficulty": "near_boundary_rotated_compound",
-  "aabb_overlap": true,
-  "obb_overlap": true,
-  "convex_hull_overlap": true,
-  "exact_overlap": true,
+  "labels": {
+    "volume_a": 1000.0,
+    "volume_b": 800.0,
+    "intersection_volume": 47.2,
+    "normalized_intersection": 0.059,
+    "minimum_distance": 0.0,
+    "relation": "intersecting"
+  },
+  "diagnostics": {
+    "aabb_overlap": true,
+    "exact_overlap": true,
+    "label_status": "ok",
+    "failure_reason": null
+  },
+  "difficulty_tags": ["near_boundary", "rotated", "cadevolve_compound"],
   "cadquery_ops": ["box", "extrude", "cut", "fillet"],
   "answer": "yes",
-  "split_group": "generator_042"
+  "metadata": {
+    "split_group": "generator_042",
+    "generator_ids": ["gen_042", "gen_117"]
+  }
 }
 ```
 

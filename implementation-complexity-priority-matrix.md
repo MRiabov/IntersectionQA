@@ -43,7 +43,7 @@ The specs imply this package structure:
 
 | Epic | Scope | P | Impl | Debug | Dependencies | Likely modules/files | Required checks | Key risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Research scope and paper framing | P0 | Low | Low | Existing specs | `tasks.md`, `label_rules.md`, `paper_outline.md` | Reviewer-objection checklist, frozen task definitions | Scope creep | Build now |
+| 1 | Research scope and paper framing | P0 | Low | Low | Existing specs | `benchmark-task-spec.md`, `label_rules.md`, `paper-spec.md` | Reviewer-objection checklist, frozen task definitions | Scope creep | Build now |
 | 2 | Dataset source ingestion | P0 | Medium | Medium | Repo structure, schema | `sources/`, `schema.py`, `scripts/validate_sources.py` | Loader smoke tests, provenance checks, licensing notes | CADEvolve access/licensing, malformed scripts | Build now |
 | 3 | Assembly generation | P0 | High | High | Source objects, transforms, labels | `generation/`, `geometry/transforms.py` | Golden primitive assemblies, deterministic seeds | Transform convention bugs, trivial class distribution | Build now |
 | 4 | Geometry labeling and verification | P0 | High | High | CadQuery/OpenCASCADE | `geometry/cadquery_exec.py`, `geometry/labels.py`, `geometry/bbox.py` | Box-box golden tests, boolean failure logging, epsilon policy checks | Kernel tolerance, invalid solids, distance API reliability | Build now |
@@ -63,16 +63,16 @@ The specs imply this package structure:
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1.1 Benchmark thesis | P0 | Low | Low | Current specs | `paper_outline.md`, `paper-spec.md` | One-paragraph thesis matches MVP | Overbroad claims | Build now |
-| 1.2 Task families | P0 | Low | Low | Label definitions | `tasks.md`, `label_rules.md` | Each task has answer format and metric | Too many P0 tasks | Build now |
-| 1.3 Evaluation regimes | P0 | Low | Low | Task families | `paper_outline.md` | Closed-book vs tool-assisted explicitly separated | Unfair baseline comparisons | Build now |
-| 1.4 Paper success metrics | P0 | Low | Low | Scope freeze | `paper_outline.md`, milestones | Paper-ready checklist exists | Moving target | Build now |
+| 1.1 Benchmark thesis | P0 | Low | Low | Current specs | `paper-spec.md`, `benchmark-task-spec.md` | One-paragraph thesis matches MVP | Overbroad claims | Build now |
+| 1.2 Task families | P0 | Low | Low | Label definitions | `benchmark-task-spec.md`, `label_rules.md` | Each MVP task has answer format and metric; reserved tasks are marked later-scope | Too many P0 tasks | Build now |
+| 1.3 Evaluation regimes | P0 | Low | Low | Task families | `paper-spec.md` | Closed-book vs tool-assisted explicitly separated | Unfair baseline comparisons | Build now |
+| 1.4 Paper success metrics | P0 | Low | Low | Scope freeze | `paper-spec.md`, milestones | Paper-ready checklist exists | Moving target | Build now |
 
 ### Epic 2: Dataset Source Ingestion
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2.1 Select initial sources | P0 | Low | Medium | Licensing/source access | `data_sources.md`, `sources/README.md` | Source license and provenance recorded | CADEvolve may be inconvenient to access | Build now |
+| 2.1 Select initial sources | P0 | Low | Medium | Licensing/source access | `using-cadevolve-dataset-export.md`, `generation_policy.md`, `sources/README.md` | Source license and provenance recorded | CADEvolve may be inconvenient to access | Build now |
 | 2.2 Loader interface | P0 | Medium | Medium | Schema | `sources/base.py`, `sources/cadevolve.py`, `sources/synthetic.py` | Loader returns stable records, malformed records logged | CADEvolve archive paths and script conventions vary | Build now |
 | 2.3 Normalize object functions | P0 | Medium | High | Loader, execution sandbox | `sources/normalize.py`, `geometry/cadquery_exec.py` | Normalized functions execute and return solids | Arbitrary CadQuery scripts may have side effects | Build now |
 | 2.4 Validate source CAD objects | P0 | High | High | CadQuery install, normalized scripts | `geometry/cadquery_exec.py`, `sources/validation.py` | Positive volume, finite bbox, failure reasons | OpenCASCADE failures, invalid solids | Build now |
@@ -176,10 +176,10 @@ The specs imply this package structure:
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 11.1-11.2 Abstract and introduction | P0 | Low | Low | Thesis and MVP scope | `paper/`, `paper_outline.md` | Claims match implemented tasks | Overclaiming | Build now |
+| 11.1-11.2 Abstract and introduction | P0 | Low | Low | Thesis and MVP scope | `paper/`, `paper-spec.md` | Claims match implemented tasks | Overclaiming | Build now |
 | 11.3 Related work | P0 | Medium | Low | Citation gathering | `paper/related_work.md` | Citations verified | Missing relevant CAD benchmark | Build now |
 | 11.4 Dataset construction section | P0 | Medium | Low | Generation pipeline and stats | `paper/dataset.md` | Matches code and schema | Implementation/spec mismatch | Build now |
-| 11.5 Task section | P0 | Low | Low | Prompt specs | `paper/tasks.md`, `tasks.md` | Answer formats exact | Ambiguous labels | Build now |
+| 11.5 Task section | P0 | Low | Low | Prompt specs | `paper/tasks.md`, `benchmark-task-spec.md` | Answer formats exact | Ambiguous labels | Build now |
 | 11.6 Experiments section | P0 | Medium | Medium | Results tables | `paper/experiments.md` | Tables regenerate | Weak or incomplete results | Build now |
 | 11.7-11.9 Discussion, limitations, conclusion | P0 | Low | Low | Failure analysis, QA checklist | `paper/discussion.md` | Limitations include kernel issues, CADEvolve source bias, and fixture limits | Hiding weaknesses | Build now |
 

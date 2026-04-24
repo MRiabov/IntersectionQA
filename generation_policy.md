@@ -196,7 +196,11 @@ Candidate perturbation classes:
 
 Numerically unstable examples may be rejected or accepted with an explicit stability tag. Reject by default when repeated labeling, threshold audits, or consistency checks disagree on the relation needed by an MVP task.
 
-Near-boundary examples should store raw `intersection_volume`, `normalized_intersection`, `minimum_distance`, `epsilon_volume`, `epsilon_distance_mm`, and `near_miss_threshold_mm` through the normal label and label-policy metadata.
+Near-boundary examples should store raw `intersection_volume`,
+`normalized_intersection`, and `minimum_distance` through normal label metadata,
+and should store `epsilon_volume_ratio`, `epsilon_distance_mm`, and
+`near_miss_threshold_mm` through `label_policy`. Validators derive the
+record-specific `epsilon_volume` from the stored ratio and object volumes.
 
 ## 10. Counterfactual Groups
 
@@ -235,6 +239,7 @@ Recommended MVP varied parameters:
 
 Initial difficulty and diagnostic tags:
 
+- `axis_aligned`
 - `cadevolve_simple`
 - `cadevolve_compound`
 - `primitive_fixture`
