@@ -74,6 +74,7 @@ def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArti
     started = time.monotonic()
     _progress(
         "loading CADEvolve sources: "
+        f"source_dir={config.smoke.cadevolve_source_dir}, "
         f"archive={config.cadevolve_archive}, "
         f"source_cache_root={config.smoke.cadevolve_source_cache_root}, "
         f"limit={config.smoke.object_validation_limit}"
@@ -242,10 +243,13 @@ def _source_manifest(
         sources=[
             SourceManifestEntry(
                 source="cadevolve",
-                archive_path=_cadevolve_archive_path_for_manifest(config),
+                archive_path=_cadevolve_archive_path_for_manifest(_cadevolve_source_dir_for_smoke(config)),
                 archive_available=bool(
                     config.cadevolve_archive and config.cadevolve_archive.exists()
                 ),
+                source_dir=str(_cadevolve_source_dir_for_smoke(config))
+                if _cadevolve_source_dir_for_smoke(config) is not None
+                else None,
                 archive_members_scanned=cadevolve_scanned_count,
                 source_records_loaded=cadevolve_source_count,
                 execution_policy="cadquery_validation_and_bbox_guided_geometry_generation_enabled",
@@ -279,16 +283,18 @@ def _load_cadevolve_for_smoke(config: DatasetConfig):
         member_index_cache_dir=member_index_cache_dir,
         extracted_source_cache_dir=extracted_source_cache_dir,
         extracted_source_cache_root=config.smoke.cadevolve_source_cache_root,
+        source_dir=_cadevolve_source_dir_for_smoke(config),
     ).load(limit=limit, offset=offset)
 
 
-def _cadevolve_archive_path_for_manifest(config: DatasetConfig) -> str | None:
-    if config.cadevolve_archive is not None:
-        return str(config.cadevolve_archive)
-    cache_root = config.smoke.cadevolve_source_cache_root
-    if cache_root is None:
+def _cadevolve_source_dir_for_smoke(config: DatasetConfig) -> Path | None:
+    return config.smoke.cadevolve_source_dir or config.smoke.cadevolve_source_cache_root
+
+
+def _cadevolve_archive_path_for_manifest(source_dir: Path | None) -> str | None:
+    if source_dir is None:
         return None
-    manifest_path = cache_root / "extraction_manifest.json"
+    manifest_path = source_dir / "extraction_manifest.json"
     if not manifest_path.exists():
         return None
     try:

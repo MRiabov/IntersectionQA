@@ -1,4 +1,4 @@
-"""Preextract a bounded CADEvolve source subset into the local source cache."""
+"""Preextract a bounded CADEvolve source subset into the local source directory."""
 
 from __future__ import annotations
 

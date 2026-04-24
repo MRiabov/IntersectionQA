@@ -5,8 +5,10 @@ from intersectionqa.config import DatasetConfig, SmokeConfig
 
 def test_config_hash_ignores_local_output_and_cache_paths():
     base = DatasetConfig(
+        cadevolve_archive=Path("/tmp/archive_a/cadevolve.tar"),
         output_dir=Path("/tmp/intersectionqa_a"),
         smoke=SmokeConfig(
+            cadevolve_source_dir=Path("/tmp/source_a"),
             object_validation_cache_dir=Path("/tmp/cache_a/objects"),
             source_member_index_cache_dir=Path("/tmp/cache_a/indexes"),
             extracted_source_cache_dir=Path("/tmp/cache_a/sources"),
@@ -20,8 +22,10 @@ def test_config_hash_ignores_local_output_and_cache_paths():
         ),
     )
     moved = DatasetConfig(
+        cadevolve_archive=Path("/tmp/archive_b/cadevolve.tar"),
         output_dir=Path("/tmp/intersectionqa_b"),
         smoke=SmokeConfig(
+            cadevolve_source_dir=Path("/tmp/source_b"),
             object_validation_cache_dir=Path("/tmp/cache_b/objects"),
             source_member_index_cache_dir=Path("/tmp/cache_b/indexes"),
             extracted_source_cache_dir=Path("/tmp/cache_b/sources"),
