@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from intersectionqa.enums import Split, TaskType
 from intersectionqa.geometry.labels import VOLUME_BUCKETS, volume_bucket
 from intersectionqa.prompts.common import object_code_from_script, public_row, transforms_text
 from intersectionqa.schema import GeometryRecord, PublicTaskRow
@@ -41,11 +42,11 @@ Answer with exactly one bucket string."""
 def materialize_volume_bucket_row(record: GeometryRecord, row_number: int, split: str) -> PublicTaskRow:
     return public_row(
         record=record,
-        task_type="volume_bucket",
+        task_type=TaskType.VOLUME_BUCKET,
         answer=volume_bucket(record.labels, record.label_policy),
         prompt=make_volume_bucket_prompt(record),
         row_number=row_number,
-        split=split,
+        split=Split(split),
         template_version=TEMPLATE_VERSION,
         extras={"volume_bucket_boundaries": VOLUME_BUCKETS},
     )

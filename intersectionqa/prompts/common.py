@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from intersectionqa.generation.assembly import build_assembly_script
 from intersectionqa.geometry.transforms import format_transform_block
+from intersectionqa.enums import Split, TaskType
 from intersectionqa.hashing import sha256_json
 from intersectionqa.schema import GeometryRecord, Hashes, PublicTaskRow
 
 TASK_PREFIX = {
-    "binary_interference": "intersectionqa_binary",
-    "relation_classification": "intersectionqa_relation",
-    "volume_bucket": "intersectionqa_volume_bucket",
+    TaskType.BINARY_INTERFERENCE: "intersectionqa_binary",
+    TaskType.RELATION_CLASSIFICATION: "intersectionqa_relation",
+    TaskType.VOLUME_BUCKET: "intersectionqa_volume_bucket",
 }
 
 
@@ -36,7 +37,7 @@ def strict_parse(output: str, allowed: set[str]) -> str | None:
     return stripped if stripped in allowed else None
 
 
-def row_hashes(record: GeometryRecord, prompt: str, task_type: str, template_version: str) -> Hashes:
+def row_hashes(record: GeometryRecord, prompt: str, task_type: TaskType, template_version: str) -> Hashes:
     return Hashes(
         source_code_hash=record.hashes.source_code_hash,
         object_hash=record.hashes.object_hash,
@@ -57,11 +58,11 @@ def row_hashes(record: GeometryRecord, prompt: str, task_type: str, template_ver
 def public_row(
     *,
     record: GeometryRecord,
-    task_type: str,
+    task_type: TaskType,
     answer: str,
     prompt: str,
     row_number: int,
-    split: str,
+    split: Split,
     template_version: str,
     extras: dict[str, object] | None = None,
 ) -> PublicTaskRow:
@@ -79,8 +80,8 @@ def public_row(
     return PublicTaskRow(
         id=row_id,
         dataset_version="v0.1",
-        split=split,  # type: ignore[arg-type]
-        task_type=task_type,  # type: ignore[arg-type]
+        split=split,
+        task_type=task_type,
         prompt=prompt,
         answer=answer,
         script=script_for_prompt(record),

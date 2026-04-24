@@ -4,97 +4,24 @@ from __future__ import annotations
 
 import math
 import re
-from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from intersectionqa.enums import (
+    AuditStatus,
+    BooleanStatus,
+    DistanceStatus,
+    FailureReason,
+    FailureStage,
+    LabelStatus,
+    Relation,
+    RotationOrder,
+    Split,
+    TaskType,
+)
+
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-
-
-class Relation(StrEnum):
-    DISJOINT = "disjoint"
-    TOUCHING = "touching"
-    NEAR_MISS = "near_miss"
-    INTERSECTING = "intersecting"
-    CONTAINED = "contained"
-    INVALID = "invalid"
-
-
-class BooleanStatus(StrEnum):
-    OK = "ok"
-    SKIPPED_AABB_DISJOINT = "skipped_aabb_disjoint"
-    FAILED = "failed"
-    NOT_RUN = "not_run"
-
-
-class DistanceStatus(StrEnum):
-    OK = "ok"
-    SKIPPED_POSITIVE_OVERLAP = "skipped_positive_overlap"
-    FAILED = "failed"
-    NOT_RUN = "not_run"
-
-
-class LabelStatus(StrEnum):
-    OK = "ok"
-    INVALID = "invalid"
-
-
-class TaskType(StrEnum):
-    BINARY_INTERFERENCE = "binary_interference"
-    RELATION_CLASSIFICATION = "relation_classification"
-    VOLUME_BUCKET = "volume_bucket"
-    CLEARANCE_BUCKET = "clearance_bucket"
-    PAIRWISE_INTERFERENCE = "pairwise_interference"
-    RANKING_NORMALIZED_INTERSECTION = "ranking_normalized_intersection"
-    REPAIR_DIRECTION = "repair_direction"
-    TOLERANCE_FIT = "tolerance_fit"
-
-
-class Split(StrEnum):
-    TRAIN = "train"
-    VALIDATION = "validation"
-    TEST_RANDOM = "test_random"
-    TEST_GENERATOR_HELDOUT = "test_generator_heldout"
-    TEST_OBJECT_PAIR_HELDOUT = "test_object_pair_heldout"
-    TEST_NEAR_BOUNDARY = "test_near_boundary"
-    TEST_TOPOLOGY_HELDOUT = "test_topology_heldout"
-    TEST_OPERATION_HELDOUT = "test_operation_heldout"
-
-
-class FailureReason(StrEnum):
-    SOURCE_PARSE_ERROR = "source_parse_error"
-    SOURCE_EXEC_ERROR = "source_exec_error"
-    MISSING_RESULT_OBJECT = "missing_result_object"
-    INVALID_CADQUERY_TYPE = "invalid_cadquery_type"
-    NON_SOLID_RESULT = "non_solid_result"
-    ZERO_OR_NEGATIVE_VOLUME = "zero_or_negative_volume"
-    NON_FINITE_BBOX = "non_finite_bbox"
-    BOOLEAN_INTERSECTION_FAILED = "boolean_intersection_failed"
-    DISTANCE_QUERY_FAILED = "distance_query_failed"
-    TIMEOUT = "timeout"
-    WORKER_CRASH = "worker_crash"
-    UNKNOWN_ERROR = "unknown_error"
-
-
-class RotationOrder(StrEnum):
-    XYZ = "XYZ"
-
-
-class AuditStatus(StrEnum):
-    PASS = "pass"
-    FAIL = "fail"
-    NOT_RUN = "not_run"
-
-
-class FailureStage(StrEnum):
-    SOURCE_LOADING = "source_loading"
-    SOURCE_NORMALIZATION = "source_normalization"
-    OBJECT_VALIDATION = "object_validation"
-    ASSEMBLY_GENERATION = "assembly_generation"
-    GEOMETRY_LABELING = "geometry_labeling"
-    TASK_MATERIALIZATION = "task_materialization"
-    EXPORT_VALIDATION = "export_validation"
 
 DIFFICULTY_TAGS = {
     "axis_aligned",
@@ -237,9 +164,9 @@ class Diagnostics(StrictModel):
 
     @model_validator(mode="after")
     def invalid_has_reason(self) -> "Diagnostics":
-        if self.label_status == "ok" and self.failure_reason is not None:
+        if self.label_status == LabelStatus.OK and self.failure_reason is not None:
             raise ValueError("ok labels must not have failure_reason")
-        if self.label_status == "invalid" and self.failure_reason is None:
+        if self.label_status == LabelStatus.INVALID and self.failure_reason is None:
             raise ValueError("invalid labels require failure_reason")
         return self
 
@@ -275,7 +202,7 @@ class ObjectValidationRecord(StrictModel):
     @model_validator(mode="after")
     def validity_matches_status(self) -> "ObjectValidationRecord":
         if self.valid:
-            if self.label_status != "ok":
+            if self.label_status != LabelStatus.OK:
                 raise ValueError("valid objects require ok label_status")
             if self.failure_reason is not None:
                 raise ValueError("valid objects must not have failure_reason")
@@ -284,7 +211,7 @@ class ObjectValidationRecord(StrictModel):
             if self.bbox is None:
                 raise ValueError("valid objects require bbox")
         else:
-            if self.label_status != "invalid":
+            if self.label_status != LabelStatus.INVALID:
                 raise ValueError("invalid objects require invalid label_status")
             if self.failure_reason is None:
                 raise ValueError("invalid objects require failure_reason")
@@ -349,22 +276,22 @@ class PublicTaskRow(StrictModel):
     def public_contracts(self) -> "PublicTaskRow":
         if not self.geometry_ids:
             raise ValueError("public rows require at least one geometry_id")
-        if self.diagnostics.label_status != "ok":
+        if self.diagnostics.label_status != LabelStatus.OK:
             raise ValueError("normal MVP public rows require ok label_status")
-        if self.task_type == "binary_interference":
-            expected = "yes" if self.labels.relation in {"intersecting", "contained"} else "no"
-            if self.labels.relation == "invalid" or self.answer != expected:
+        if self.task_type == TaskType.BINARY_INTERFERENCE:
+            expected = "yes" if self.labels.relation in {Relation.INTERSECTING, Relation.CONTAINED} else "no"
+            if self.labels.relation == Relation.INVALID or self.answer != expected:
                 raise ValueError("binary answer does not match relation")
-        if self.task_type == "relation_classification" and self.answer != self.labels.relation:
+        if self.task_type == TaskType.RELATION_CLASSIFICATION and self.answer != self.labels.relation:
             raise ValueError("relation answer must equal labels.relation")
-        if self.task_type == "volume_bucket":
+        if self.task_type == TaskType.VOLUME_BUCKET:
             expected_bucket = _expected_volume_bucket(self.labels, self.label_policy)
             if self.answer != expected_bucket:
                 raise ValueError("volume_bucket answer does not match labels and policy")
         if self.task_type in {
-            "binary_interference",
-            "relation_classification",
-            "volume_bucket",
+            TaskType.BINARY_INTERFERENCE,
+            TaskType.RELATION_CLASSIFICATION,
+            TaskType.VOLUME_BUCKET,
         }:
             if self.hashes.prompt_hash is None:
                 raise ValueError("public task rows require prompt_hash")

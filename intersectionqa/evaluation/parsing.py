@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from intersectionqa.geometry.labels import VOLUME_BUCKETS
+from intersectionqa.enums import TaskType
 
 BINARY_ANSWERS = {"yes", "no"}
 RELATION_ANSWERS = {
@@ -16,13 +17,13 @@ RELATION_ANSWERS = {
 VOLUME_BUCKET_ANSWERS = set(VOLUME_BUCKETS)
 
 ALLOWED_BY_TASK = {
-    "binary_interference": BINARY_ANSWERS,
-    "relation_classification": RELATION_ANSWERS,
-    "volume_bucket": VOLUME_BUCKET_ANSWERS,
+    TaskType.BINARY_INTERFERENCE: BINARY_ANSWERS,
+    TaskType.RELATION_CLASSIFICATION: RELATION_ANSWERS,
+    TaskType.VOLUME_BUCKET: VOLUME_BUCKET_ANSWERS,
 }
 
 
-def parse_answer(task_type: str, output: str) -> str | None:
+def parse_answer(task_type: TaskType, output: str) -> str | None:
     allowed = ALLOWED_BY_TASK.get(task_type)
     if allowed is None:
         raise ValueError(f"unsupported task type for strict parsing: {task_type}")

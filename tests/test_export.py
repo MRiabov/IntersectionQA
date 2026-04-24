@@ -1,5 +1,11 @@
 from intersectionqa.config import DatasetConfig
-from intersectionqa.export.jsonl import read_jsonl, read_object_validation_manifest, write_jsonl
+from intersectionqa.export.jsonl import (
+    read_jsonl,
+    read_metadata,
+    read_object_validation_manifest,
+    read_source_manifest,
+    write_jsonl,
+)
 from intersectionqa.pipeline import build_smoke_rows, validate_dataset_dir, write_smoke_dataset
 
 
@@ -26,3 +32,9 @@ def test_smoke_export_writes_manifests(tmp_path):
     validations = read_object_validation_manifest(tmp_path / "object_validation_manifest.jsonl")
     assert len(validations) == 3
     assert all(record.valid for record in validations)
+    source_manifest = read_source_manifest(tmp_path / "source_manifest.json")
+    assert source_manifest is not None
+    assert source_manifest.sources[0].source == "cadevolve"
+    metadata = read_metadata(tmp_path / "metadata.json")
+    assert metadata is not None
+    assert metadata.dataset_name == "IntersectionQA"

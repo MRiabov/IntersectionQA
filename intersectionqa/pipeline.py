@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from intersectionqa.enums import AuditStatus
 from intersectionqa.config import DatasetConfig
 from intersectionqa.export.jsonl import (
     build_metadata,
+    read_failure_manifest,
+    read_metadata,
+    read_object_validation_manifest,
+    read_source_manifest,
     source_manifest_hash,
     validate_rows,
     write_failure_manifest,
@@ -29,7 +34,12 @@ from intersectionqa.schema import (
 from intersectionqa.sources.cadevolve import CadevolveTarLoader
 from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
 from intersectionqa.sources.validation import validate_source_object
-from intersectionqa.splits.grouped import assign_geometry_splits, audit_group_leakage, split_manifest
+from intersectionqa.splits.grouped import (
+    DEFAULT_SPLITS,
+    assign_geometry_splits,
+    audit_group_leakage,
+    split_manifest,
+)
 
 
 def build_smoke_geometry(config: DatasetConfig) -> tuple[list[GeometryRecord], SmokeGeometryReport]:
@@ -150,26 +160,20 @@ def _source_manifest(
 
 def validate_dataset_dir(path: Path) -> list[PublicTaskRow]:
     rows: list[PublicTaskRow] = []
-    split_files = {
-        f"{split}.jsonl"
-        for split in [
-            "train",
-            "validation",
-            "test_random",
-            "test_generator_heldout",
-            "test_object_pair_heldout",
-            "test_near_boundary",
-        ]
-    }
+    split_files = {f"{split}.jsonl" for split in DEFAULT_SPLITS}
     for file_path in sorted(path.glob("*.jsonl")):
         if file_path.name not in split_files:
             continue
         from intersectionqa.export.jsonl import read_jsonl
 
         rows.extend(read_jsonl(file_path))
+    read_object_validation_manifest(path / "object_validation_manifest.jsonl")
+    read_failure_manifest(path / "failure_manifest.jsonl")
+    read_source_manifest(path / "source_manifest.json")
+    read_metadata(path / "metadata.json")
     validate_rows(rows)
     audit = audit_group_leakage(rows)
-    if audit.status != "pass":
+    if audit.status != AuditStatus.PASS:
         raise ValueError(f"group leakage audit failed: {audit.violations}")
     return rows
 

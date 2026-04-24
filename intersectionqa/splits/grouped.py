@@ -6,6 +6,7 @@ import hashlib
 from collections import defaultdict
 from typing import Iterable
 
+from intersectionqa.enums import AuditStatus, TaskType
 from intersectionqa.schema import (
     GeometryRecord,
     GroupHoldoutRule,
@@ -104,7 +105,7 @@ def audit_group_leakage(
                     LeakageViolation(split_pair=[left, right], field=field, values=overlap)
                 )
     return LeakageAudit(
-        status="pass" if not violations else "fail",
+        status=AuditStatus.PASS if not violations else AuditStatus.FAIL,
         checked_group_fields=fields,
         violation_count=len(violations),
         violations=violations,
@@ -128,10 +129,10 @@ def split_manifest(rows: list[PublicTaskRow]) -> SplitManifest:
             label_distributions=SplitLabelDistributions(
                 relation=_counts(row.labels.relation for row in split_rows),
                 binary_answer=_counts(
-                    row.answer for row in split_rows if row.task_type == "binary_interference"
+                    row.answer for row in split_rows if row.task_type == TaskType.BINARY_INTERFERENCE
                 ),
                 volume_bucket=_counts(
-                    row.answer for row in split_rows if row.task_type == "volume_bucket"
+                    row.answer for row in split_rows if row.task_type == TaskType.VOLUME_BUCKET
                 ),
             ),
             generator_ids=sorted({row.generator_id for row in split_rows if row.generator_id}),

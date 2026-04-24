@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
+from intersectionqa.enums import TaskType
 from intersectionqa.schema import PublicTaskRow
 
 
@@ -26,7 +27,7 @@ def predict_binary_from_aabb(row: PublicTaskRow) -> str:
 
 
 def evaluate_aabb_binary(rows: Iterable[PublicTaskRow]) -> BaselineResult:
-    binary_rows = [row for row in rows if row.task_type == "binary_interference"]
+    binary_rows = [row for row in rows if row.task_type == TaskType.BINARY_INTERFERENCE]
     correct = sum(1 for row in binary_rows if _is_correct(row))
     total = len(binary_rows)
     return BaselineResult(
@@ -43,7 +44,7 @@ def _is_correct(row: PublicTaskRow) -> bool:
     return predict_binary_from_aabb(row) == row.answer
 
 
-def _group_accuracy(rows: list[PublicTaskRow], key_fn: Callable[[PublicTaskRow], str]) -> dict[str, float]:
+def _group_accuracy(rows: list[PublicTaskRow], key_fn: Callable[[PublicTaskRow], object]) -> dict[str, float]:
     totals: dict[str, int] = {}
     correct: dict[str, int] = {}
     for row in rows:
