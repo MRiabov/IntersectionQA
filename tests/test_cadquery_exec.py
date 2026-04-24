@@ -40,6 +40,7 @@ def test_measure_source_pair_uses_exact_cadquery_boolean_and_distance():
     )
     assert near_miss.intersection_volume == 0.0
     assert near_miss.minimum_distance == pytest.approx(0.5)
+    assert near_miss.boolean_status == BooleanStatus.SKIPPED_AABB_DISJOINT
     assert near_miss.distance_status == DistanceStatus.OK
 
 
