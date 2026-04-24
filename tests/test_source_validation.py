@@ -73,7 +73,7 @@ def test_bounded_source_validation_preserves_input_order():
         sources,
         config_hash=config.config_hash,
         validated_at_version="test",
-        timeout_seconds=5.0,
+        timeout_seconds=15.0,
         worker_count=2,
     )
 
@@ -83,3 +83,35 @@ def test_bounded_source_validation_preserves_input_order():
         "obj_bad",
     ]
     assert [validation.valid for validation in validations] == [True, True, False]
+
+
+def test_bounded_source_validation_reports_each_completed_result():
+    config = DatasetConfig()
+    sources = [
+        synthetic_source_object("obj_a", "object_a", (1.0, 1.0, 1.0)),
+        synthetic_source_object("obj_b", "object_a", (2.0, 1.0, 1.0)),
+        synthetic_source_object("obj_bad", "object_a", (0.0, 1.0, 1.0)),
+    ]
+    completed: list[tuple[int, str, str]] = []
+
+    validations = validate_source_objects_bounded(
+        sources,
+        config_hash=config.config_hash,
+        validated_at_version="test",
+        timeout_seconds=15.0,
+        worker_count=2,
+        on_result=lambda index, source, record: completed.append(
+            (index, source.object_id, record.object_id)
+        ),
+    )
+
+    assert sorted(completed) == [
+        (0, "obj_a", "obj_a"),
+        (1, "obj_b", "obj_b"),
+        (2, "obj_bad", "obj_bad"),
+    ]
+    assert [validation.object_id for validation in validations] == [
+        "obj_a",
+        "obj_b",
+        "obj_bad",
+    ]

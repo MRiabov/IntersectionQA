@@ -87,6 +87,7 @@ def validate_source_objects_bounded(
     timeout_seconds: float = 10.0,
     worker_count: int = 1,
     progress: Callable[[int, int], None] | None = None,
+    on_result: Callable[[int, SourceObjectRecord, ObjectValidationRecord], None] | None = None,
 ) -> list[ObjectValidationRecord]:
     """Validate source objects with bounded isolated worker processes.
 
@@ -96,17 +97,19 @@ def validate_source_objects_bounded(
     if not records:
         return []
     if worker_count <= 1:
-        results = [
-            validate_source_object(
+        results: list[ObjectValidationRecord] = []
+        for index, record in enumerate(records):
+            result = validate_source_object(
                 record,
                 config_hash=config_hash,
                 validated_at_version=validated_at_version,
                 timeout_seconds=timeout_seconds,
             )
-            for record in records
-        ]
-        if progress is not None:
-            progress(len(results), len(records))
+            results.append(result)
+            if on_result is not None:
+                on_result(index, record, result)
+            if progress is not None:
+                progress(len(results), len(records))
         return results
 
     context = _validation_context()
@@ -162,6 +165,8 @@ def validate_source_objects_bounded(
             results[job.index] = result
             completed += 1
             made_progress = True
+            if on_result is not None:
+                on_result(job.index, job.record, result)
             if progress is not None:
                 progress(completed, len(records))
             start_next()
