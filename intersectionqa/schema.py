@@ -422,6 +422,7 @@ class SourceManifestEntry(StrictModel):
     source: str
     archive_path: str | None = None
     archive_available: bool | None = None
+    source_dir: str | None = None
     archive_members_scanned: int | None = None
     source_records_loaded: int | None = None
     execution_policy: str | None = None
