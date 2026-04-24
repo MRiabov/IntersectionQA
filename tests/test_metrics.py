@@ -1,8 +1,12 @@
-from intersectionqa.config import DatasetConfig
+from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import Prediction, dataset_stats, evaluate_predictions, manifest_stats
 from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.pipeline import build_smoke_rows
+
+
+def _synthetic_config() -> DatasetConfig:
+    return DatasetConfig(smoke=SmokeConfig(include_cadevolve_if_available=False))
 
 
 def test_parse_answer_is_strict_by_task():
@@ -14,7 +18,7 @@ def test_parse_answer_is_strict_by_task():
 
 
 def test_evaluate_predictions_reports_invalid_outputs():
-    rows, _ = build_smoke_rows(DatasetConfig())
+    rows, _ = build_smoke_rows(_synthetic_config())
     predictions = [
         Prediction(row_id=row.id, output=row.answer if index % 2 == 0 else "invalid prose")
         for index, row in enumerate(rows)
@@ -30,7 +34,7 @@ def test_evaluate_predictions_reports_invalid_outputs():
 
 
 def test_dataset_stats_counts_rows():
-    rows, _ = build_smoke_rows(DatasetConfig())
+    rows, _ = build_smoke_rows(_synthetic_config())
     stats = dataset_stats(rows)
     assert stats["total_rows"] == len(rows)
     assert stats["by_task"]["binary_interference"] == 7
@@ -47,7 +51,7 @@ def test_manifest_stats_counts_validation_records():
 
 
 def test_failure_case_analysis_counts_prediction_failures():
-    rows, _ = build_smoke_rows(DatasetConfig())
+    rows, _ = build_smoke_rows(_synthetic_config())
     predictions = [
         Prediction(row_id=row.id, output=row.answer if index % 2 == 0 else "invalid prose")
         for index, row in enumerate(rows)

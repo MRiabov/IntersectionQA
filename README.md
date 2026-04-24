@@ -58,21 +58,21 @@ run because it validates the export and writes stats, AABB baseline, failure
 analysis, and comparison-table reports in one place:
 
 ```bash
-SOURCE_DIR=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
+SOURCE_DIR=$(find data/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
 rtk uv run python -m scripts.build_release_candidate \
   --config configs/smoke.yaml \
   --cadevolve-source-dir "$SOURCE_DIR" \
-  --output-dir /tmp/intersectionqa_rc
+  --output-dir data/intersectionqa_rc
 ```
 
 For source-window sharding:
 
 ```bash
-SOURCE_DIR=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
+SOURCE_DIR=$(find data/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
 rtk uv run python -m scripts.build_release_candidate \
   --config configs/smoke.yaml \
   --cadevolve-source-dir "$SOURCE_DIR" \
-  --output-dir /tmp/intersectionqa_rc_sharded \
+  --output-dir data/intersectionqa_rc_sharded \
   --shard-count 10 \
   --source-shard-size 250
 ```
@@ -84,7 +84,7 @@ create the extracted source tree. Smoke/full generation runs from the extracted
 CADEvolve source directory:
 
 ```text
-.cache/intersectionqa/cadevolve_sources/
+data/cadevolve_sources/
 ```
 
 The extracted source tree preserves each original archive member path in the
@@ -92,9 +92,9 @@ generated provenance. Local filesystem paths are not required by public rows and
 are not part of the dataset release.
 
 Once the source tree is prepared, generation does not need the tar. Pass
-`--cadevolve-source-dir` to use a specific extracted directory; default
-generation does not auto-discover local caches because that would make tests
-and runs depend on machine-local artifacts.
+`--cadevolve-source-dir` to use a specific extracted directory. The checked-in
+local configs use `data/cadevolve_sources` and `data/cache` so generated
+artifacts stay under the ignored `data/` tree.
 
 For space, extract only the configured subset or shards needed for the intended
 run. The current v0.1 target should stay bounded; generating more than roughly
@@ -119,16 +119,16 @@ Exported datasets are split JSONL files. Use the inspect utility for prompt and
 label review:
 
 ```bash
-rtk uv run python -m scripts.inspect_example /tmp/intersectionqa_smoke_cadevolve intersectionqa_binary_000001 --show-prompt
+rtk uv run python -m scripts.inspect_example data/intersectionqa_v0_1 intersectionqa_binary_000001 --show-prompt
 ```
 
 For local CAD audit artifacts, export one row to a debug directory:
 
 ```bash
 rtk uv run python -m scripts.export_row_artifacts \
-  /tmp/intersectionqa_smoke_cadevolve \
+  data/intersectionqa_v0_1 \
   intersectionqa_binary_000001 \
-  --output-dir /tmp/intersectionqa_row_debug
+  --output-dir data/debug/intersectionqa_row_debug
 ```
 
 This writes `prompt.txt`, `row.json`, `assembly.py`, `object_a.step`,
@@ -140,9 +140,9 @@ To render PNG previews for a row, use the PyVista-backed renderer:
 
 ```bash
 rtk uv run python -m scripts.render_row_artifacts \
-  /tmp/intersectionqa_smoke_cadevolve \
+  data/intersectionqa_v0_1 \
   intersectionqa_binary_000001 \
-  --output-dir /tmp/intersectionqa_row_debug \
+  --output-dir data/debug/intersectionqa_row_debug \
   --image-size 1200x900
 ```
 
@@ -158,11 +158,11 @@ raw predictions, and reports the strict parser invalid-output rate:
 
 ```bash
 rtk uv run python -m scripts.evaluate_zero_shot \
-  /tmp/intersectionqa_smoke_cadevolve \
+  data/intersectionqa_v0_1 \
   --provider openai-chat \
   --model gpt-5.4 \
   --limit 25 \
-  --requests-jsonl /tmp/intersectionqa_zero_shot_requests.jsonl
+  --requests-jsonl data/eval/intersectionqa_zero_shot_requests.jsonl
 ```
 
 For open code models served through Hugging Face Inference Providers, use
@@ -174,18 +174,18 @@ To build a compact baseline/model comparison table from saved prediction JSONL:
 
 ```bash
 rtk uv run python -m scripts.baseline_comparison_table \
-  /tmp/intersectionqa_smoke_cadevolve \
-  --prediction gpt_5_4=/tmp/intersectionqa_zero_shot_predictions.jsonl \
-  --markdown-output /tmp/intersectionqa_comparison.md
+  data/intersectionqa_v0_1 \
+  --prediction gpt_5_4=data/eval/intersectionqa_zero_shot_predictions.jsonl \
+  --markdown-output data/eval/intersectionqa_comparison.md
 ```
 
 To summarize generation failures and optional model failure cases:
 
 ```bash
 rtk uv run python -m scripts.failure_case_analysis \
-  /tmp/intersectionqa_smoke_cadevolve \
-  --predictions-jsonl /tmp/intersectionqa_zero_shot_predictions.jsonl \
-  --output /tmp/intersectionqa_failure_analysis.json
+  data/intersectionqa_v0_1 \
+  --predictions-jsonl data/eval/intersectionqa_zero_shot_predictions.jsonl \
+  --output data/eval/intersectionqa_failure_analysis.json
 ```
 
 ## Reproducibility Checks
@@ -195,8 +195,8 @@ artifacts, run:
 
 ```bash
 rtk uv run python -m scripts.audit_reproducibility \
-  /tmp/intersectionqa_run_a \
-  /tmp/intersectionqa_run_b
+  data/intersectionqa_run_a \
+  data/intersectionqa_run_b
 ```
 
 The audit validates both directories and compares the public split JSONL files,

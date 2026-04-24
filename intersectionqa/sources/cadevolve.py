@@ -130,7 +130,7 @@ class CadevolveTarLoader:
             return self._explicit_extracted_source_cache_root
         if self.extracted_source_cache_dir is None:
             return None
-        if self.archive_path is None:
+        if self.archive_path is None or not self.archive_path.exists():
             return None
         key = sha256_json(_archive_fingerprint(self.archive_path)).removeprefix("sha256:")
         return self.extracted_source_cache_dir / key[:2] / key
