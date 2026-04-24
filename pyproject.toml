@@ -15,6 +15,7 @@ dependencies = [
     "numpy>=2.4.4",
     "psutil>=7.2.2",
     "pydantic>=2.0",
+    "pyvista>=0.47.3",
     "pyyaml>=6.0",
 ]
 
@@ -26,6 +27,8 @@ intersectionqa-evaluate-predictions = "scripts.evaluate_predictions:main"
 intersectionqa-audit-leakage = "scripts.audit_leakage:main"
 intersectionqa-stats = "scripts.dataset_stats:main"
 intersectionqa-inspect = "scripts.inspect_example:main"
+intersectionqa-export-row-artifacts = "scripts.export_row_artifacts:main"
+intersectionqa-render-row-artifacts = "scripts.render_row_artifacts:main"
 
 [tool.setuptools.packages.find]
 include = ["intersectionqa*", "scripts*"]
