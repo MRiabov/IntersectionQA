@@ -58,49 +58,49 @@ run because it validates the export and writes stats, AABB baseline, failure
 analysis, and comparison-table reports in one place:
 
 ```bash
-CACHE_ROOT=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
+SOURCE_DIR=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
 rtk uv run python -m scripts.build_release_candidate \
   --config configs/smoke.yaml \
-  --cadevolve-source-cache-root "$CACHE_ROOT" \
+  --cadevolve-source-dir "$SOURCE_DIR" \
   --output-dir /tmp/intersectionqa_rc
 ```
 
 For source-window sharding:
 
 ```bash
-CACHE_ROOT=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
+SOURCE_DIR=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
 rtk uv run python -m scripts.build_release_candidate \
   --config configs/smoke.yaml \
-  --cadevolve-source-cache-root "$CACHE_ROOT" \
+  --cadevolve-source-dir "$SOURCE_DIR" \
   --output-dir /tmp/intersectionqa_rc_sharded \
   --shard-count 10 \
   --source-shard-size 250
 ```
 
-## CADEvolve Source Cache
+## CADEvolve Source Directory
 
-Keep `data/cadevolve.tar` as the canonical upstream artifact, but do not use the
-tar archive as the repeated local hot path. Smoke/full generation now materializes
-the configured executable CADEvolve source subset into:
+Keep `data/cadevolve.tar` only as an upstream bootstrap artifact if you need to
+create the extracted source tree. Smoke/full generation runs from the extracted
+CADEvolve source directory:
 
 ```text
 .cache/intersectionqa/cadevolve_sources/
 ```
 
-The cache is keyed by the archive fingerprint and preserves each original archive
-member path in the generated provenance. Local cache paths are not required by
-public rows and are not part of the dataset release.
+The extracted source tree preserves each original archive member path in the
+generated provenance. Local filesystem paths are not required by public rows and
+are not part of the dataset release.
 
-Once the source cache is prepared, generation does not need the tar on the hot
-path. Pass `--cadevolve-source-cache-root` to use a specific prepared cache
-root; default generation does not auto-discover local caches because that would
-make tests and runs depend on machine-local artifacts.
+Once the source tree is prepared, generation does not need the tar. Pass
+`--cadevolve-source-dir` to use a specific extracted directory; default
+generation does not auto-discover local caches because that would make tests
+and runs depend on machine-local artifacts.
 
 For space, extract only the configured subset or shards needed for the intended
 run. The current v0.1 target should stay bounded; generating more than roughly
 100k public rows is out of scope until storage and runtime are re-evaluated.
 
-To prewarm a local source prefix explicitly:
+To extract a local source prefix explicitly:
 
 ```bash
 rtk uv run python -m scripts.prepare_cadevolve_sources \
@@ -108,9 +108,10 @@ rtk uv run python -m scripts.prepare_cadevolve_sources \
   --limit 100000
 ```
 
-This extracts the first `100000` sorted executable CADEvolve source programs,
-not `100000` final public task rows. The current MVP generator can produce
-multiple public task rows per accepted geometry.
+This extracts the first `100000` sorted executable CADEvolve source programs
+into the extracted source tree, not `100000` final public task rows. The
+current MVP generator can produce multiple public task rows per accepted
+geometry.
 
 ## Inspecting Rows Locally
 
