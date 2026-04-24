@@ -29,13 +29,18 @@ class CadevolveTarLoader:
         self.config_hash = config_hash
         self.member_index_cache_dir = member_index_cache_dir
 
-    def load(self, limit: int | None = None) -> SourceLoadResult:
+    def load(self, limit: int | None = None, offset: int = 0) -> SourceLoadResult:
         if self.archive_path is None or not self.archive_path.exists():
             return SourceLoadResult(records=[], failures=[], scanned_count=0)
 
+        offset = max(0, offset)
         records: list[SourceObjectRecord] = []
         executable_members = self._load_executable_member_index()
-        selected_members = executable_members[:limit] if limit is not None else executable_members
+        selected_members = (
+            executable_members[offset : offset + limit]
+            if limit is not None
+            else executable_members[offset:]
+        )
         with self.archive_path.open("rb") as raw_archive:
             for member in selected_members:
                 if limit is not None and len(records) >= limit:
