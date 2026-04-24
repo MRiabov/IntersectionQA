@@ -41,7 +41,7 @@ from intersectionqa.schema import (
 )
 from intersectionqa.sources.cadevolve import CadevolveTarLoader
 from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
-from intersectionqa.sources.validation import validate_source_object, validate_source_objects_bounded
+from intersectionqa.sources.validation import validate_source_objects_bounded
 from intersectionqa.sources.validation_cache import (
     ObjectValidationCache,
     object_validation_cache_key,
