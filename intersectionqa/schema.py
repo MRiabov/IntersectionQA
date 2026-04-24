@@ -289,22 +289,31 @@ class PublicTaskRow(StrictModel):
             expected_bucket = _expected_volume_bucket(self.labels, self.label_policy)
             if self.answer != expected_bucket:
                 raise ValueError("volume_bucket answer does not match labels and policy")
-        if self.task_type in {
-            TaskType.BINARY_INTERFERENCE,
-            TaskType.RELATION_CLASSIFICATION,
-            TaskType.VOLUME_BUCKET,
-        }:
-            if self.hashes.prompt_hash is None:
-                raise ValueError("public task rows require prompt_hash")
-            required = [
-                self.hashes.source_code_hash,
-                self.hashes.object_hash,
-                self.hashes.transform_hash,
-                self.hashes.geometry_hash,
-                self.hashes.config_hash,
-            ]
-            if any(item is None for item in required):
-                raise ValueError("public task rows require non-null hashes")
+        if self.task_type == TaskType.CLEARANCE_BUCKET:
+            expected_bucket = _expected_clearance_bucket(self.labels, self.label_policy)
+            if self.answer != expected_bucket:
+                raise ValueError("clearance_bucket answer does not match labels and policy")
+        if self.task_type == TaskType.TOLERANCE_FIT:
+            required_clearance = float(self.metadata.get("required_clearance_mm", 1.0))
+            if self.answer != _expected_tolerance_fit(self.labels, self.label_policy, required_clearance):
+                raise ValueError("tolerance_fit answer does not match labels and policy")
+        if self.task_type == TaskType.PAIRWISE_INTERFERENCE:
+            if self.answer != _expected_pairwise_answer(self.metadata):
+                raise ValueError("pairwise_interference answer does not match variant metadata")
+        if self.task_type == TaskType.RANKING_NORMALIZED_INTERSECTION:
+            if self.answer != _expected_ranking_answer(self.metadata):
+                raise ValueError("ranking answer does not match variant metadata")
+        if self.hashes.prompt_hash is None:
+            raise ValueError("public task rows require prompt_hash")
+        required = [
+            self.hashes.source_code_hash,
+            self.hashes.object_hash,
+            self.hashes.transform_hash,
+            self.hashes.geometry_hash,
+            self.hashes.config_hash,
+        ]
+        if any(item is None for item in required):
+            raise ValueError("public task rows require non-null hashes")
         return self
 
     @field_validator("difficulty_tags")
@@ -334,6 +343,68 @@ def _expected_volume_bucket(labels: GeometryLabels, policy: LabelPolicy) -> str:
     if ratio <= 0.50:
         return "(0.20, 0.50]"
     return ">0.50"
+
+
+def _expected_clearance_bucket(labels: GeometryLabels, policy: LabelPolicy) -> str:
+    if labels.volume_a is not None and labels.volume_b is not None and labels.intersection_volume is not None:
+        if labels.intersection_volume > policy.epsilon_volume(labels.volume_a, labels.volume_b):
+            return "intersecting"
+    if labels.minimum_distance is None:
+        raise ValueError("clearance bucket requires minimum_distance")
+    if labels.minimum_distance <= policy.epsilon_distance_mm:
+        return "touching"
+    if labels.minimum_distance <= 0.1:
+        return "(0, 0.1]"
+    if labels.minimum_distance <= 1.0:
+        return "(0.1, 1]"
+    if labels.minimum_distance <= 5.0:
+        return "(1, 5]"
+    return ">5"
+
+
+def _expected_tolerance_fit(
+    labels: GeometryLabels,
+    policy: LabelPolicy,
+    required_clearance_mm: float,
+) -> str:
+    if labels.minimum_distance is None:
+        raise ValueError("tolerance fit requires minimum_distance")
+    if labels.minimum_distance <= policy.epsilon_distance_mm:
+        return "no"
+    return "yes" if labels.minimum_distance >= required_clearance_mm else "no"
+
+
+def _expected_pairwise_answer(metadata: dict[str, Any]) -> str:
+    variant_labels = metadata.get("variant_labels")
+    if not isinstance(variant_labels, dict):
+        raise ValueError("pairwise rows require variant_labels metadata")
+    a = _variant_interferes(variant_labels, "A")
+    b = _variant_interferes(variant_labels, "B")
+    if a and b:
+        return "both"
+    if a:
+        return "A"
+    if b:
+        return "B"
+    return "neither"
+
+
+def _variant_interferes(variant_labels: dict[str, Any], letter: str) -> bool:
+    value = variant_labels.get(letter)
+    if not isinstance(value, dict) or not isinstance(value.get("interferes"), bool):
+        raise ValueError("pairwise variant metadata requires boolean interferes fields")
+    return value["interferes"]
+
+
+def _expected_ranking_answer(metadata: dict[str, Any]) -> str:
+    values = metadata.get("variant_values")
+    if not isinstance(values, dict) or not 3 <= len(values) <= 5:
+        raise ValueError("ranking rows require 3-5 variant_values metadata entries")
+    ordered = sorted(
+        values.items(),
+        key=lambda item: (-float(item[1]["normalized_intersection"]), item[0]),
+    )
+    return "".join(letter for letter, _ in ordered)
 
 
 class FailureRecord(StrictModel):

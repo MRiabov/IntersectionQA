@@ -9,7 +9,13 @@ from time import monotonic
 
 from intersectionqa.config import load_config
 from intersectionqa.evaluation.aabb import evaluate_aabb_binary
-from intersectionqa.evaluation.comparison import comparison_rows_from_aabb, comparison_rows_to_markdown
+from intersectionqa.evaluation.comparison import (
+    comparison_rows_from_aabb,
+    comparison_rows_from_metrics,
+    comparison_rows_to_markdown,
+)
+from intersectionqa.evaluation.obb import evaluate_obb_binary
+from intersectionqa.evaluation.tool_assisted import run_tool_assisted_upper_bound
 from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import dataset_stats, manifest_stats
 from intersectionqa.export.jsonl import read_failure_manifest, read_object_validation_manifest
@@ -85,11 +91,17 @@ def main() -> None:
 
     aabb = evaluate_aabb_binary(rows)
     _write_json(aabb.__dict__, reports_dir / "aabb_baseline.json")
+    obb = evaluate_obb_binary(rows)
+    _write_json(obb.__dict__, reports_dir / "obb_baseline.json")
+    tool_assisted = run_tool_assisted_upper_bound(rows)
+    _write_json(tool_assisted.report, reports_dir / "tool_assisted_upper_bound.json")
 
     failures_report = failure_case_analysis(rows, object_validations, failures)
     _write_json(failures_report, reports_dir / "failure_analysis.json")
 
     comparison_rows = comparison_rows_from_aabb(aabb)
+    comparison_rows.extend(comparison_rows_from_aabb(obb, system="obb_overlap"))
+    comparison_rows.extend(comparison_rows_from_metrics(tool_assisted.metrics, system="tool_assisted_upper_bound"))
     _write_json([row.as_dict() for row in comparison_rows], reports_dir / "baseline_comparison.json")
     (reports_dir / "baseline_comparison.md").write_text(
         comparison_rows_to_markdown(comparison_rows),

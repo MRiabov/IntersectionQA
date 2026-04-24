@@ -45,6 +45,10 @@ def test_baseline_comparison_table_writes_json_and_markdown(tmp_path):
         row["system"] == "aabb_overlap" and row["task_type"] == "binary_interference"
         for row in payload
     )
+    assert any(
+        row["system"] == "obb_overlap" and row["task_type"] == "binary_interference"
+        for row in payload
+    )
     assert any(row["system"] == "perfect" and row["accuracy"] == 1.0 for row in payload)
     markdown = markdown_output.read_text(encoding="utf-8")
     assert "| system | task_type |" in markdown

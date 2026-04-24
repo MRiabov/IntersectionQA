@@ -38,6 +38,8 @@ def test_build_release_candidate_writes_reports_and_parquet(tmp_path):
     assert (output_dir / "parquet" / "train.parquet").exists()
     assert (output_dir / "reports" / "dataset_stats.json").exists()
     assert (output_dir / "reports" / "aabb_baseline.json").exists()
+    assert (output_dir / "reports" / "obb_baseline.json").exists()
+    assert (output_dir / "reports" / "tool_assisted_upper_bound.json").exists()
     assert (output_dir / "reports" / "failure_analysis.json").exists()
     report = json.loads((output_dir / "reports" / "release_candidate_report.json").read_text())
     assert report["validated_rows"] > 0
