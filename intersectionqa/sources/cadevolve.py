@@ -100,12 +100,14 @@ def _normalized_path(path: str) -> str:
 
 def _source_subset(path: str) -> str:
     parts = path.split("/")
-    return "/".join(parts[:2]) if len(parts) > 1 else parts[0]
+    if len(parts) > 2:
+        return "/".join(parts[:2])
+    return parts[0]
 
 
 def _generator_id(path: str) -> str:
     parts = path.split("/")
-    prefix = "/".join(parts[:2]) if len(parts) > 1 else parts[0]
+    prefix = "/".join(parts[:2]) if len(parts) > 2 else parts[0]
     return "cadevolve_" + re.sub(r"[^A-Za-z0-9]+", "_", prefix).strip("_").lower()
 
 

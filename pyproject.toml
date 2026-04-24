@@ -17,6 +17,9 @@ dependencies = [
 intersectionqa-generate = "scripts.generate_dataset:main"
 intersectionqa-validate = "scripts.validate_dataset:main"
 intersectionqa-aabb-baseline = "scripts.evaluate_baseline:main"
+intersectionqa-evaluate-predictions = "scripts.evaluate_predictions:main"
+intersectionqa-stats = "scripts.dataset_stats:main"
+intersectionqa-inspect = "scripts.inspect_example:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
