@@ -48,6 +48,15 @@ class _CandidateSpec:
     changed_parameter: str | None = "transform_b.translation[0]"
 
 
+_RELATION_BALANCE_ORDER = (
+    Relation.DISJOINT,
+    Relation.TOUCHING,
+    Relation.NEAR_MISS,
+    Relation.INTERSECTING,
+    Relation.CONTAINED,
+)
+
+
 def generate_cadevolve_geometry_records(
     sources: list[SourceObjectRecord],
     validations_by_object_id: dict[str, ObjectValidationRecord],
@@ -56,6 +65,8 @@ def generate_cadevolve_geometry_records(
     config_hash: str,
     max_records: int,
     geometry_cache: GeometryLabelCache | None = None,
+    relation_balance: bool = True,
+    candidate_pool_multiplier: int = 2,
 ) -> CadevolveGeometryBuild:
     """Build a bounded deterministic set of exact-labeled CADEvolve assemblies."""
 
@@ -65,14 +76,14 @@ def generate_cadevolve_geometry_records(
         for source in sorted(sources, key=lambda item: item.source_path or item.source_id)
         if _is_validated(source, validations_by_object_id)
     ]
-    records: list[GeometryRecord] = []
+    candidate_records: list[GeometryRecord] = []
     failures: list[FailureRecord] = []
     if max_records <= 0 or len(valid_sources) < 2:
         _progress(
             "CADEvolve candidate generation skipped: "
             f"valid_sources={len(valid_sources)}, max_records={max_records}"
         )
-        return CadevolveGeometryBuild(records=records, failures=failures)
+        return CadevolveGeometryBuild(records=candidate_records, failures=failures)
 
     measured_by_object_id, execution_failures = _execute_valid_sources(valid_sources, config_hash)
     failures.extend(execution_failures)
@@ -82,29 +93,29 @@ def generate_cadevolve_geometry_records(
             "CADEvolve candidate generation skipped after source execution: "
             f"valid_executed_sources={len(valid_sources)}, execution_failures={len(execution_failures)}"
         )
-        return CadevolveGeometryBuild(records=records, failures=failures)
+        return CadevolveGeometryBuild(records=candidate_records, failures=failures)
 
     _progress(
-        f"generating CADEvolve geometry records: 0/{max_records}, "
-        f"valid_sources={len(valid_sources)}"
+        f"generating CADEvolve geometry candidate pool: 0/{_candidate_pool_target(max_records, relation_balance, candidate_pool_multiplier)}, "
+        f"target_records={max_records}, valid_sources={len(valid_sources)}, relation_balance={relation_balance}"
     )
     pair_index = 0
     attempts = 0
     cache_hits = 0
+    pool_target = _candidate_pool_target(max_records, relation_balance, candidate_pool_multiplier)
+    stop_generation = False
     for object_a, object_b in _deterministic_pairs(valid_sources):
+        if stop_generation:
+            break
         pair_index += 1
         validation_a = validations_by_object_id[object_a.object_id]
         validation_b = validations_by_object_id[object_b.object_id]
         for spec_index, spec in enumerate(_candidate_specs(validation_a, validation_b, policy), start=1):
-            if len(records) >= max_records:
-                _progress(
-                    f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
-                    f"attempts={attempts}, failures={len(failures)}, cache_hits={cache_hits}, "
-                    f"elapsed={_elapsed(started)}"
-                )
-                return CadevolveGeometryBuild(records=records, failures=failures)
+            if len(candidate_records) >= pool_target:
+                stop_generation = True
+                break
             attempts += 1
-            geometry_index = len(records) + 1
+            geometry_index = attempts
             try:
                 record = _measure_candidate(
                     object_a,
@@ -178,16 +189,21 @@ def generate_cadevolve_geometry_records(
                 continue
             if record.metadata.get("geometry_label_cache_hit") is True:
                 cache_hits += 1
-            records.append(record)
-            if len(records) == max_records or len(records) % 10 == 0:
+            candidate_records.append(record)
+            if len(candidate_records) == pool_target or len(candidate_records) % 10 == 0:
                 _progress(
-                    f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
+                    f"generating CADEvolve geometry candidate pool: {len(candidate_records)}/{pool_target}, "
+                    f"selected_target={max_records}, "
                     f"attempts={attempts}, failures={len(failures)}, cache_hits={cache_hits}, "
                     f"elapsed={_elapsed(started)}"
                 )
+    records = _renumber_geometry_records(
+        _select_balanced_records(candidate_records, max_records, relation_balance=relation_balance)
+    )
     _progress(
         f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
-        f"attempts={attempts}, failures={len(failures)}, cache_hits={cache_hits}, "
+        f"candidate_pool={len(candidate_records)}, attempts={attempts}, failures={len(failures)}, "
+        f"cache_hits={cache_hits}, relation_counts={_relation_counts(records)}, "
         f"elapsed={_elapsed(started)}"
     )
     return CadevolveGeometryBuild(records=records, failures=failures)
@@ -232,6 +248,69 @@ def _deterministic_pairs(
     for index, source in enumerate(sources):
         pairs.append((source, sources[(index + 1) % len(sources)]))
     return pairs
+
+
+def _candidate_pool_target(
+    max_records: int,
+    relation_balance: bool,
+    candidate_pool_multiplier: int,
+) -> int:
+    if not relation_balance:
+        return max_records
+    return max_records * max(1, candidate_pool_multiplier)
+
+
+def _select_balanced_records(
+    records: list[GeometryRecord],
+    max_records: int,
+    *,
+    relation_balance: bool,
+) -> list[GeometryRecord]:
+    if not relation_balance:
+        return records[:max_records]
+
+    buckets = {relation: [] for relation in _RELATION_BALANCE_ORDER}
+    overflow: list[GeometryRecord] = []
+    for record in records:
+        bucket = buckets.get(record.labels.relation)
+        if bucket is None:
+            overflow.append(record)
+        else:
+            bucket.append(record)
+
+    selected: list[GeometryRecord] = []
+    while len(selected) < max_records:
+        added = False
+        for relation in _RELATION_BALANCE_ORDER:
+            bucket = buckets[relation]
+            if bucket:
+                selected.append(bucket.pop(0))
+                added = True
+                if len(selected) == max_records:
+                    break
+        if not added:
+            break
+
+    if len(selected) < max_records:
+        selected.extend(overflow[: max_records - len(selected)])
+    return selected
+
+
+def _renumber_geometry_records(records: list[GeometryRecord]) -> list[GeometryRecord]:
+    renumbered: list[GeometryRecord] = []
+    for index, record in enumerate(records, start=1):
+        geometry_id = f"geom_cadevolve_{index:06d}"
+        metadata = dict(record.metadata)
+        metadata["pre_balance_geometry_id"] = record.geometry_id
+        renumbered.append(record.model_copy(update={"geometry_id": geometry_id, "metadata": metadata}))
+    return renumbered
+
+
+def _relation_counts(records: list[GeometryRecord]) -> dict[str, int]:
+    counts = {relation.value: 0 for relation in _RELATION_BALANCE_ORDER}
+    for record in records:
+        counts[record.labels.relation.value] = counts.get(record.labels.relation.value, 0) + 1
+    return {relation: count for relation, count in counts.items() if count}
 
 
 def _candidate_specs(

@@ -97,6 +97,8 @@ def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArti
             config_hash=config.config_hash,
             max_records=config.smoke.geometry_limit,
             geometry_cache=_geometry_label_cache_for_smoke(config),
+            relation_balance=config.smoke.balance_geometry_relations,
+            candidate_pool_multiplier=config.smoke.geometry_candidate_pool_multiplier,
         )
         records.extend(cadevolve_generation.records)
         failures.extend(cadevolve_generation.failures)
