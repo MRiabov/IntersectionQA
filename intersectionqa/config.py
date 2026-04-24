@@ -21,8 +21,13 @@ class SmokeConfig(BaseModel):
     geometry_limit: int = 100
     object_validation_limit: int = 25
     object_validation_timeout_seconds: float = 5.0
+    object_validation_worker_count: int = 2
+    use_source_member_index_cache: bool = True
+    source_member_index_cache_dir: Path = Path(".cache/intersectionqa/source_indexes")
     use_object_validation_cache: bool = True
     object_validation_cache_dir: Path = Path(".cache/intersectionqa/objects")
+    use_geometry_label_cache: bool = True
+    geometry_label_cache_dir: Path = Path(".cache/intersectionqa/labels")
     task_types: list[TaskType] = Field(
         default_factory=lambda: [
             TaskType.BINARY_INTERFERENCE,
@@ -46,7 +51,24 @@ class DatasetConfig(BaseModel):
 
     @property
     def config_hash(self) -> str:
-        return sha256_json(self.model_dump(mode="json"))
+        return sha256_json(self._content_hash_payload())
+
+    def _content_hash_payload(self) -> dict[str, Any]:
+        payload = self.model_dump(mode="json")
+        payload.pop("output_dir", None)
+        smoke = payload.get("smoke")
+        if isinstance(smoke, dict):
+            for key in (
+                "use_object_validation_cache",
+                "object_validation_cache_dir",
+                "object_validation_worker_count",
+                "use_source_member_index_cache",
+                "source_member_index_cache_dir",
+                "use_geometry_label_cache",
+                "geometry_label_cache_dir",
+            ):
+                smoke.pop(key, None)
+        return payload
 
 
 def load_config(path: Path | None) -> DatasetConfig:

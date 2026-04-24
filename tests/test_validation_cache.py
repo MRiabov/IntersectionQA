@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from intersectionqa.config import DatasetConfig, SmokeConfig
+from intersectionqa.export.jsonl import read_object_validation_manifest
 from intersectionqa.pipeline import build_smoke_rows
+from intersectionqa.pipeline import write_smoke_dataset
 from intersectionqa.sources.synthetic import synthetic_source_object
 from intersectionqa.sources.validation import validate_source_object
 from intersectionqa.sources.validation_cache import ObjectValidationCache, object_validation_cache_key
@@ -50,3 +52,23 @@ def test_smoke_generation_reuses_object_validation_cache(tmp_path, capsys):
     assert "cache_hits=0" in first
     assert "cache_hits=3" in second
     assert list(Path(cache_dir).glob("*/*.json"))
+
+
+def test_cached_object_validation_records_use_current_config_hash(tmp_path):
+    cache_dir = tmp_path / "cache"
+    first_dir = tmp_path / "first"
+    second_dir = tmp_path / "second"
+    smoke = SmokeConfig(
+        use_synthetic_fixtures=True,
+        include_cadevolve_if_available=False,
+        object_validation_cache_dir=cache_dir,
+    )
+    first = DatasetConfig(dataset_version="v0.1", output_dir=first_dir, smoke=smoke)
+    second = DatasetConfig(dataset_version="v0.1-test", output_dir=second_dir, smoke=smoke)
+
+    write_smoke_dataset(first)
+    write_smoke_dataset(second)
+
+    validations = read_object_validation_manifest(second_dir / "object_validation_manifest.jsonl")
+    assert validations
+    assert all(record.hashes.config_hash == second.config_hash for record in validations)

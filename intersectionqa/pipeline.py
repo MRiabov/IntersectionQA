@@ -25,6 +25,7 @@ from intersectionqa.export.jsonl import (
     write_jsonl_like,
 )
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
+from intersectionqa.generation.geometry_cache import GeometryLabelCache
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.schema import (
     GeometryRecord,
@@ -40,7 +41,7 @@ from intersectionqa.schema import (
 )
 from intersectionqa.sources.cadevolve import CadevolveTarLoader
 from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
-from intersectionqa.sources.validation import validate_source_object
+from intersectionqa.sources.validation import validate_source_object, validate_source_objects_bounded
 from intersectionqa.sources.validation_cache import (
     ObjectValidationCache,
     object_validation_cache_key,
@@ -95,6 +96,7 @@ def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArti
             policy=config.label_policy,
             config_hash=config.config_hash,
             max_records=config.smoke.geometry_limit,
+            geometry_cache=_geometry_label_cache_for_smoke(config),
         )
         records.extend(cadevolve_generation.records)
         failures.extend(cadevolve_generation.failures)
@@ -249,7 +251,22 @@ def _source_manifest(
 
 def _load_cadevolve_for_smoke(config: DatasetConfig):
     limit = config.smoke.object_validation_limit
-    return CadevolveTarLoader(config.cadevolve_archive, config.config_hash).load(limit=limit)
+    member_index_cache_dir = (
+        config.smoke.source_member_index_cache_dir
+        if config.smoke.use_source_member_index_cache
+        else None
+    )
+    return CadevolveTarLoader(
+        config.cadevolve_archive,
+        config.config_hash,
+        member_index_cache_dir=member_index_cache_dir,
+    ).load(limit=limit)
+
+
+def _geometry_label_cache_for_smoke(config: DatasetConfig) -> GeometryLabelCache | None:
+    if not config.smoke.use_geometry_label_cache:
+        return None
+    return GeometryLabelCache(config.smoke.geometry_label_cache_dir)
 
 
 def _validate_sources_for_smoke(
@@ -266,8 +283,12 @@ def _validate_sources_for_smoke(
     )
     if total:
         cache_status = f"cache={config.smoke.object_validation_cache_dir}" if cache else "cache=disabled"
-        _progress(f"validating source objects: 0/{total}, {cache_status}")
-    records: list[ObjectValidationRecord] = []
+        _progress(
+            f"validating source objects: 0/{total}, {cache_status}, "
+            f"workers={config.smoke.object_validation_worker_count}"
+        )
+    records: list[ObjectValidationRecord | None] = [None] * total
+    missing: list[tuple[int, SourceObjectRecord, str]] = []
     cache_hits = 0
     for index, source in enumerate(source_records, start=1):
         cache_key = object_validation_cache_key(
@@ -277,26 +298,60 @@ def _validate_sources_for_smoke(
         )
         cached = cache.get(cache_key) if cache else None
         if cached is not None:
-            record = cached
+            records[index - 1] = _object_validation_with_config_hash(cached, config.config_hash)
             cache_hits += 1
         else:
-            record = validate_source_object(
-                source,
-                config_hash=config.config_hash,
-                validated_at_version=validation_version,
-                timeout_seconds=config.smoke.object_validation_timeout_seconds,
-            )
+            missing.append((index - 1, source, cache_key))
+
+    if missing:
+        worker_count = max(1, config.smoke.object_validation_worker_count)
+
+        def progress(completed: int, missing_total: int) -> None:
+            overall_completed = cache_hits + completed
+            if overall_completed == total or overall_completed % 10 == 0 or completed == missing_total:
+                _progress(
+                    f"validating source objects: {overall_completed}/{total}, "
+                    f"cache_hits={cache_hits}, workers={worker_count}, elapsed={_elapsed(started)}"
+                )
+
+        validated_missing = validate_source_objects_bounded(
+            [source for _, source, _ in missing],
+            config_hash=config.config_hash,
+            validated_at_version=validation_version,
+            timeout_seconds=config.smoke.object_validation_timeout_seconds,
+            worker_count=worker_count,
+            progress=progress,
+        )
+        for (index, _source, cache_key), record in zip(missing, validated_missing, strict=True):
+            records[index] = record
             if cache is not None:
                 cache.set(cache_key, record)
-        records.append(record)
-        if index == total or index % 10 == 0:
-            valid_count = sum(1 for record in records if record.valid)
-            _progress(
-                f"validating source objects: {index}/{total}, "
-                f"valid={valid_count}, invalid={index - valid_count}, "
-                f"cache_hits={cache_hits}, elapsed={_elapsed(started)}"
-            )
-    return records
+    else:
+        _progress(
+            f"validating source objects: {total}/{total}, cache_hits={cache_hits}, "
+            f"elapsed={_elapsed(started)}"
+        )
+
+    completed_records = [record for record in records if record is not None]
+    if total:
+        valid_count = sum(1 for record in completed_records if record.valid)
+        _progress(
+            f"validating source objects complete: {len(completed_records)}/{total}, "
+            f"valid={valid_count}, invalid={len(completed_records) - valid_count}, "
+            f"cache_hits={cache_hits}, elapsed={_elapsed(started)}"
+        )
+    return completed_records
+
+
+def _object_validation_with_config_hash(
+    record: ObjectValidationRecord,
+    config_hash: str,
+) -> ObjectValidationRecord:
+    if record.hashes.config_hash == config_hash:
+        return record
+    return record.model_copy(
+        update={"hashes": record.hashes.model_copy(update={"config_hash": config_hash})}
+    )
 
 
 def _set_source_validation_counts(
