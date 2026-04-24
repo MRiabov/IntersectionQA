@@ -12,8 +12,10 @@ from intersectionqa.evaluation.model_runner import (
     DecodingSettings,
     ModelSpec,
     build_model_client,
+    run_few_shot_evaluation,
     run_zero_shot_evaluation,
     select_rows,
+    write_few_shot_request_jsonl,
     write_predictions_jsonl,
     write_report,
     write_request_jsonl,
@@ -39,6 +41,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--split", action="append", choices=[item.value for item in Split])
     parser.add_argument("--task-type", action="append", choices=[item.value for item in TaskType])
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--few-shot-count", type=int, default=0)
     parser.add_argument("--output-dir", type=Path, default=Path("eval/zero_shot"))
     parser.add_argument("--predictions-jsonl", type=Path, default=None)
     parser.add_argument("--report-json", type=Path, default=None)
@@ -75,13 +78,37 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     if args.requests_jsonl is not None:
-        write_request_jsonl(selected, spec, settings, args.requests_jsonl)
+        if args.few_shot_count > 0:
+            write_few_shot_request_jsonl(
+                selected,
+                spec,
+                settings,
+                args.requests_jsonl,
+                shot_count=args.few_shot_count,
+                all_rows=rows,
+            )
+        else:
+            write_request_jsonl(selected, spec, settings, args.requests_jsonl)
     if args.export_requests_only:
         return
 
     client = build_model_client(spec, timeout_seconds=args.timeout_seconds)
-    result = run_zero_shot_evaluation(selected, client, spec, settings)
+    if args.few_shot_count > 0:
+        result = run_few_shot_evaluation(
+            rows,
+            client,
+            spec,
+            settings,
+            shot_count=args.few_shot_count,
+            splits={Split(item) for item in args.split} if args.split else None,
+            task_types={TaskType(item) for item in args.task_type} if args.task_type else None,
+            limit=args.limit,
+        )
+    else:
+        result = run_zero_shot_evaluation(selected, client, spec, settings)
     artifact_stem = f"{args.provider}_{_path_token(args.model)}"
+    if args.few_shot_count > 0:
+        artifact_stem = f"{artifact_stem}_fewshot{args.few_shot_count}"
     predictions_path = args.predictions_jsonl or args.output_dir / f"{artifact_stem}_predictions.jsonl"
     report_path = args.report_json or args.output_dir / f"{artifact_stem}_report.json"
     write_predictions_jsonl(result.predictions, predictions_path)

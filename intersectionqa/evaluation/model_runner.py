@@ -18,11 +18,19 @@ from intersectionqa.schema import PublicTaskRow
 
 ZERO_SHOT_EVAL_VERSION = "zero_shot_eval_v01"
 ZERO_SHOT_PROMPT_VERSION = "closed_book_zero_shot_v01"
+FEW_SHOT_EVAL_VERSION = "few_shot_eval_v01"
+FEW_SHOT_PROMPT_VERSION = "closed_book_few_shot_v01"
 PARSER_POLICY_VERSION = "strict_exact_answer_v01"
 ZERO_SHOT_SYSTEM_PROMPT = (
     "You are evaluating IntersectionQA closed-book CAD-code spatial reasoning prompts. "
     "Do not execute code, call tools, or ask for clarification. Return only the exact final "
     "answer token requested by the user prompt."
+)
+FEW_SHOT_SYSTEM_PROMPT = (
+    "You are evaluating IntersectionQA closed-book CAD-code spatial reasoning prompts. "
+    "Study the provided solved examples, then answer the final target prompt. Do not execute "
+    "code, call tools, or ask for clarification. Return only the exact final answer token "
+    "requested by the target prompt."
 )
 
 
@@ -81,6 +89,13 @@ class ModelPrediction:
 
 @dataclass(frozen=True)
 class ZeroShotRunResult:
+    report: dict[str, Any]
+    predictions: list[ModelPrediction]
+    metrics: list[TaskMetrics]
+
+
+@dataclass(frozen=True)
+class FewShotRunResult:
     report: dict[str, Any]
     predictions: list[ModelPrediction]
     metrics: list[TaskMetrics]
@@ -196,6 +211,24 @@ def zero_shot_messages(row: PublicTaskRow) -> list[dict[str, str]]:
     ]
 
 
+def few_shot_messages(row: PublicTaskRow, examples: list[PublicTaskRow]) -> list[dict[str, str]]:
+    example_text = "\n\n".join(
+        [
+            f"Example {index}\nPrompt:\n{example.prompt}\nAnswer:\n{example.answer}"
+            for index, example in enumerate(examples, start=1)
+        ]
+    )
+    user_content = (
+        f"{example_text}\n\nTarget prompt:\n{row.prompt}"
+        if example_text
+        else f"Target prompt:\n{row.prompt}"
+    )
+    return [
+        {"role": "system", "content": FEW_SHOT_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+
 def zero_shot_request_record(
     row: PublicTaskRow,
     spec: ModelSpec,
@@ -210,6 +243,30 @@ def zero_shot_request_record(
         "eval_prompt_version": ZERO_SHOT_PROMPT_VERSION,
         "prompt_template_version": row.metadata.get("prompt_template_version"),
         "prompt_hash": row.hashes.prompt_hash,
+        "messages": messages,
+        "decoding": settings.as_request_payload(),
+    }
+    record["eval_request_hash"] = sha256_json(record)
+    return record
+
+
+def few_shot_request_record(
+    row: PublicTaskRow,
+    examples: list[PublicTaskRow],
+    spec: ModelSpec,
+    settings: DecodingSettings,
+) -> dict[str, Any]:
+    messages = few_shot_messages(row, examples)
+    record = {
+        "id": row.id,
+        "provider": spec.provider,
+        "model": spec.model,
+        "eval_version": FEW_SHOT_EVAL_VERSION,
+        "eval_prompt_version": FEW_SHOT_PROMPT_VERSION,
+        "prompt_template_version": row.metadata.get("prompt_template_version"),
+        "prompt_hash": row.hashes.prompt_hash,
+        "few_shot_example_ids": [example.id for example in examples],
+        "few_shot_example_prompt_hashes": [example.hashes.prompt_hash for example in examples],
         "messages": messages,
         "decoding": settings.as_request_payload(),
     }
@@ -232,6 +289,28 @@ def select_rows(
     ]
     selected = sorted(selected, key=lambda row: row.id)
     return selected[:limit] if limit is not None else selected
+
+
+def select_few_shot_examples(
+    rows: Iterable[PublicTaskRow],
+    target: PublicTaskRow,
+    *,
+    shot_count: int,
+    example_splits: set[Split] | None = None,
+) -> list[PublicTaskRow]:
+    if shot_count <= 0:
+        return []
+    example_splits = example_splits or {Split.TRAIN}
+    target_group = _row_split_group(target)
+    candidates = [
+        row
+        for row in rows
+        if row.id != target.id
+        and row.task_type == target.task_type
+        and row.split in example_splits
+        and _row_split_group(row) != target_group
+    ]
+    return sorted(candidates, key=lambda row: (_answer_sort_key(row), row.id))[:shot_count]
 
 
 def run_zero_shot_evaluation(
@@ -276,6 +355,64 @@ def run_zero_shot_evaluation(
     return ZeroShotRunResult(report=report, predictions=predictions, metrics=metrics)
 
 
+def run_few_shot_evaluation(
+    rows: Iterable[PublicTaskRow],
+    client: ModelClient,
+    spec: ModelSpec,
+    settings: DecodingSettings,
+    *,
+    shot_count: int = 3,
+    example_splits: set[Split] | None = None,
+    splits: set[Split] | None = None,
+    task_types: set[TaskType] | None = None,
+    limit: int | None = None,
+) -> FewShotRunResult:
+    all_rows = list(rows)
+    selected = select_rows(all_rows, splits=splits, task_types=task_types, limit=limit)
+    predictions: list[ModelPrediction] = []
+    examples_by_row_id: dict[str, list[str]] = {}
+    started = time.time()
+    for row in selected:
+        examples = select_few_shot_examples(
+            all_rows,
+            row,
+            shot_count=shot_count,
+            example_splits=example_splits,
+        )
+        examples_by_row_id[row.id] = [example.id for example in examples]
+        request_record = few_shot_request_record(row, examples, spec, settings)
+        output = client.generate(request_record["messages"], settings)
+        predictions.append(
+            ModelPrediction(
+                row_id=row.id,
+                output=output.text,
+                provider=spec.provider,
+                model=spec.model,
+                prompt_hash=row.hashes.prompt_hash,
+                prompt_template_version=row.metadata.get("prompt_template_version"),
+                eval_prompt_version=FEW_SHOT_PROMPT_VERSION,
+                eval_request_hash=request_record["eval_request_hash"],
+                decoding=settings.as_request_payload(),
+                response_metadata={
+                    **output.raw_response,
+                    "few_shot_example_ids": examples_by_row_id[row.id],
+                },
+            )
+        )
+    metrics = evaluate_predictions(selected, [prediction.as_prediction() for prediction in predictions])
+    report = build_few_shot_report(
+        rows=selected,
+        predictions=predictions,
+        metrics=metrics,
+        spec=spec,
+        settings=settings,
+        elapsed_seconds=time.time() - started,
+        shot_count=shot_count,
+        examples_by_row_id=examples_by_row_id,
+    )
+    return FewShotRunResult(report=report, predictions=predictions, metrics=metrics)
+
+
 def build_zero_shot_report(
     *,
     rows: list[PublicTaskRow],
@@ -311,6 +448,38 @@ def build_zero_shot_report(
     }
 
 
+def build_few_shot_report(
+    *,
+    rows: list[PublicTaskRow],
+    predictions: list[ModelPrediction],
+    metrics: list[TaskMetrics],
+    spec: ModelSpec,
+    settings: DecodingSettings,
+    elapsed_seconds: float,
+    shot_count: int,
+    examples_by_row_id: dict[str, list[str]],
+) -> dict[str, Any]:
+    report = build_zero_shot_report(
+        rows=rows,
+        predictions=predictions,
+        metrics=metrics,
+        spec=spec,
+        settings=settings,
+        elapsed_seconds=elapsed_seconds,
+    )
+    report.update(
+        {
+            "eval_version": FEW_SHOT_EVAL_VERSION,
+            "eval_prompt_version": FEW_SHOT_PROMPT_VERSION,
+            "comparison_baseline_eval_version": ZERO_SHOT_EVAL_VERSION,
+            "few_shot_count": shot_count,
+            "few_shot_selection_policy": "same_task_train_split_excluding_target_split_group",
+            "few_shot_examples_by_row_id": examples_by_row_id,
+        }
+    )
+    return report
+
+
 def write_request_jsonl(
     rows: Iterable[PublicTaskRow],
     spec: ModelSpec,
@@ -322,6 +491,36 @@ def write_request_jsonl(
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(zero_shot_request_record(row, spec, settings), sort_keys=True) + "\n")
+            count += 1
+    return count
+
+
+def write_few_shot_request_jsonl(
+    rows: Iterable[PublicTaskRow],
+    spec: ModelSpec,
+    settings: DecodingSettings,
+    path: Path,
+    *,
+    shot_count: int = 3,
+    example_splits: set[Split] | None = None,
+    all_rows: Iterable[PublicTaskRow] | None = None,
+) -> int:
+    selected = list(rows)
+    source_rows = list(all_rows) if all_rows is not None else selected
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with path.open("w", encoding="utf-8") as handle:
+        for row in selected:
+            examples = select_few_shot_examples(
+                source_rows,
+                row,
+                shot_count=shot_count,
+                example_splits=example_splits,
+            )
+            handle.write(
+                json.dumps(few_shot_request_record(row, examples, spec, settings), sort_keys=True)
+                + "\n"
+            )
             count += 1
     return count
 
@@ -355,3 +554,17 @@ def _json_ready(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
     return str(value)
+
+
+def _row_split_group(row: PublicTaskRow) -> str:
+    return str(
+        row.metadata.get("split_group")
+        or row.counterfactual_group_id
+        or row.assembly_group_id
+        or row.base_object_pair_id
+        or row.id
+    )
+
+
+def _answer_sort_key(row: PublicTaskRow) -> tuple[str, str]:
+    return (str(row.answer), row.id)
