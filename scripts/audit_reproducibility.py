@@ -17,9 +17,11 @@ RELEASE_ARTIFACTS = [
     "schema.json",
     "source_manifest.json",
     "split_manifest.json",
+    "parquet_manifest.json",
     "object_validation_manifest.jsonl",
     "failure_manifest.jsonl",
     *[f"{split}.jsonl" for split in DEFAULT_SPLITS],
+    *[f"parquet/{split}.parquet" for split in DEFAULT_SPLITS],
 ]
 
 
