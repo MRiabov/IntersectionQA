@@ -1,10 +1,4 @@
-"""CADEvolve tar archive source loader skeleton.
-
-The MVP does not execute untrusted CADEvolve programs in-process. This loader
-captures deterministic provenance and normalized source records for later
-isolated validation. Missing archives are treated as an empty source rather than
-blocking synthetic fixture smoke generation.
-"""
+"""CADEvolve tar archive source loader."""
 
 from __future__ import annotations
 
@@ -33,17 +27,10 @@ class CadevolveTarLoader:
         records: list[SourceObjectRecord] = []
         scanned = 0
         with tarfile.open(self.archive_path, "r:*") as archive:
-            members = sorted(
-                (
-                    member
-                    for member in archive.getmembers()
-                    if member.isfile()
-                    and member.name.endswith(".py")
-                    and _normalized_path(member.name).startswith(EXECUTABLE_PREFIXES)
-                ),
-                key=lambda member: _normalized_path(member.name),
-            )
-            for member in members:
+            for member in archive:
+                source_path = _normalized_path(member.name)
+                if not _is_executable_source_member(member, source_path):
+                    continue
                 if limit is not None and len(records) >= limit:
                     break
                 scanned += 1
@@ -51,7 +38,6 @@ class CadevolveTarLoader:
                 if fileobj is None:
                     continue
                 code = fileobj.read().decode("utf-8", errors="replace")
-                source_path = _normalized_path(member.name)
                 object_id = f"obj_cadevolve_{len(records) + 1:06d}"
                 source_hash = sha256_text(code)
                 normalized_code = _wrap_as_object_function(code)
@@ -96,6 +82,14 @@ class CadevolveTarLoader:
 
 def _normalized_path(path: str) -> str:
     return path.removeprefix("./")
+
+
+def _is_executable_source_member(member: tarfile.TarInfo, source_path: str) -> bool:
+    return (
+        member.isfile()
+        and source_path.endswith(".py")
+        and source_path.startswith(EXECUTABLE_PREFIXES)
+    )
 
 
 def _source_subset(path: str) -> str:

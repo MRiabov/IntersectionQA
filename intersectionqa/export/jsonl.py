@@ -174,7 +174,7 @@ def build_metadata(
         license=license,
         known_limitations=[
             "Smoke generation uses synthetic primitive fixtures when CADEvolve is unavailable.",
-            "This MVP path does not execute CADEvolve or CadQuery in-process.",
+            "CADEvolve smoke geometry uses a bounded bbox-guided transform slice, not full corpus sharding.",
             "AABB baseline is diagnostic and not an official label source.",
         ],
     )

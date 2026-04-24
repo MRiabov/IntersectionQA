@@ -34,6 +34,9 @@ def test_dataset_stats_counts_rows():
     assert stats["total_rows"] == len(rows)
     assert stats["by_task"]["binary_interference"] == 7
     assert stats["by_task_answer"]["binary_interference"]["yes"] > 0
+    assert stats["by_candidate_strategy"]["golden_box_fixture"] > 0
+    assert stats["by_source_subtree"]["unknown"] == len(rows)
+    assert sum(sum(counts.values()) for counts in stats["by_split_relation"].values()) == len(rows)
 
 
 def test_manifest_stats_counts_validation_records():

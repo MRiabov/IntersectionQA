@@ -72,6 +72,8 @@ def public_row(
         "split_group": record.counterfactual_group_id
         or record.assembly_group_id
         or record.base_object_pair_id,
+        "candidate_strategy": record.metadata.get("candidate_strategy"),
+        "source_subtrees": record.metadata.get("source_subtrees"),
         "generator_ids": record.metadata.get("generator_ids", [record.metadata.get("generator_id")]),
         "artifact_ids": record.metadata.get("artifact_ids", {}),
     }
