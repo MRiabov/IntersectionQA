@@ -18,6 +18,7 @@ Use these documents in `specs/` as the source of truth:
 | `specs/generation_policy.md` | Candidate generation, CADEvolve source policy, sampling, balancing, split grouping, diagnostics, and anti-patterns. |
 | `specs/using-cadevolve-dataset-export.md` | Practical CADEvolve archive usage notes and source-layout details. |
 | `specs/useful-implementation-optimization.md` | Implementation and scaling guidance; informative unless it conflicts with the canonical specs above. |
+| `specs/reviewer-readiness-checklist.md` | Operational checklist for validating a dataset build before review or release. |
 | `specs/paper-spec.md` | Research framing and paper ambition; informative unless it conflicts with the canonical specs above. |
 | `epics-and-stories.md` and `epics-and-stories.yaml` | Planning backlog generated from the specs and implementation matrix. |
 | `implementation-complexity-priority-matrix.md` | Build/defer decisions, suggested module map, and risk-ranked implementation order. |
@@ -48,6 +49,68 @@ The first implementation target is intentionally narrow:
 The schema reserves later task types such as `clearance_bucket`,
 `pairwise_interference`, `ranking_normalized_intersection`, `repair_direction`,
 and `tolerance_fit`, but those are not first-class v0.1 MVP tasks.
+
+## Release-Candidate Builds
+
+Dataset generation writes public split JSONL and compressed Parquet files under
+`parquet/`. Use the release-candidate builder when preparing a sizeable dataset
+run because it validates the export and writes stats, AABB baseline, failure
+analysis, and comparison-table reports in one place:
+
+```bash
+CACHE_ROOT=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
+rtk uv run python -m scripts.build_release_candidate \
+  --config configs/smoke.yaml \
+  --cadevolve-source-cache-root "$CACHE_ROOT" \
+  --output-dir /tmp/intersectionqa_rc
+```
+
+For source-window sharding:
+
+```bash
+CACHE_ROOT=$(find .cache/intersectionqa/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
+rtk uv run python -m scripts.build_release_candidate \
+  --config configs/smoke.yaml \
+  --cadevolve-source-cache-root "$CACHE_ROOT" \
+  --output-dir /tmp/intersectionqa_rc_sharded \
+  --shard-count 10 \
+  --source-shard-size 250
+```
+
+## CADEvolve Source Cache
+
+Keep `data/cadevolve.tar` as the canonical upstream artifact, but do not use the
+tar archive as the repeated local hot path. Smoke/full generation now materializes
+the configured executable CADEvolve source subset into:
+
+```text
+.cache/intersectionqa/cadevolve_sources/
+```
+
+The cache is keyed by the archive fingerprint and preserves each original archive
+member path in the generated provenance. Local cache paths are not required by
+public rows and are not part of the dataset release.
+
+Once the source cache is prepared, generation does not need the tar on the hot
+path. Pass `--cadevolve-source-cache-root` to use a specific prepared cache
+root; default generation does not auto-discover local caches because that would
+make tests and runs depend on machine-local artifacts.
+
+For space, extract only the configured subset or shards needed for the intended
+run. The current v0.1 target should stay bounded; generating more than roughly
+100k public rows is out of scope until storage and runtime are re-evaluated.
+
+To prewarm a local source prefix explicitly:
+
+```bash
+rtk uv run python -m scripts.prepare_cadevolve_sources \
+  --cadevolve-archive data/cadevolve.tar \
+  --limit 100000
+```
+
+This extracts the first `100000` sorted executable CADEvolve source programs,
+not `100000` final public task rows. The current MVP generator can produce
+multiple public task rows per accepted geometry.
 
 ## Inspecting Rows Locally
 
@@ -105,6 +168,24 @@ For open code models served through Hugging Face Inference Providers, use
 `--provider huggingface-chat --model <repo-or-provider-model>`. Add
 `--export-requests-only` to write the fixed request JSONL without making model
 calls.
+
+To build a compact baseline/model comparison table from saved prediction JSONL:
+
+```bash
+rtk uv run python -m scripts.baseline_comparison_table \
+  /tmp/intersectionqa_smoke_cadevolve \
+  --prediction gpt_5_4=/tmp/intersectionqa_zero_shot_predictions.jsonl \
+  --markdown-output /tmp/intersectionqa_comparison.md
+```
+
+To summarize generation failures and optional model failure cases:
+
+```bash
+rtk uv run python -m scripts.failure_case_analysis \
+  /tmp/intersectionqa_smoke_cadevolve \
+  --predictions-jsonl /tmp/intersectionqa_zero_shot_predictions.jsonl \
+  --output /tmp/intersectionqa_failure_analysis.json
+```
 
 ## Reproducibility Checks
 

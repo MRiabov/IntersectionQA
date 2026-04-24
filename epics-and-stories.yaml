@@ -190,7 +190,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "3.4"
         title: Boundary-targeted examples
@@ -431,7 +431,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
 
   - id: epic-7
@@ -610,6 +610,15 @@ epics:
         recommendation: Build now
         status: implemented
         stable: false
+      - id: "9.6"
+        title: Parquet release package
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+        notes: Public split rows are exported as compressed Parquet files alongside JSONL, with a parquet manifest and reproducibility-audit coverage.
 
   - id: epic-10
     title: Paper experiments
@@ -635,7 +644,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "10.3"
         title: Task-family comparison
@@ -643,7 +652,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "10.4"
         title: Diagnostic subset analysis
@@ -667,8 +676,26 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
+      - id: "10.7"
+        title: Release-candidate build automation
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+        notes: A release-candidate builder now generates or merges a dataset, validates it, writes Parquet files, and emits dataset statistics, AABB baseline, failure-analysis, and comparison-table reports.
+      - id: "10.8"
+        title: Sizeable release-candidate dataset run
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+        notes: Run the release-candidate builder at the intended source/row scale, then record dataset stats, reproducibility audit, baseline results, and manual audit sample before paper writing.
 
   - id: epic-11
     title: Paper writing
@@ -829,10 +856,10 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: High
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
         source_document: specs/useful-implementation-optimization.md
-        notes: Object validation now uses configurable bounded isolated worker processes while preserving deterministic output order; geometry-label worker pools remain open.
+        notes: Object validation uses configurable bounded isolated worker processes with deterministic result ordering, timeout handling, and explicit failure records. Geometry-label worker pools are intentionally deferred because current in-process shape reuse plus persistent label caching is sufficient for MVP and parallel OpenCASCADE labeling adds stability and memory risk.
       - id: "12.9"
         title: Sharded resumable generation
         priority: P0
@@ -873,6 +900,26 @@ epics:
         stable: false
         source_document: specs/useful-implementation-optimization.md
         notes: Dev utilities export row prompt/script/STEP artifacts and PyVista PNG contact sheets outside the default public JSONL export.
+      - id: "12.13"
+        title: Geometry-label worker pool
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build later
+        status: deferred
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Only implement after target-scale profiling shows exact geometry labeling, not source loading/execution, is the bottleneck. A worker-pool design must account for OpenCASCADE process safety, memory growth, cache coordination, and deterministic failure handling.
+      - id: "12.14"
+        title: Direct extracted CADEvolve source cache input
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: implemented
+        stable: false
+        source_document: specs/generation_policy.md
+        notes: Release-candidate and smoke generation can now load a prepared extracted CADEvolve source prefix via an explicit source-cache root without requiring the tar archive on the generation hot path. Invalid explicit cache roots fail instead of silently falling back to synthetic fixtures.
 
   - id: epic-13
     title: Quality assurance and review
@@ -916,5 +963,5 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Low
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
