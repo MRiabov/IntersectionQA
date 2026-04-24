@@ -23,7 +23,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-24"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, and label-consistency rejection for impossible overlap/touching states. A fresh CADEvolve smoke sample has been rendered and manually checked.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -36,8 +36,17 @@ current_snapshot:
     - generation_progress_timing_logs
     - in_process_shape_reuse_for_candidate_generation
     - object_validation_cache
+    - geometry_label_cache
+    - deterministic_cadevolve_member_selection
+    - cadevolve_member_index_cache
+    - isolated_worker_queue_result_read
+    - cached_shape_mutation_guard
+    - cadquery_label_consistency_hardening
+    - content_stable_config_hash
+    - reproducibility_audit_cli
     - row_debug_step_artifact_export
     - pyvista_row_rendering
+    - render_audited_cadevolve_smoke_sample
     - mvp_prompt_generation
     - jsonl_export_and_validation
     - group_safe_splits
@@ -808,10 +817,10 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: High
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
         source_document: specs/useful-implementation-optimization.md
-        notes: Cache expensive pair/assembly labels by object hashes, transform hash, label policy, and geometry config.
+        notes: Cache expensive CADEvolve pair/assembly labels by object hashes, transform hash, label policy, and CadQuery/OCP versions; cached labels are revalidated before acceptance.
       - id: "12.8"
         title: Bounded process parallelism for CAD jobs
         priority: P0
@@ -879,16 +888,18 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
+        notes: Fresh CADEvolve smoke rows were exported and rendered with PyVista contact sheets; a positive overlap and a near-miss negative were manually checked after label hardening.
       - id: "13.2"
         title: Reproducibility audit
         priority: P0
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
+        notes: Deterministic source member ordering, cached CADEvolve member indexes, content-stable config hashes, and a release-artifact reproducibility comparison CLI are implemented; large CADEvolve runs should use the CLI for repeated-run verification.
       - id: "13.3"
         title: Leakage audit
         priority: P0

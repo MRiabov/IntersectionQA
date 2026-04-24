@@ -85,3 +85,19 @@ rtk uv run python -m scripts.render_row_artifacts \
 This writes `renders/object_a.png`, `renders/object_b.png`,
 `renders/assembly.png`, `renders/intersection.png` when applicable, and a
 `renders/contact_sheet.png` overview.
+
+## Reproducibility Checks
+
+To compare two generated dataset directories for byte-identical release
+artifacts, run:
+
+```bash
+rtk uv run python -m scripts.audit_reproducibility \
+  /tmp/intersectionqa_run_a \
+  /tmp/intersectionqa_run_b
+```
+
+The audit validates both directories and compares the public split JSONL files,
+metadata, schema, source manifest, split manifest, object-validation manifest,
+and failure manifest. It intentionally ignores `smoke_report.json`, which
+contains run-local reporting such as the output directory.
