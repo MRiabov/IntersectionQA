@@ -33,6 +33,11 @@ current_snapshot:
     - exact_cadquery_pair_measurement
     - cadevolve_bbox_guided_assembly_generation
     - cadevolve_public_task_generation
+    - generation_progress_timing_logs
+    - in_process_shape_reuse_for_candidate_generation
+    - object_validation_cache
+    - row_debug_step_artifact_export
+    - pyvista_row_rendering
     - mvp_prompt_generation
     - jsonl_export_and_validation
     - group_safe_splits
@@ -787,6 +792,76 @@ epics:
         recommendation: Build now
         status: implemented
         stable: false
+      - id: "12.6"
+        title: Object validation cache
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: implemented
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Cache object validation records by source/object/config hashes so reruns do not repeat isolated CadQuery execution.
+      - id: "12.7"
+        title: Geometry label cache
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Cache expensive pair/assembly labels by object hashes, transform hash, label policy, and geometry config.
+      - id: "12.8"
+        title: Bounded process parallelism for CAD jobs
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build now
+        status: planned
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Use configurable process-level worker pools for validation and geometry jobs without letting completion order affect stable IDs.
+      - id: "12.9"
+        title: Sharded resumable generation
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: planned
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Write completed jobs incrementally, validate shards independently, and merge only validated shards for larger CADEvolve runs.
+      - id: "12.10"
+        title: Generation progress and timing logs
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Smoke generation prints source validation, shape execution, geometry candidate, row materialization, and export progress with elapsed timings.
+      - id: "12.11"
+        title: In-process shape reuse for candidate generation
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: implemented
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: CADEvolve generation now executes each valid source shape once per run and reuses it across candidate transforms, avoiding repeated source execution per pair candidate.
+      - id: "12.12"
+        title: Row debug artifact and render utilities
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build later
+        status: implemented
+        stable: false
+        source_document: specs/useful-implementation-optimization.md
+        notes: Dev utilities export row prompt/script/STEP artifacts and PyVista PNG contact sheets outside the default public JSONL export.
 
   - id: epic-13
     title: Quality assurance and review
