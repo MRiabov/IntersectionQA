@@ -121,7 +121,7 @@ Example internal geometry record:
 ```json
 {
   "geometry_id": "geom_000001",
-  "source": "synthetic",
+  "source": "cadevolve",
   "object_a_id": "obj_000013",
   "object_b_id": "obj_000097",
   "base_object_pair_id": "pair_000021",
@@ -355,7 +355,7 @@ Recommended candidate strategies:
 - cavity-targeted placements for AABB-overlap-but-exact-disjoint examples
 - counterfactual sweeps over one parameter at a time
 
-Use exact CAD labels as the final accept/reject authority, but use bbox and known primitive parameters to propose candidates efficiently.
+Use exact CAD labels as the final accept/reject authority. For CADEvolve objects, use bbox, operation signatures, source metadata, and object-level diagnostics to propose candidates efficiently. Known primitive parameters should be used only for golden fixtures and smoke/debug edge cases.
 
 ## Counterfactual Groups
 
@@ -469,7 +469,7 @@ Required checks:
 - task distributions and label distributions are reported
 - every exported row has a prompt, answer, task type, split, and dataset version
 
-For a smoke dataset, generate a small fixed set with:
+For a smoke dataset, generate a small fixed set from CADEvolve where possible, with synthetic fixtures allowed only to fill golden edge cases:
 
 - disjoint
 - touching
@@ -477,7 +477,8 @@ For a smoke dataset, generate a small fixed set with:
 - tiny overlap
 - clear overlap
 - contained if implemented
-- AABB-overlap but exact-disjoint if a cavity motif exists
+- rotated examples
+- AABB-overlap but exact-disjoint if a CADEvolve cavity/concavity case or minimal ring/plate fixture exists
 
 ## Geometry Artifact Debugging
 
@@ -562,15 +563,15 @@ This makes prompt iteration cheap. It also makes it safe to update answer format
 Build in this order:
 
 1. Define schema for object records, geometry label records, and task rows.
-2. Implement synthetic primitive source and validation.
-3. Implement isolated CadQuery worker and exact labels.
-4. Add object-level and geometry-level caches.
-5. Implement bbox-guided candidate generation.
-6. Generate binary and relation task rows from stored labels.
-7. Add split-safe export and validation.
-8. Add counterfactual groups.
-9. Add volume and clearance buckets.
-10. Add CADEvolve ingestion after the synthetic path is stable.
+2. Implement CADEvolve tar loading, source manifests, provenance capture, and source-path filtering.
+3. Implement isolated CadQuery worker and object validation for CADEvolve scripts.
+4. Add minimal synthetic primitive fixtures for golden label and transform tests.
+5. Add object-level and geometry-level caches.
+6. Implement bbox-guided candidate generation over validated CADEvolve objects.
+7. Generate binary and relation task rows from stored labels.
+8. Add split-safe export and validation.
+9. Add counterfactual groups.
+10. Add volume and clearance buckets.
 11. Add optional rendering and artifact bundles only after code-only release flow works.
 
 ## Optimization Priorities

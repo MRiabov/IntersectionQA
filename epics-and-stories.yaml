@@ -68,7 +68,7 @@ epics:
 
   - id: epic-2
     title: Dataset source ingestion
-    scope: Ingest CadQuery programs from external or generated sources and normalize them into a common representation.
+    scope: Ingest CADEvolve CadQuery programs as the primary dataset source and normalize them into a common representation; keep synthetic sources fixture-only.
     priority: P0
     implementation_complexity: Medium
     debugging_difficulty: Medium
@@ -109,19 +109,19 @@ epics:
         status: planned
         stable: false
       - id: "2.5"
-        title: Synthetic primitive and motif source
+        title: CADEvolve source loader
         priority: P0
         implementation_complexity: Medium
-        debugging_difficulty: Low
+        debugging_difficulty: Medium
         recommendation: Build now
         status: planned
         stable: false
       - id: "2.6"
-        title: CADEvolve source loader
-        priority: P1
-        implementation_complexity: Medium
-        debugging_difficulty: Medium
-        recommendation: Build later
+        title: Synthetic primitive and motif fixtures
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
         status: planned
         stable: false
 

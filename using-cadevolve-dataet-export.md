@@ -2,6 +2,8 @@
 
 CADEvolve is a synthetic CAD dataset built around executable CadQuery programs. The public release is distributed on Hugging Face as a WebDataset archive, so a consumer only needs the dataset artifact itself and a Python environment capable of reading tar members and executing CadQuery code.
 
+For IntersectionQA, CADEvolve is the primary object source for released benchmark examples. Synthetic primitives should be kept to golden fixtures, smoke tests, and debugging examples rather than used as a separate full corpus before CADEvolve ingestion.
+
 ## Dataset at a glance
 
 - Split: `train`

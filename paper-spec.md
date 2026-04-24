@@ -2,7 +2,7 @@ Your core idea is strong because it isolates a capability that CAD-generation pa
 
 The main improvement is to frame IntersectionQA not as “another CAD benchmark”, but as a controlled geometry-grounding benchmark for code models: can a model mentally execute CadQuery enough to infer contact, penetration, clearance, and relative transforms?
 
-CADEvolve is a useful source because it provides executable CadQuery programs at scale: the paper reports 8k complex parametric generators expanded into about 1.3M scripts, with broad CadQuery operation coverage. That makes it a good base corpus for deriving intersection tasks, though you should still control for duplicates and leakage if you train and evaluate on variants from the same generator family. ([arXiv][1])
+CADEvolve is the primary source corpus for IntersectionQA because it provides executable CadQuery programs at scale: the paper reports 8k complex parametric generators expanded into about 1.3M scripts, with broad CadQuery operation coverage. IntersectionQA should derive its real benchmark examples from CADEvolve programs, while using synthetic primitives only as golden fixtures, smoke-test edge cases, and debugging examples. CADEvolve-derived examples still need duplicate control and leakage-safe grouping by generator family where available. ([arXiv][1])
 
 ## 1. The missing “usefulness” angle
 
@@ -304,20 +304,20 @@ You should not create only random intersections. Most random placements are obvi
 
 Suggested difficulty levels:
 
-### Level 1: axis-aligned primitives
+### Level 1: simple CADEvolve objects and fixture primitives
 
-Boxes, cylinders, spheres, simple extrusions.
+CADEvolve programs with simple operation signatures such as boxes, cylinders, simple extrusions, or similarly compact solids. Fixture primitives may be used for golden tests.
 
 ```python
 box(10, 10, 10)
 cylinder(radius=3, height=10)
 ```
 
-Mostly tests bounding-box reasoning.
+Mostly tests bounding-box reasoning and validates that CADEvolve execution, normalization, and prompt construction work.
 
-### Level 2: rotated primitives
+### Level 2: rotated simple objects
 
-Same objects, but arbitrary Euler rotations.
+Same CADEvolve/simple-fixture objects, but with controlled Euler rotations.
 
 Tests transform composition.
 
@@ -610,11 +610,11 @@ This is the simplest.
 
 Use curriculum:
 
-1. primitives
-2. transformed primitives
-3. booleans
-4. real CADEvolve objects
-5. near-boundary cases
+1. CADEvolve objects with simple operation signatures
+2. CADEvolve objects with translations and single-axis rotations
+3. CADEvolve compound/boolean-heavy objects
+4. CADEvolve near-boundary and counterfactual cases
+5. minimal synthetic primitive fixtures for golden validation only
 6. multi-object assemblies
 
 Curriculum is likely important because jumping directly to complex CadQuery may teach weak correlations.
@@ -919,7 +919,7 @@ Answer by including diagnostic subsets where AABB/OBB/convex hull baselines fail
 
 ### “Synthetic data may not reflect real assemblies.”
 
-Answer by mixing CADEvolve, human-written CadQuery, reconstructed CAD datasets, and procedural mechanical motifs: brackets, shafts, gears, housings, plates, pins, holes, fasteners.
+Answer by making CADEvolve the primary released source corpus. Synthetic primitives and procedural motifs should be limited to golden tests, smoke/debug fixtures, and a small number of audited edge cases such as touching boxes or AABB/exact disagreement. Do not build a separate full synthetic CAD corpus before using CADEvolve.
 
 ## 17. Best minimal version for a first paper
 

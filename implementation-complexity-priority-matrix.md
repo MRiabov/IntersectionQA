@@ -11,7 +11,7 @@ It is based on `paper-spec.md`, `epics-and-stories.md`, and the current repo sta
 * The first deliverable should be a credible paper/demo MVP, not the full benchmark vision.
 * CadQuery/OpenCASCADE installation, boolean stability, and distance computation are the main technical risks.
 * v1 should use generator, object-pair, assembly-group, and counterfactual-group holdouts. Chamfer or point-cloud leakage filtering is future work.
-* CADEvolve ingestion depends on source access and licensing. Synthetic primitives and local mechanical motifs should be available as a fallback.
+* CADEvolve is the primary source corpus for real dataset examples. Synthetic primitives and local mechanical motifs are fixture-only fallbacks for golden tests, smoke/debug cases, and local development when CADEvolve is unavailable.
 * RL/GRPO is valuable, but the first implementation must produce reliable labels and prompts before training complexity is added.
 
 ## Legend
@@ -73,11 +73,11 @@ The specs imply this package structure:
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2.1 Select initial sources | P0 | Low | Medium | Licensing/source access | `data_sources.md`, `sources/README.md` | Source license and provenance recorded | CADEvolve may be inconvenient to access | Build now |
-| 2.2 Loader interface | P0 | Medium | Medium | Schema | `sources/base.py`, `sources/synthetic.py`, `sources/cadevolve.py` | Loader returns stable records, malformed records logged | Source formats vary | Build now |
+| 2.2 Loader interface | P0 | Medium | Medium | Schema | `sources/base.py`, `sources/cadevolve.py`, `sources/synthetic.py` | Loader returns stable records, malformed records logged | CADEvolve archive paths and script conventions vary | Build now |
 | 2.3 Normalize object functions | P0 | Medium | High | Loader, execution sandbox | `sources/normalize.py`, `geometry/cadquery_exec.py` | Normalized functions execute and return solids | Arbitrary CadQuery scripts may have side effects | Build now |
 | 2.4 Validate source CAD objects | P0 | High | High | CadQuery install, normalized scripts | `geometry/cadquery_exec.py`, `sources/validation.py` | Positive volume, finite bbox, failure reasons | OpenCASCADE failures, invalid solids | Build now |
-| Synthetic primitive/motif source | P0 | Medium | Low | Repo structure | `sources/synthetic.py`, `generation/objects.py` | Deterministic box/cylinder/bracket outputs | Too simple if used alone | Build now |
-| CADEvolve source loader | P1 | Medium | Medium | Source access, licensing | `sources/cadevolve.py` | Sample load, provenance, generator IDs | Dataset format or license friction | Build later |
+| CADEvolve source loader | P0 | Medium | Medium | Source access, licensing | `sources/cadevolve.py` | Sample load, provenance, generator IDs, isolated execution manifest | Dataset format, malformed scripts, or license friction | Build now |
+| Synthetic primitive/motif fixtures | P0 | Low | Low | Repo structure | `sources/synthetic.py`, `generation/fixtures.py` | Deterministic box/cylinder/ring fixtures for golden labels | Fixture leakage into released benchmark counts | Build now |
 
 ### Epic 3: Assembly Generation
 
@@ -87,7 +87,7 @@ The specs imply this package structure:
 | 3.2 Assembly script generator | P0 | Medium | Medium | Transforms, object schema | `generation/assembly.py`, `prompts/common.py` | Generated script executes, object names stable | Script prompt differs from executable metadata | Build now |
 | 3.3 Random broad-placement examples | P0 | Medium | Medium | Valid objects, assembly generator, labels | `generation/random.py` | Class distribution report, deterministic seed | Overproduces obvious disjoint examples | Build now |
 | 3.4 Boundary-targeted examples | P0 | High | High | Bbox diagnostics, exact labels | `generation/boundary.py` | Near-touch/near-overlap golden tests | Epsilon/tolerance flakiness | Build now |
-| 3.5 Cavity-targeted examples | P1 | High | High | Motif generator, exact labels | `generation/objects.py`, `generation/cavity.py` | AABB-overlap but exact-disjoint cases | Hard to generate robustly | Build later |
+| 3.5 Cavity-targeted examples | P1 | High | High | CADEvolve object diagnostics, exact labels | `generation/cavity.py`, `sources/metadata.py` | AABB-overlap but exact-disjoint cases | Hard to generate robustly from arbitrary source objects | Build later |
 | 3.6 Counterfactual groups | P0 | Medium | Medium | Boundary generation, labels, split groups | `generation/counterfactual.py`, `schema.py` | Same group has one changed parameter and label diversity | Accidental multi-parameter changes | Build now |
 | 3.7 Counterfactual prompt formats | P1 | Medium | Medium | Counterfactual groups, prompt generators | `prompts/counterfactual.py` | Individual, pairwise, and ranking prompt snapshots | Derived prompts may leak labels or split groups | Build later |
 | 3.8 Multi-object assemblies | P2 | High | High | Pairwise labels, assembly generator | `generation/multi_object.py`, `prompts/pairwise.py` | Pairwise relation matrix tests | Combinatorial growth and prompt complexity | Defer |
@@ -121,7 +121,7 @@ The specs imply this package structure:
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 6.1 Random split | P0 | Low | Low | Dataset records | `splits/grouped.py` | Seed reproducibility, class counts | Not credible as only split | Build now |
-| 6.2 Generator-held-out split | P0 | Medium | Medium | `generator_id` metadata | `splits/grouped.py` | No shared generator IDs | Generator IDs may be missing for synthetic data | Build now |
+| 6.2 Generator-held-out split | P0 | Medium | Medium | `generator_id` metadata | `splits/grouped.py` | No shared generator IDs | CADEvolve family IDs may need derivation from path or metadata | Build now |
 | 6.3 Object-pair and counterfactual holdout | P0 | Medium | Medium | Group IDs | `splits/grouped.py`, `schema.py` | No shared object-pair, assembly, or counterfactual IDs | Derived prompts can accidentally cross splits | Build now |
 | 6.4 Topology-held-out split | P2 | Medium | Medium | Topology labels | `splits/grouped.py`, `sources/metadata.py` | Held-out labels absent from train | Requires reliable topology taxonomy | Defer |
 | 6.5 Operation-held-out split | P2 | Medium | Medium | Operation extraction | `sources/ops.py`, `splits/grouped.py` | Held-out ops absent from train | AST parsing complexity | Defer |
@@ -133,7 +133,7 @@ The specs imply this package structure:
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 7.1 AABB baseline | P0 | Low | Low | Bbox diagnostics | `evaluation/aabb.py` | AABB primitive tests, per-subset accuracy | If AABB performs too well, dataset is too easy | Build now |
-| 7.2 OBB baseline | P1 | Medium | Medium | Transform math or mesh approx | `evaluation/obb.py` | Rotated primitive cases | OBB implementation can be subtle | Build later |
+| 7.2 OBB baseline | P1 | Medium | Medium | Transform math or mesh approx | `evaluation/obb.py` | Rotated CADEvolve and fixture cases | OBB implementation can be subtle | Build later |
 | 7.3 Convex-hull baseline | P2 | High | Medium | Mesh/point sampling deps | `evaluation/convex_hull.py` | Cavity failure examples | Adds geometry dependencies | Defer |
 | 7.4 Zero-shot LLM evaluation | P0 | Medium | Medium | Prompt export, model access | `evaluation/model_runner.py`, `evaluation/parsing.py` | Output parser tests, invalid-rate report | API cost, model availability | Build now |
 | 7.5 Few-shot LLM evaluation | P1 | Medium | Medium | Zero-shot runner, split-safe example selection | `evaluation/model_runner.py` | Few-shot examples do not leak groups | Prompt length and leakage | Build later |
@@ -181,7 +181,7 @@ The specs imply this package structure:
 | 11.4 Dataset construction section | P0 | Medium | Low | Generation pipeline and stats | `paper/dataset.md` | Matches code and schema | Implementation/spec mismatch | Build now |
 | 11.5 Task section | P0 | Low | Low | Prompt specs | `paper/tasks.md`, `tasks.md` | Answer formats exact | Ambiguous labels | Build now |
 | 11.6 Experiments section | P0 | Medium | Medium | Results tables | `paper/experiments.md` | Tables regenerate | Weak or incomplete results | Build now |
-| 11.7-11.9 Discussion, limitations, conclusion | P0 | Low | Low | Failure analysis, QA checklist | `paper/discussion.md` | Limitations include kernel and synthetic-bias issues | Hiding weaknesses | Build now |
+| 11.7-11.9 Discussion, limitations, conclusion | P0 | Low | Low | Failure analysis, QA checklist | `paper/discussion.md` | Limitations include kernel issues, CADEvolve source bias, and fixture limits | Hiding weaknesses | Build now |
 
 ### Epic 12: Repository and Engineering Infrastructure
 
@@ -207,24 +207,27 @@ The specs imply this package structure:
 Build the MVP in a narrow vertical slice first:
 
 1. Create package structure, schema, config, and scripts.
-2. Implement synthetic primitive and simple mechanical motif sources before CADEvolve.
-3. Implement transforms, assembly script generation, and exact labels for box/cylinder primitives.
-4. Add binary, relation, and volume-bucket prompts.
-5. Add group-safe random, generator-held-out, object-pair-held-out, and near-boundary hard splits.
-6. Export JSONL and run schema/label/leakage validation.
-7. Add AABB baseline and one zero-shot LLM evaluation path.
-8. Generate dataset statistics and a first paper/demo result table.
-9. Add counterfactual groups after the basic pipeline is stable.
-10. Add SFT/RL experiments only after validation catches label, split, and prompt errors.
+2. Implement the CADEvolve tar loader, source manifest, provenance capture, and isolated object-validation worker.
+3. Add minimal primitive fixtures for golden label and transform tests only.
+4. Implement transforms, assembly script generation, and exact labels on fixtures plus a deterministic CADEvolve smoke subset.
+5. Add binary, relation, and volume-bucket prompts.
+6. Add group-safe random, generator-held-out, object-pair-held-out, and near-boundary hard splits.
+7. Export JSONL and run schema/label/leakage validation.
+8. Add AABB baseline and one zero-shot LLM evaluation path.
+9. Generate dataset statistics and a first paper/demo result table.
+10. Add counterfactual groups after the basic CADEvolve labeling path is stable.
+11. Add SFT/RL experiments only after validation catches label, split, and prompt errors.
 
-The first implementation target should be a `100` example smoke dataset that exercises:
+The first implementation target should be a `100` accepted-geometry smoke dataset that uses CADEvolve where possible and exercises:
 
 * intersecting
 * disjoint
 * touching
 * near-miss
 * small positive overlap
-* AABB-overlap but exact-disjoint if a simple cavity motif is available
+* rotated examples
+* counterfactual groups if implemented
+* AABB-overlap but exact-disjoint if available from CADEvolve or a small ring/plate fixture
 
 ## P0 Features Required for Paper/Demo
 
@@ -233,7 +236,8 @@ These must exist before the project is credible:
 | Feature | Why it is necessary |
 | --- | --- |
 | Stable dataset schema | All generation, prompts, splits, and evaluation depend on it |
-| Synthetic source and object validation | Gives a controllable fallback independent of external datasets |
+| CADEvolve source loading and object validation | Establishes the real dataset source, provenance, and failure behavior |
+| Minimal synthetic fixtures | Gives controllable golden cases without becoming the benchmark source |
 | Rigid transforms and assembly script generation | Core task input |
 | Exact intersection volume | Core ground truth |
 | Minimum distance and relation classifier | Needed to distinguish disjoint, touching, near-miss, and intersecting |
@@ -279,19 +283,19 @@ These should be spiked early because they can invalidate schedule assumptions:
 | Order | Build | Rationale |
 | --- | --- | --- |
 | 1 | Repo structure, schema, config, tests | Prevents every later component from inventing its own record shape |
-| 2 | Synthetic primitive source | Enables deterministic development without external dataset blockers |
-| 3 | CadQuery execution and object validation | Fastest way to expose environment and kernel problems |
-| 4 | Transform and assembly generation | Core source of subtle bugs; must be tested before labels |
-| 5 | Exact labels and relation rules | Ground truth must be trustworthy before generating prompts |
-| 6 | Binary prompt and JSONL export | First end-to-end artifact |
-| 7 | Smoke generation and validation script | Makes debugging repeatable |
-| 8 | Boundary-targeted generation | Adds benchmark difficulty before scaling volume |
-| 9 | Counterfactual groups | Adds main research differentiator |
-| 10 | Relation and volume-bucket prompts | Adds task diversity while reusing existing labels |
-| 11 | Group-safe splits and leakage audit | Protects paper credibility |
-| 12 | AABB baseline and dataset stats | Reveals whether the dataset is too easy |
-| 13 | Zero-shot model evaluation | First model result for paper/demo |
-| 14 | CADEvolve ingestion | Adds scale/diversity once the local pipeline is proven |
+| 2 | CADEvolve source manifest and loader | Makes the real source corpus the first-class path |
+| 3 | Isolated CadQuery execution and object validation | Exposes CADEvolve script, environment, and kernel problems early |
+| 4 | Minimal synthetic fixtures | Supplies deterministic golden cases when CADEvolve does not hit exact edge cases |
+| 5 | Transform and assembly generation | Core source of subtle bugs; must be tested before labels |
+| 6 | Exact labels and relation rules | Ground truth must be trustworthy before generating prompts |
+| 7 | Binary prompt and JSONL export | First end-to-end artifact |
+| 8 | CADEvolve smoke generation and validation script | Makes debugging repeatable on the target corpus |
+| 9 | Boundary-targeted generation | Adds benchmark difficulty before scaling volume |
+| 10 | Counterfactual groups | Adds main research differentiator |
+| 11 | Relation and volume-bucket prompts | Adds task diversity while reusing existing labels |
+| 12 | Group-safe splits and leakage audit | Protects paper credibility |
+| 13 | AABB baseline and dataset stats | Reveals whether the dataset is too easy |
+| 14 | Zero-shot model evaluation | First model result for paper/demo |
 | 15 | Cavity examples and OBB baseline | Strengthens diagnostic story |
 | 16 | Fine-tuning and counterfactual training | Shows dataset usefulness after benchmark stability |
 | 17 | RL/GRPO reward experiment | High-value but should use already-debugged prompts and verifier |
@@ -318,11 +322,11 @@ Use these rules when scope pressure appears:
 
 | If this happens | Decision |
 | --- | --- |
-| CadQuery boolean labels are flaky | Reduce geometry scope to primitives and simple motifs until labels are stable |
+| CadQuery boolean labels are flaky | Reduce to simpler validated CADEvolve subsets and fixture-only golden cases until labels are stable |
 | Minimum distance is unreliable | Keep binary and volume labels, delay clearance/tolerance tasks |
 | Random examples are too easy | Prioritize boundary-targeted and counterfactual generation over adding more sources |
-| AABB baseline performs too well | Add cavity/concavity motifs before adding model experiments |
+| AABB baseline performs too well | Prioritize CADEvolve objects with cuts, shells, holes, and cavity/concavity diagnostics before adding model experiments |
 | Split audit catches leakage | Stop scaling data until group IDs and derived prompt splits are fixed |
-| CADEvolve ingestion is slow | Continue with synthetic/mechanical motifs and keep CADEvolve as P1 |
+| CADEvolve ingestion is slow | Shrink the CADEvolve smoke subset, improve worker/caching throughput, and use fixtures only for CI/golden coverage |
 | Training setup becomes expensive | Ship zero-shot, AABB, and small SFT first; keep RL/GRPO as an optional experiment |
 | Prompt parsing is messy | Tighten final answer tags before running more model evaluations |

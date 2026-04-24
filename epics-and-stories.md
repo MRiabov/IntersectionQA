@@ -93,7 +93,7 @@ Paper-ready means:
 
 ## Goal
 
-Ingest CadQuery programs from external or generated sources and normalize them into a common representation.
+Ingest CADEvolve CadQuery programs as the primary dataset source and normalize them into a common representation. Synthetic fixtures are used only for golden tests, smoke/debug cases, and label edge cases.
 
 ---
 
@@ -108,12 +108,13 @@ Ingest CadQuery programs from external or generated sources and normalize them i
 * Dataset provenance is recorded.
 * Each source has a short justification.
 
-**Candidate sources**
+**Source policy**
 
-* CADEvolve
-* Human-written CadQuery examples
-* Synthetic procedural primitives
-* Custom mechanical motifs: brackets, plates, shafts, rings, housings, clamps
+* CADEvolve is the primary source corpus for real benchmark examples.
+* Use executable CadQuery programs from `CADEvolve-P/` and `CADEvolve-C/` first.
+* Human-written CadQuery examples may be used later for audit or supplemental analysis, not as the MVP source.
+* Synthetic procedural primitives and custom motifs are limited to golden tests, transform convention tests, relation-label edge cases, and smoke/debug fixtures.
+* Do not build a separate full synthetic CAD corpus before CADEvolve ingestion.
 
 **Output**
 
@@ -1308,7 +1309,8 @@ Discussion covers:
 
 Limitations include:
 
-* Synthetic generation bias
+* CADEvolve source bias and generator-family leakage risk
+* Limited synthetic fixtures may not cover every geometry edge case
 * CadQuery/OpenCASCADE tolerance issues
 * Closed-book setting may not reflect practical CAD workflows
 * Possible leakage from source generators
@@ -1501,7 +1503,7 @@ Checklist answers:
 * Why CadQuery?
 * How are labels generated?
 * Are bounding-box shortcuts enough?
-* Does the dataset generalize beyond synthetic examples?
+* Does the CADEvolve-derived dataset generalize beyond its source generator families?
 * Are splits leakage-resistant?
 * What are the known limitations?
 
@@ -1634,7 +1636,7 @@ Deliverables:
 
 # Suggested Sprint Plan
 
-## Sprint 1 — Scope and primitive prototype
+## Sprint 1 — Scope and CADEvolve smoke prototype
 
 **Duration:** 1 week
 
@@ -1642,6 +1644,8 @@ Stories:
 
 * 1.1 Define benchmark thesis
 * 1.2 Define task families
+* 2.2 Build source loader interface
+* 2.4 Validate source CAD objects
 * 3.1 Implement rigid transform representation
 * 3.2 Implement assembly script generator
 * 4.1 Compute exact intersection volume
@@ -1650,8 +1654,9 @@ Stories:
 
 Sprint output:
 
-* Working primitive box/cylinder intersection examples.
-* First binary QA JSONL export.
+* Working CADEvolve object-validation smoke path, using `cadevolve.tar` when available.
+* Minimal primitive box/cylinder golden cases for label verification only.
+* First binary QA JSONL smoke export with CADEvolve examples where available.
 
 ---
 

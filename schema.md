@@ -11,6 +11,8 @@ IntersectionQA uses two record layers:
 
 Public rows must be self-contained for training and evaluation. Loading a released JSONL row must not require CadQuery execution, OpenCASCADE, STEP/STL/mesh files, render files, or access to local caches to read the official answer, labels, diagnostics, provenance, or split assignment.
 
+CADEvolve is the primary source corpus for released benchmark examples. Synthetic source rows are reserved for golden fixtures, smoke/debug examples, and edge-case audits; they should not dominate public benchmark counts.
+
 ## 2. Design Principles
 
 - Store raw geometry values and derived labels separately. Raw values include volumes, intersection volume, normalized intersection, minimum distance, bounding boxes, and computation statuses. Derived labels include relation, binary answer, volume bucket, clearance bucket, containment label, and difficulty tags.
@@ -229,7 +231,7 @@ Source object records are internal normalized records for one CAD object. They a
 | Field | Type | Required | Nullable | Meaning |
 | --- | --- | --- | --- | --- |
 | `object_id` | string | yes | no | Stable object ID, e.g. `obj_000001`. |
-| `source` | string | yes | no | Source family, e.g. `synthetic`, `cadevolve`, `human_cadquery`, or `mechanical_motif`. |
+| `source` | string | yes | no | Source family. MVP benchmark rows should normally use `cadevolve`; `synthetic` is reserved for fixtures and smoke/debug examples. |
 | `source_id` | string | yes | no | Stable ID within the source. For CADEvolve this should identify the archive member or source row. |
 | `generator_id` | string | yes | yes | Source generator/family ID used for generator holdout. Null only when the source has no generator concept. |
 | `source_path` | string | yes | yes | Archive member path or repository-relative source path. Must not be a local absolute cache path. |
@@ -243,6 +245,8 @@ Source object records are internal normalized records for one CAD object. They a
 | `hashes` | `Hashes` | yes | no | `source_code_hash` and `object_hash` must be non-null. |
 
 ### Example
+
+This compact example uses a synthetic fixture for readability. CADEvolve source records use the same fields, with `source: "cadevolve"`, `source_path` set to the `cadevolve.tar` archive member path, and CADEvolve license/provenance metadata.
 
 ```json
 {
@@ -453,6 +457,8 @@ Geometry label records are internal expensive records for one assembled object p
 ## 7. Public Task Row
 
 Public task rows are released as JSONL. Every line is one task example. The keys listed in this section are always present in public rows unless a future schema version explicitly states otherwise. Nullable fields remain present with `null` values.
+
+The compact public-row examples below use primitive fixture code so the geometry is auditable in the schema document. Released benchmark rows should normally be CADEvolve-derived and carry CADEvolve archive provenance in `metadata` and source fields.
 
 ### Fields
 
@@ -858,7 +864,7 @@ Each `group_holdout_rules[]` object must contain:
           ">0.50": 2000
         }
       },
-      "generator_ids": ["gen_synthetic_primitives_v01"],
+      "generator_ids": ["cadevolve_core_family_000001"],
       "base_object_pair_ids": ["pair_000001", "pair_000002"],
       "assembly_group_ids": ["asmgrp_000001", "asmgrp_000002"],
       "counterfactual_group_ids": ["cfg_000001", "cfg_000002"],

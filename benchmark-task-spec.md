@@ -54,7 +54,9 @@ The MVP implementation targets exactly these task families:
 - `relation_classification`
 - `volume_bucket`
 
-All MVP tasks use synthetic or source-generated two-object assemblies and closed-book code-only prompts.
+All MVP tasks use CADEvolve-derived two-object assemblies and closed-book code-only prompts. Synthetic primitive assemblies are allowed only as golden fixtures, smoke/debug edge cases, or local fallback when CADEvolve is unavailable; they are not the main dataset source.
+
+Compact examples in this document may use synthetic boxes for readability. Released benchmark rows should normally use CADEvolve provenance and source metadata.
 
 ### 4.1 `binary_interference`
 
@@ -601,7 +603,8 @@ Implementation should start with:
 - `binary_interference`
 - `relation_classification`
 - `volume_bucket`
-- Synthetic and source-generated two-object assemblies
+- CADEvolve-derived two-object assemblies
+- Minimal synthetic fixtures only for golden tests, smoke/debug examples, and local fallback
 - Closed-book code-only prompts
 
 The MVP should not implement multi-object prompts, ranking prompts, repair-direction tasks, tolerance-fit tasks, rendering, or tool-assisted model execution as first-class benchmark tasks. Those are later extensions after the two-object geometry labels, prompts, parsers, metrics, and schema fields are stable.
