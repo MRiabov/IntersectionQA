@@ -5,7 +5,8 @@ from intersectionqa.geometry.labels import (
     validate_label_consistency,
     volume_bucket,
 )
-from intersectionqa.schema import LabelPolicy
+from intersectionqa.schema import Diagnostics, GeometryLabels, LabelPolicy
+import pytest
 
 
 def test_label_rules_golden_boxes():
@@ -66,3 +67,38 @@ def test_volume_bucket_boundaries_are_upper_inclusive():
             policy,
         )
         assert volume_bucket(labels, policy) == bucket
+
+
+def test_label_consistency_rejects_impossible_normalized_overlap():
+    policy = LabelPolicy()
+    labels = GeometryLabels(
+        volume_a=100.0,
+        volume_b=10.0,
+        intersection_volume=100.0,
+        normalized_intersection=10.0,
+        minimum_distance=0.0,
+        relation="intersecting",
+        contained=False,
+        contains_a_in_b=False,
+        contains_b_in_a=False,
+    )
+    diagnostics = Diagnostics(
+        aabb_overlap=True,
+        exact_overlap=True,
+        boolean_status="ok",
+        distance_status="skipped_positive_overlap",
+        label_status="ok",
+        failure_reason=None,
+    )
+    with pytest.raises(ValueError, match="normalized_intersection"):
+        validate_label_consistency(labels, diagnostics, policy)
+
+
+def test_label_consistency_rejects_exact_overlap_with_disjoint_aabbs():
+    policy = LabelPolicy()
+    labels, diagnostics = derive_labels(
+        RawGeometry(100.0, 100.0, 10.0, 0.0, aabb_overlap=False),
+        policy,
+    )
+    with pytest.raises(ValueError, match="disjoint AABBs"):
+        validate_label_consistency(labels, diagnostics, policy)
