@@ -53,7 +53,7 @@ The `.py` files are intended to be executed as Python source. Many rows define a
 ## Quirks and handling notes
 
 - CADEvolve is distributed as a tar/WebDataset-style archive, but repeated local generation should not use the tar as the hot path.
-- The Hugging Face viewer is useful for discovery. For actual code handling, download `cadevolve.tar` once, build a deterministic member index, and materialize the configured executable subset into a local extracted source cache.
+- The Hugging Face viewer is useful for discovery. For actual code handling, download `cadevolve.tar` once, extract a deterministic executable subset, and materialize it into a local extracted source directory.
 - The `CADEvolve-G`, `CADEvolve-P`, and `CADEvolve-C` trees are different kinds of content, not interchangeable subsets of the same representation.
 - `CADEvolve-G` is for generator artifacts and embeddings.
 - `CADEvolve-P` and `CADEvolve-C` are the executable CadQuery program trees you typically care about for geometry reconstruction.
@@ -79,12 +79,12 @@ ds = load_dataset("kulibinai/cadevolve", split="train")
 print(ds)
 ```
 
-### 2. Download the archive and materialize a local source cache
+### 2. Download the archive and materialize a local source directory
 
-If you need to run the CadQuery programs yourself, download `cadevolve.tar` and
-scan it once with `tarfile`. For repeated generation, extract only the executable
-member subset you intend to use into a local cache, keyed by archive fingerprint.
-Keep the original archive member path as provenance.
+If you need to run the CadQuery programs yourself, download `cadevolve.tar`
+once, extract the executable member subset you intend to use into a local
+directory, and then work from that directory. Keep the original archive member
+path as provenance.
 
 ```python
 from huggingface_hub import hf_hub_download
@@ -114,20 +114,21 @@ with tarfile.open(archive_path, "r:*") as tar:
 ```
 
 IntersectionQA's loader does this automatically when
-`smoke.use_extracted_source_cache` is enabled. The default cache location is:
+`smoke.use_extracted_source_cache` is enabled. The default extracted source
+directory is:
 
 ```text
 .cache/intersectionqa/cadevolve_sources/
 ```
 
-This cache is a local build artifact. Public JSONL rows must continue to store
-the original CADEvolve archive member path, not local cache paths.
+This directory is a local build artifact. Public JSONL rows must continue to
+store the original CADEvolve archive member path, not local filesystem paths.
 
-After the bounded source cache is prepared, dataset generation should use the
-cache directly instead of reopening the tar. Pass the exact cache root with
-`--cadevolve-source-cache-root`. The archive is only needed to prepare or extend
-the cache. Generation intentionally does not auto-discover local caches, because
-that would make default runs depend on machine-local state.
+After the bounded source directory is prepared, dataset generation should use
+the directory directly instead of reopening the tar. Pass the exact extracted
+directory with `--cadevolve-source-dir`. The archive is only needed to prepare
+the directory. Generation intentionally does not auto-discover local caches,
+because that would make default runs depend on machine-local state.
 
 ### 3. Execute scripts in a controlled environment
 

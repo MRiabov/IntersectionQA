@@ -29,15 +29,15 @@ MVP generation should not start by building a large standalone synthetic CAD cor
 
 Use the downloaded `cadevolve.tar` archive as the canonical CADEvolve input and
 provenance root. For local generation, materialize the configured executable
-source subset into an extracted source cache and load repeated runs from that
-cache instead of treating the tar archive as the hot path. The extracted cache
-must be keyed by the archive fingerprint, must preserve original archive member
-paths in source records, and must remain a local generation artifact rather than
-a public dataset requirement.
+source subset into an extracted source directory and load repeated runs from
+that directory instead of treating the tar archive as the hot path. The
+extracted source tree must preserve original archive member paths in source
+records and must remain a local generation artifact rather than a public
+dataset requirement.
 
-Once the bounded extracted cache exists, release-candidate generation may run
-without the tar present by using the prepared cache root directly. The tar is
-required only to prepare or extend the cache.
+Once the bounded extracted source directory exists, release-candidate
+generation may run without the tar present by using the prepared directory
+directly. The tar is required only to prepare the directory.
 
 Do not extract the entire upstream archive by default. Extract only the
 configured subset or source shards needed for the intended run. v0.1 generation

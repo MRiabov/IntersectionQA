@@ -49,6 +49,7 @@ current_snapshot:
     - row_debug_step_artifact_export
     - pyvista_row_rendering
     - render_audited_cadevolve_smoke_sample
+    - cadevolve_cavity_targeted_examples
     - mvp_prompt_generation
     - jsonl_export_and_validation
     - group_safe_splits
@@ -206,7 +207,7 @@ epics:
         implementation_complexity: High
         debugging_difficulty: High
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "3.6"
         title: Counterfactual groups
@@ -911,7 +912,7 @@ epics:
         source_document: specs/useful-implementation-optimization.md
         notes: Only implement after target-scale profiling shows exact geometry labeling, not source loading/execution, is the bottleneck. A worker-pool design must account for OpenCASCADE process safety, memory growth, cache coordination, and deterministic failure handling.
       - id: "12.14"
-        title: Direct extracted CADEvolve source cache input
+        title: Direct extracted CADEvolve source directory input
         priority: P0
         implementation_complexity: Low
         debugging_difficulty: Medium
@@ -919,7 +920,7 @@ epics:
         status: implemented
         stable: false
         source_document: specs/generation_policy.md
-        notes: Release-candidate and smoke generation can now load a prepared extracted CADEvolve source prefix via an explicit source-cache root without requiring the tar archive on the generation hot path. Invalid explicit cache roots fail instead of silently falling back to synthetic fixtures.
+        notes: Release-candidate and smoke generation can now load a prepared extracted CADEvolve source directory via an explicit source-dir path without requiring the tar archive on the generation hot path. The tar-based extraction helper is deprecated and invalid explicit source paths fail instead of silently falling back to synthetic fixtures.
 
   - id: epic-13
     title: Quality assurance and review
