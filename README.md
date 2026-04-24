@@ -48,3 +48,40 @@ The first implementation target is intentionally narrow:
 The schema reserves later task types such as `clearance_bucket`,
 `pairwise_interference`, `ranking_normalized_intersection`, `repair_direction`,
 and `tolerance_fit`, but those are not first-class v0.1 MVP tasks.
+
+## Inspecting Rows Locally
+
+Exported datasets are split JSONL files. Use the inspect utility for prompt and
+label review:
+
+```bash
+rtk uv run python -m scripts.inspect_example /tmp/intersectionqa_smoke_cadevolve intersectionqa_binary_000001 --show-prompt
+```
+
+For local CAD audit artifacts, export one row to a debug directory:
+
+```bash
+rtk uv run python -m scripts.export_row_artifacts \
+  /tmp/intersectionqa_smoke_cadevolve \
+  intersectionqa_binary_000001 \
+  --output-dir /tmp/intersectionqa_row_debug
+```
+
+This writes `prompt.txt`, `row.json`, `assembly.py`, `object_a.step`,
+`object_b.step`, `assembly.step`, and `intersection.step` when the row has
+policy-positive overlap. These files are dev/debug artifacts and are not part
+of the default public JSONL export.
+
+To render PNG previews for a row, use the PyVista-backed renderer:
+
+```bash
+rtk uv run python -m scripts.render_row_artifacts \
+  /tmp/intersectionqa_smoke_cadevolve \
+  intersectionqa_binary_000001 \
+  --output-dir /tmp/intersectionqa_row_debug \
+  --image-size 1200x900
+```
+
+This writes `renders/object_a.png`, `renders/object_b.png`,
+`renders/assembly.png`, `renders/intersection.png` when applicable, and a
+`renders/contact_sheet.png` overview.
