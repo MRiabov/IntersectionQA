@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from intersectionqa.evaluation.parsing import parse_answer
-from intersectionqa.schema import PublicTaskRow
+from intersectionqa.schema import FailureRecord, ObjectValidationRecord, PublicTaskRow
 
 
 @dataclass(frozen=True)
@@ -48,8 +48,31 @@ def dataset_stats(rows: Iterable[PublicTaskRow]) -> dict[str, object]:
         "by_split": _counts(row.split for row in rows),
         "by_relation": _counts(row.labels.relation for row in rows),
         "by_answer": _counts(row.answer for row in rows),
+        "by_task_answer": {
+            task_type: _counts(row.answer for row in rows if row.task_type == task_type)
+            for task_type in sorted({row.task_type for row in rows})
+        },
         "by_source": _counts(row.source for row in rows),
         "by_difficulty_tag": _counts(tag for row in rows for tag in row.difficulty_tags),
+    }
+
+
+def manifest_stats(
+    object_validations: Iterable[ObjectValidationRecord],
+    failures: Iterable[FailureRecord],
+) -> dict[str, object]:
+    object_validations = list(object_validations)
+    failures = list(failures)
+    return {
+        "object_validation_records": len(object_validations),
+        "valid_objects": sum(1 for record in object_validations if record.valid),
+        "invalid_objects": sum(1 for record in object_validations if not record.valid),
+        "object_failures_by_reason": _counts(
+            record.failure_reason for record in object_validations if record.failure_reason
+        ),
+        "failure_manifest_records": len(failures),
+        "failures_by_stage": _counts(record.stage for record in failures),
+        "failures_by_reason": _counts(record.failure_reason for record in failures),
     }
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
 from intersectionqa.config import load_config
@@ -25,7 +24,7 @@ def main() -> None:
     if args.cadevolve_archive is not None:
         config.cadevolve_archive = args.cadevolve_archive
     report = write_smoke_dataset(config)
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(report.model_dump_json(indent=2))
 
 
 if __name__ == "__main__":

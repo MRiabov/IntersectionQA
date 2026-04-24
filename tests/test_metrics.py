@@ -1,5 +1,5 @@
 from intersectionqa.config import DatasetConfig
-from intersectionqa.evaluation.metrics import Prediction, dataset_stats, evaluate_predictions
+from intersectionqa.evaluation.metrics import Prediction, dataset_stats, evaluate_predictions, manifest_stats
 from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.pipeline import build_smoke_rows
 
@@ -33,3 +33,10 @@ def test_dataset_stats_counts_rows():
     stats = dataset_stats(rows)
     assert stats["total_rows"] == len(rows)
     assert stats["by_task"]["binary_interference"] == 7
+    assert stats["by_task_answer"]["binary_interference"]["yes"] > 0
+
+
+def test_manifest_stats_counts_validation_records():
+    stats = manifest_stats([], [])
+    assert stats["object_validation_records"] == 0
+    assert stats["failure_manifest_records"] == 0

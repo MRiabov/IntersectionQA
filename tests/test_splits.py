@@ -24,3 +24,12 @@ def test_near_boundary_records_go_to_hard_split():
     for record in records:
         if "near_boundary" in record.difficulty_tags:
             assert splits[record.geometry_id] == "test_near_boundary"
+
+
+def test_synthetic_counterfactual_group_has_label_diversity():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    group_records = [record for record in records if record.counterfactual_group_id == "cfg_000001"]
+    assert len(group_records) >= 2
+    assert len({record.labels.relation for record in group_records}) >= 2
+    assert {record.changed_parameter for record in group_records} == {"transform_b.translation[0]"}

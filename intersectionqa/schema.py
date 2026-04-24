@@ -4,52 +4,97 @@ from __future__ import annotations
 
 import math
 import re
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
-Relation = Literal[
-    "disjoint", "touching", "near_miss", "intersecting", "contained", "invalid"
-]
-BooleanStatus = Literal["ok", "skipped_aabb_disjoint", "failed", "not_run"]
-DistanceStatus = Literal["ok", "skipped_positive_overlap", "failed", "not_run"]
-LabelStatus = Literal["ok", "invalid"]
-TaskType = Literal[
-    "binary_interference",
-    "relation_classification",
-    "volume_bucket",
-    "clearance_bucket",
-    "pairwise_interference",
-    "ranking_normalized_intersection",
-    "repair_direction",
-    "tolerance_fit",
-]
-Split = Literal[
-    "train",
-    "validation",
-    "test_random",
-    "test_generator_heldout",
-    "test_object_pair_heldout",
-    "test_near_boundary",
-    "test_topology_heldout",
-    "test_operation_heldout",
-]
-FailureReason = Literal[
-    "source_parse_error",
-    "source_exec_error",
-    "missing_result_object",
-    "invalid_cadquery_type",
-    "non_solid_result",
-    "zero_or_negative_volume",
-    "non_finite_bbox",
-    "boolean_intersection_failed",
-    "distance_query_failed",
-    "timeout",
-    "worker_crash",
-    "unknown_error",
-]
+
+class Relation(StrEnum):
+    DISJOINT = "disjoint"
+    TOUCHING = "touching"
+    NEAR_MISS = "near_miss"
+    INTERSECTING = "intersecting"
+    CONTAINED = "contained"
+    INVALID = "invalid"
+
+
+class BooleanStatus(StrEnum):
+    OK = "ok"
+    SKIPPED_AABB_DISJOINT = "skipped_aabb_disjoint"
+    FAILED = "failed"
+    NOT_RUN = "not_run"
+
+
+class DistanceStatus(StrEnum):
+    OK = "ok"
+    SKIPPED_POSITIVE_OVERLAP = "skipped_positive_overlap"
+    FAILED = "failed"
+    NOT_RUN = "not_run"
+
+
+class LabelStatus(StrEnum):
+    OK = "ok"
+    INVALID = "invalid"
+
+
+class TaskType(StrEnum):
+    BINARY_INTERFERENCE = "binary_interference"
+    RELATION_CLASSIFICATION = "relation_classification"
+    VOLUME_BUCKET = "volume_bucket"
+    CLEARANCE_BUCKET = "clearance_bucket"
+    PAIRWISE_INTERFERENCE = "pairwise_interference"
+    RANKING_NORMALIZED_INTERSECTION = "ranking_normalized_intersection"
+    REPAIR_DIRECTION = "repair_direction"
+    TOLERANCE_FIT = "tolerance_fit"
+
+
+class Split(StrEnum):
+    TRAIN = "train"
+    VALIDATION = "validation"
+    TEST_RANDOM = "test_random"
+    TEST_GENERATOR_HELDOUT = "test_generator_heldout"
+    TEST_OBJECT_PAIR_HELDOUT = "test_object_pair_heldout"
+    TEST_NEAR_BOUNDARY = "test_near_boundary"
+    TEST_TOPOLOGY_HELDOUT = "test_topology_heldout"
+    TEST_OPERATION_HELDOUT = "test_operation_heldout"
+
+
+class FailureReason(StrEnum):
+    SOURCE_PARSE_ERROR = "source_parse_error"
+    SOURCE_EXEC_ERROR = "source_exec_error"
+    MISSING_RESULT_OBJECT = "missing_result_object"
+    INVALID_CADQUERY_TYPE = "invalid_cadquery_type"
+    NON_SOLID_RESULT = "non_solid_result"
+    ZERO_OR_NEGATIVE_VOLUME = "zero_or_negative_volume"
+    NON_FINITE_BBOX = "non_finite_bbox"
+    BOOLEAN_INTERSECTION_FAILED = "boolean_intersection_failed"
+    DISTANCE_QUERY_FAILED = "distance_query_failed"
+    TIMEOUT = "timeout"
+    WORKER_CRASH = "worker_crash"
+    UNKNOWN_ERROR = "unknown_error"
+
+
+class RotationOrder(StrEnum):
+    XYZ = "XYZ"
+
+
+class AuditStatus(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    NOT_RUN = "not_run"
+
+
+class FailureStage(StrEnum):
+    SOURCE_LOADING = "source_loading"
+    SOURCE_NORMALIZATION = "source_normalization"
+    OBJECT_VALIDATION = "object_validation"
+    ASSEMBLY_GENERATION = "assembly_generation"
+    GEOMETRY_LABELING = "geometry_labeling"
+    TASK_MATERIALIZATION = "task_materialization"
+    EXPORT_VALIDATION = "export_validation"
 
 DIFFICULTY_TAGS = {
     "axis_aligned",
@@ -82,7 +127,7 @@ class StrictModel(BaseModel):
 class Transform(StrictModel):
     translation: tuple[float, float, float]
     rotation_xyz_deg: tuple[float, float, float]
-    rotation_order: Literal["XYZ"] = "XYZ"
+    rotation_order: RotationOrder = RotationOrder.XYZ
 
     @field_validator("translation", "rotation_xyz_deg")
     @classmethod
@@ -215,6 +260,37 @@ class SourceObjectRecord(StrictModel):
     hashes: Hashes
 
 
+class ObjectValidationRecord(StrictModel):
+    object_id: str
+    valid: bool
+    volume: float | None
+    bbox: BoundingBox | None
+    label_status: LabelStatus
+    failure_reason: FailureReason | None
+    cadquery_version: str | None
+    ocp_version: str | None
+    validated_at_version: str
+    hashes: Hashes
+
+    @model_validator(mode="after")
+    def validity_matches_status(self) -> "ObjectValidationRecord":
+        if self.valid:
+            if self.label_status != "ok":
+                raise ValueError("valid objects require ok label_status")
+            if self.failure_reason is not None:
+                raise ValueError("valid objects must not have failure_reason")
+            if self.volume is None or self.volume <= 0:
+                raise ValueError("valid objects require positive volume")
+            if self.bbox is None:
+                raise ValueError("valid objects require bbox")
+        else:
+            if self.label_status != "invalid":
+                raise ValueError("invalid objects require invalid label_status")
+            if self.failure_reason is None:
+                raise ValueError("invalid objects require failure_reason")
+        return self
+
+
 class GeometryRecord(StrictModel):
     geometry_id: str
     source: str
@@ -334,15 +410,7 @@ def _expected_volume_bucket(labels: GeometryLabels, policy: LabelPolicy) -> str:
 
 class FailureRecord(StrictModel):
     failure_id: str
-    stage: Literal[
-        "source_loading",
-        "source_normalization",
-        "object_validation",
-        "assembly_generation",
-        "geometry_labeling",
-        "task_materialization",
-        "export_validation",
-    ]
+    stage: FailureStage
     source: str | None
     source_id: str | None
     object_id: str | None
@@ -360,10 +428,118 @@ class DatasetMetadata(StrictModel):
     config_hash: str
     source_manifest_hash: str
     label_policy: LabelPolicy
-    splits: dict[str, Any]
+    splits: dict[str, "SplitFileSummary"]
     task_types: list[str]
-    counts: dict[str, Any]
+    counts: "DatasetCounts"
     cadquery_version: str | None = None
     ocp_version: str | None = None
     license: str
     known_limitations: list[str]
+
+
+class SplitFileSummary(StrictModel):
+    path: str
+    row_count: int
+    task_counts: dict[str, int]
+    holdout_rule: str
+
+
+class SplitLabelDistributions(StrictModel):
+    relation: dict[str, int]
+    binary_answer: dict[str, int]
+    volume_bucket: dict[str, int]
+
+
+class SplitManifestSummary(StrictModel):
+    row_count: int
+    task_counts: dict[str, int]
+    label_distributions: SplitLabelDistributions
+    generator_ids: list[str]
+    base_object_pair_ids: list[str]
+    assembly_group_ids: list[str]
+    counterfactual_group_ids: list[str]
+    group_holdout_rule_ids: list[str]
+
+
+class GroupHoldoutRule(StrictModel):
+    rule_id: str
+    description: str
+    group_fields: list[str]
+    forbidden_cross_split_pairs: list[list[str]]
+    status: AuditStatus
+
+
+class LeakageViolation(StrictModel):
+    split_pair: list[str]
+    field: str
+    values: list[str]
+
+
+class LeakageAudit(StrictModel):
+    status: AuditStatus
+    checked_group_fields: list[str]
+    violation_count: int
+    violations: list[LeakageViolation]
+
+
+class SplitManifest(StrictModel):
+    dataset_version: str
+    split_names: list[str]
+    splits: dict[str, SplitManifestSummary]
+    group_holdout_rules: list[GroupHoldoutRule]
+    leakage_audit: LeakageAudit
+
+
+class SourceManifestEntry(StrictModel):
+    source: str
+    archive_path: str | None = None
+    archive_available: bool | None = None
+    archive_members_scanned: int | None = None
+    source_records_loaded: int | None = None
+    execution_policy: str | None = None
+    purpose: str | None = None
+    fixture_count: int | None = None
+    generator_id: str | None = None
+    object_validation_records: int | None = None
+
+
+class SourceManifest(StrictModel):
+    dataset_version: str
+    config_hash: str
+    sources: list[SourceManifestEntry]
+
+
+class DatasetCounts(StrictModel):
+    total_rows: int
+    by_task: dict[str, int]
+    by_split: dict[str, int]
+    by_relation: dict[str, int]
+    by_source: dict[str, int]
+    source_manifest_hash: str
+
+
+class SmokeGeometryReport(StrictModel):
+    cadevolve_archive_members_scanned: int
+    cadevolve_source_records_loaded: int
+    cadevolve_source_failures: int
+    geometry_records: int
+    synthetic_fixture_count: int
+    label_policy: LabelPolicy
+    seed: int
+    config_hash: str
+    source_manifest: SourceManifest
+
+
+class SmokeRowsReport(SmokeGeometryReport):
+    task_rows: int
+    task_counts: dict[str, int]
+    relation_counts: dict[str, int]
+    split_counts: dict[str, int]
+    leakage_audit_status: AuditStatus
+    leakage_violation_count: int
+
+
+class SmokeDatasetReport(SmokeRowsReport):
+    source_manifest_hash: str
+    object_validation_records: int
+    output_dir: str
