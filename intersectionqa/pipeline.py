@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import sys
 import time
@@ -24,6 +25,7 @@ from intersectionqa.export.jsonl import (
     write_source_manifest,
     write_jsonl_like,
 )
+from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.generation.geometry_cache import GeometryLabelCache
 from intersectionqa.prompts.materialize import materialize_rows
@@ -72,7 +74,9 @@ def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArti
     started = time.monotonic()
     _progress(
         "loading CADEvolve sources: "
-        f"archive={config.cadevolve_archive}, limit={config.smoke.object_validation_limit}"
+        f"archive={config.cadevolve_archive}, "
+        f"source_cache_root={config.smoke.cadevolve_source_cache_root}, "
+        f"limit={config.smoke.object_validation_limit}"
     )
     cadevolve = _load_cadevolve_for_smoke(config)
     _progress(
@@ -208,6 +212,11 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
         license=config.license,
     )
     write_metadata(metadata, output_dir / "metadata.json")
+    parquet_counts = write_parquet_files(rows, output_dir / "parquet")
+    (output_dir / "parquet_manifest.json").write_text(
+        json.dumps({"files": parquet_counts, "compression": "zstd"}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     smoke_report = SmokeDatasetReport(
         **report.model_dump(),
         source_manifest_hash=source_hash,
@@ -233,7 +242,7 @@ def _source_manifest(
         sources=[
             SourceManifestEntry(
                 source="cadevolve",
-                archive_path=str(config.cadevolve_archive) if config.cadevolve_archive else None,
+                archive_path=_cadevolve_archive_path_for_manifest(config),
                 archive_available=bool(
                     config.cadevolve_archive and config.cadevolve_archive.exists()
                 ),
@@ -259,11 +268,37 @@ def _load_cadevolve_for_smoke(config: DatasetConfig):
         if config.smoke.use_source_member_index_cache
         else None
     )
+    extracted_source_cache_dir = (
+        config.smoke.extracted_source_cache_dir
+        if config.smoke.use_extracted_source_cache
+        else None
+    )
     return CadevolveTarLoader(
         config.cadevolve_archive,
         config.config_hash,
         member_index_cache_dir=member_index_cache_dir,
+        extracted_source_cache_dir=extracted_source_cache_dir,
+        extracted_source_cache_root=config.smoke.cadevolve_source_cache_root,
     ).load(limit=limit, offset=offset)
+
+
+def _cadevolve_archive_path_for_manifest(config: DatasetConfig) -> str | None:
+    if config.cadevolve_archive is not None:
+        return str(config.cadevolve_archive)
+    cache_root = config.smoke.cadevolve_source_cache_root
+    if cache_root is None:
+        return None
+    manifest_path = cache_root / "extraction_manifest.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    archive = manifest.get("archive")
+    if isinstance(archive, dict) and isinstance(archive.get("path"), str):
+        return archive["path"]
+    return None
 
 
 def _geometry_label_cache_for_smoke(config: DatasetConfig) -> GeometryLabelCache | None:

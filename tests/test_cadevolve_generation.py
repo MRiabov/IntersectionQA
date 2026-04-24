@@ -110,6 +110,32 @@ def test_cadevolve_candidate_generation_reuses_geometry_label_cache(tmp_path, ca
     ]
     assert [record.labels for record in second.records] == [record.labels for record in first.records]
     assert "cache_hits=0" in first_logs
-    assert "cache_hits=4" in second_logs
+    assert "cache_hits=8" in second_logs
     assert all(record.metadata["geometry_label_cache_hit"] is True for record in second.records)
     assert list((tmp_path / "labels").glob("*/*.json"))
+
+
+def test_cadevolve_candidate_generation_includes_broad_placement_examples():
+    config = DatasetConfig()
+    source_a = _cadevolve_box("obj_ca", "CADEvolve-P/test/a.py", (10.0, 10.0, 10.0))
+    source_b = _cadevolve_box("obj_cb", "CADEvolve-C/test/b.py", (8.0, 8.0, 8.0))
+    validations = [
+        validate_source_object(
+            source,
+            config_hash=config.config_hash,
+            validated_at_version="test",
+            isolated=False,
+        )
+        for source in (source_a, source_b)
+    ]
+
+    generated = generate_cadevolve_geometry_records(
+        [source_a, source_b],
+        {validation.object_id: validation for validation in validations},
+        policy=config.label_policy,
+        config_hash=config.config_hash,
+        max_records=5,
+    )
+
+    assert any(record.metadata["candidate_strategy"] == "broad_random_disjoint" for record in generated.records)
+    assert any("broad_placement" in record.difficulty_tags for record in generated.records)

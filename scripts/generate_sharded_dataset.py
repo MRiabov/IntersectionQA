@@ -16,6 +16,7 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--cadevolve-archive", type=Path, default=None)
+    parser.add_argument("--cadevolve-source-cache-root", type=Path, default=None)
     parser.add_argument("--shard-count", type=int, required=True)
     parser.add_argument("--source-shard-size", type=int, required=True)
     parser.add_argument(
@@ -31,6 +32,8 @@ def main() -> None:
     config = load_config(args.config)
     if args.cadevolve_archive is not None:
         config.cadevolve_archive = args.cadevolve_archive
+    if args.cadevolve_source_cache_root is not None:
+        config.smoke.cadevolve_source_cache_root = args.cadevolve_source_cache_root
     manifest = generate_source_shards(
         config,
         args.output_dir,

@@ -6,6 +6,7 @@ from intersectionqa.export.jsonl import (
     read_source_manifest,
     write_jsonl,
 )
+from intersectionqa.export.parquet import read_parquet_rows
 from intersectionqa.pipeline import build_smoke_rows, validate_dataset_dir, write_smoke_dataset
 
 
@@ -26,6 +27,8 @@ def test_smoke_export_writes_manifests(tmp_path):
     assert (tmp_path / "failure_manifest.jsonl").exists()
     assert (tmp_path / "object_validation_manifest.jsonl").exists()
     assert (tmp_path / "split_manifest.json").exists()
+    assert (tmp_path / "parquet_manifest.json").exists()
+    assert (tmp_path / "parquet" / "train.parquet").exists()
     assert report.source_manifest_hash.startswith("sha256:")
     assert report.object_validation_records == 3
     assert len(validate_dataset_dir(tmp_path)) == 21
@@ -38,3 +41,6 @@ def test_smoke_export_writes_manifests(tmp_path):
     metadata = read_metadata(tmp_path / "metadata.json")
     assert metadata is not None
     assert metadata.dataset_name == "IntersectionQA"
+    parquet_rows = read_parquet_rows(tmp_path / "parquet" / "train.parquet")
+    assert parquet_rows
+    assert {"id", "prompt", "answer", "labels_json"} <= set(parquet_rows[0])
