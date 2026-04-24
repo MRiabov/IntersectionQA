@@ -50,10 +50,17 @@ current_snapshot:
     - pyvista_row_rendering
     - render_audited_cadevolve_smoke_sample
     - cadevolve_cavity_targeted_examples
+    - counterfactual_pairwise_and_ranking_prompt_formats
+    - clearance_bucket_prompt_generation
+    - tolerance_fit_prompt_generation
     - mvp_prompt_generation
     - jsonl_export_and_validation
     - group_safe_splits
     - aabb_diagnostic_baseline
+    - obb_diagnostic_baseline
+    - split_safe_few_shot_evaluation
+    - tool_assisted_exact_verifier_upper_bound
+    - dataset_card_generation
     - smoke_dataset_generation
 
 epics:
@@ -223,7 +230,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "3.8"
         title: Multi-object assemblies
@@ -333,7 +340,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "5.5"
         title: Pairwise multi-object prompt
@@ -349,7 +356,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "5.7"
         title: Repair-direction prompt
@@ -365,7 +372,7 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
 
   - id: epic-6
@@ -459,7 +466,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "7.3"
         title: Convex-hull baseline
@@ -483,7 +490,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "7.6"
         title: Fine-tune small code model
@@ -523,7 +530,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
 
   - id: epic-8
@@ -593,7 +600,7 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Low
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
       - id: "9.4"
         title: Reproducibility scripts

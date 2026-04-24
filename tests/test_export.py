@@ -28,6 +28,7 @@ def test_smoke_export_writes_manifests(tmp_path):
     assert (tmp_path / "object_validation_manifest.jsonl").exists()
     assert (tmp_path / "split_manifest.json").exists()
     assert (tmp_path / "parquet_manifest.json").exists()
+    assert (tmp_path / "DATASET_CARD.md").exists()
     assert (tmp_path / "parquet" / "train.parquet").exists()
     assert report.source_manifest_hash.startswith("sha256:")
     assert report.object_validation_records == 3

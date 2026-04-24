@@ -25,6 +25,7 @@ from intersectionqa.export.jsonl import (
     write_source_manifest,
     write_jsonl_like,
 )
+from intersectionqa.export.dataset_card import write_dataset_card
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.generation.geometry_cache import GeometryLabelCache
@@ -213,6 +214,7 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
         license=config.license,
     )
     write_metadata(metadata, output_dir / "metadata.json")
+    write_dataset_card(output_dir)
     parquet_counts = write_parquet_files(rows, output_dir / "parquet")
     (output_dir / "parquet_manifest.json").write_text(
         json.dumps({"files": parquet_counts, "compression": "zstd"}, indent=2, sort_keys=True) + "\n",
