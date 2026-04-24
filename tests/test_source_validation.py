@@ -3,7 +3,7 @@ import pytest
 from intersectionqa.config import DatasetConfig
 from intersectionqa.geometry.cadquery_exec import cadquery_available
 from intersectionqa.sources.synthetic import synthetic_source_object
-from intersectionqa.sources.validation import validate_source_object
+from intersectionqa.sources.validation import validate_source_object, validate_source_objects_bounded
 
 
 def test_synthetic_source_validation_uses_cadquery():
@@ -59,3 +59,27 @@ def test_isolated_validation_times_out_slow_source():
     )
     assert validation.valid is False
     assert validation.failure_reason == "timeout"
+
+
+def test_bounded_source_validation_preserves_input_order():
+    config = DatasetConfig()
+    sources = [
+        synthetic_source_object("obj_a", "object_a", (1.0, 1.0, 1.0)),
+        synthetic_source_object("obj_b", "object_a", (2.0, 1.0, 1.0)),
+        synthetic_source_object("obj_bad", "object_a", (0.0, 1.0, 1.0)),
+    ]
+
+    validations = validate_source_objects_bounded(
+        sources,
+        config_hash=config.config_hash,
+        validated_at_version="test",
+        timeout_seconds=5.0,
+        worker_count=2,
+    )
+
+    assert [validation.object_id for validation in validations] == [
+        "obj_a",
+        "obj_b",
+        "obj_bad",
+    ]
+    assert [validation.valid for validation in validations] == [True, True, False]
