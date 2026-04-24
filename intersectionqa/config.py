@@ -19,6 +19,8 @@ class SmokeConfig(BaseModel):
     use_synthetic_fixtures: bool = True
     include_cadevolve_if_available: bool = True
     geometry_limit: int = 100
+    balance_geometry_relations: bool = True
+    geometry_candidate_pool_multiplier: int = Field(default=2, ge=1)
     object_validation_offset: int = 0
     object_validation_limit: int = 25
     object_validation_timeout_seconds: float = 5.0
