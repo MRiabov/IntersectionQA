@@ -9,6 +9,7 @@ description = "Code-only CAD spatial reasoning benchmark tooling."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cadquery>=2.7.0",
     "pydantic>=2.0",
     "pyyaml>=6.0",
 ]
