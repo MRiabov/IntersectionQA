@@ -1,0 +1,24 @@
+dataset_version: v0.1
+seed: 1234
+output_dir: data/intersectionqa_v0_1
+cadevolve_archive: data/cadevolve.tar
+smoke:
+  use_synthetic_fixtures: true
+  include_cadevolve_if_available: true
+  geometry_limit: 3000
+  public_row_limit: 15000
+  object_validation_limit: 1000
+  object_validation_timeout_seconds: 5.0
+  object_validation_worker_count: 4
+  source_member_index_cache_dir: data/cache/source_indexes
+  extracted_source_cache_dir: data/cadevolve_sources
+  object_validation_cache_dir: data/cache/objects
+  geometry_label_cache_dir: data/cache/labels
+  task_types:
+    - binary_interference
+    - relation_classification
+    - volume_bucket
+    - clearance_bucket
+    - tolerance_fit
+    - pairwise_interference
+    - ranking_normalized_intersection
