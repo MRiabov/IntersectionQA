@@ -9,6 +9,7 @@ from typing import Any
 
 from intersectionqa.enums import FailureReason, FailureStage, LabelStatus, Relation
 from intersectionqa.generation.assembly import TwoObjectAssembly
+from intersectionqa.generation.geometry_cache import GeometryLabelCache, geometry_label_cache_key
 from intersectionqa.geometry.bbox import AABB, transform_aabb
 from intersectionqa.geometry.cadquery_exec import (
     CadQueryExecutionError,
@@ -54,6 +55,7 @@ def generate_cadevolve_geometry_records(
     policy: LabelPolicy,
     config_hash: str,
     max_records: int,
+    geometry_cache: GeometryLabelCache | None = None,
 ) -> CadevolveGeometryBuild:
     """Build a bounded deterministic set of exact-labeled CADEvolve assemblies."""
 
@@ -88,6 +90,7 @@ def generate_cadevolve_geometry_records(
     )
     pair_index = 0
     attempts = 0
+    cache_hits = 0
     for object_a, object_b in _deterministic_pairs(valid_sources):
         pair_index += 1
         validation_a = validations_by_object_id[object_a.object_id]
@@ -96,7 +99,8 @@ def generate_cadevolve_geometry_records(
             if len(records) >= max_records:
                 _progress(
                     f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
-                    f"attempts={attempts}, failures={len(failures)}, elapsed={_elapsed(started)}"
+                    f"attempts={attempts}, failures={len(failures)}, cache_hits={cache_hits}, "
+                    f"elapsed={_elapsed(started)}"
                 )
                 return CadevolveGeometryBuild(records=records, failures=failures)
             attempts += 1
@@ -114,6 +118,7 @@ def generate_cadevolve_geometry_records(
                     geometry_index=geometry_index,
                     policy=policy,
                     config_hash=config_hash,
+                    geometry_cache=geometry_cache,
                 )
             except CadQueryExecutionError as exc:
                 failures.append(
@@ -171,15 +176,19 @@ def generate_cadevolve_geometry_records(
                     )
                 )
                 continue
+            if record.metadata.get("geometry_label_cache_hit") is True:
+                cache_hits += 1
             records.append(record)
             if len(records) == max_records or len(records) % 10 == 0:
                 _progress(
                     f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
-                    f"attempts={attempts}, failures={len(failures)}, elapsed={_elapsed(started)}"
+                    f"attempts={attempts}, failures={len(failures)}, cache_hits={cache_hits}, "
+                    f"elapsed={_elapsed(started)}"
                 )
     _progress(
         f"generating CADEvolve geometry records: {len(records)}/{max_records}, "
-        f"attempts={attempts}, failures={len(failures)}, elapsed={_elapsed(started)}"
+        f"attempts={attempts}, failures={len(failures)}, cache_hits={cache_hits}, "
+        f"elapsed={_elapsed(started)}"
     )
     return CadevolveGeometryBuild(records=records, failures=failures)
 
@@ -291,6 +300,7 @@ def _measure_candidate(
     geometry_index: int,
     policy: LabelPolicy,
     config_hash: str,
+    geometry_cache: GeometryLabelCache | None,
 ) -> GeometryRecord:
     assert validation_a.bbox is not None
     assert validation_b.bbox is not None
@@ -300,15 +310,6 @@ def _measure_candidate(
     transform_b = _bbox_guided_transform(local_a, local_b, spec)
     pair_object_a = _with_function_name(object_a, "object_a")
     pair_object_b = _with_function_name(object_b, "object_b")
-    raw_geometry = measure_shape_pair(
-        measured_by_object_id[object_a.object_id].shape,
-        measured_by_object_id[object_b.object_id].shape,
-        transform_a,
-        transform_b,
-        policy,
-    )
-    labels, diagnostics = derive_labels(raw_geometry, policy)
-    assembly = TwoObjectAssembly(pair_object_a, pair_object_b, transform_a, transform_b)
     transform_hash = sha256_json(
         {
             "candidate_strategy": spec.strategy,
@@ -316,6 +317,29 @@ def _measure_candidate(
             "transform_b": transform_b.model_dump(mode="json"),
         }
     )
+    label_cache_key = geometry_label_cache_key(
+        object_hash_a=object_a.hashes.object_hash,
+        object_hash_b=object_b.hashes.object_hash,
+        transform_hash=transform_hash,
+        policy=policy,
+    )
+    cached = geometry_cache.get(label_cache_key) if geometry_cache is not None else None
+    geometry_label_cache_hit = cached is not None
+    if cached is not None:
+        labels = cached.labels
+        diagnostics = cached.diagnostics
+    else:
+        raw_geometry = measure_shape_pair(
+            measured_by_object_id[object_a.object_id].shape,
+            measured_by_object_id[object_b.object_id].shape,
+            transform_a,
+            transform_b,
+            policy,
+        )
+        labels, diagnostics = derive_labels(raw_geometry, policy)
+        if geometry_cache is not None:
+            geometry_cache.set(label_cache_key, labels=labels, diagnostics=diagnostics)
+    assembly = TwoObjectAssembly(pair_object_a, pair_object_b, transform_a, transform_b)
     object_hash = sha256_json([object_a.hashes.object_hash, object_b.hashes.object_hash])
     geometry_hash = sha256_json(
         {
@@ -384,6 +408,8 @@ def _measure_candidate(
                 "transform_a": transform_a.model_dump(mode="json"),
                 "transform_b": transform_b.model_dump(mode="json"),
             },
+            "geometry_label_cache_key": label_cache_key,
+            "geometry_label_cache_hit": geometry_label_cache_hit,
         },
     )
 
