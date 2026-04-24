@@ -118,7 +118,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "2.6"
         title: Synthetic primitive and motif fixtures
@@ -445,7 +445,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
       - id: "7.5"
         title: Few-shot LLM evaluation
@@ -589,7 +589,7 @@ epics:
     implementation_complexity: Medium
     debugging_difficulty: Medium
     recommendation: Build now
-    status: planned
+    status: work-in-progress
     stable: false
     stories:
       - id: "10.1"
@@ -598,7 +598,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Low
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
       - id: "10.2"
         title: Baseline comparison table
@@ -606,7 +606,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
       - id: "10.3"
         title: Task-family comparison
@@ -614,7 +614,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
       - id: "10.4"
         title: Diagnostic subset analysis
@@ -638,7 +638,7 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
 
   - id: epic-11
@@ -782,7 +782,7 @@ epics:
     implementation_complexity: Medium
     debugging_difficulty: Medium
     recommendation: Build now
-    status: planned
+    status: work-in-progress
     stable: false
     stories:
       - id: "13.1"
@@ -791,7 +791,7 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
       - id: "13.2"
         title: Reproducibility audit
