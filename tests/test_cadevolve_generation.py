@@ -1,4 +1,5 @@
 from intersectionqa.config import DatasetConfig
+from intersectionqa.enums import Relation
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.generation.geometry_cache import GeometryLabelCache
 from intersectionqa.sources.synthetic import synthetic_source_object
@@ -46,11 +47,24 @@ def test_cadevolve_candidate_generation_aliases_sources_and_preserves_provenance
 
     assert not generated.failures
     assert len(generated.records) == 4
+    assert [record.geometry_id for record in generated.records] == [
+        "geom_cadevolve_000001",
+        "geom_cadevolve_000002",
+        "geom_cadevolve_000003",
+        "geom_cadevolve_000004",
+    ]
+    assert {record.labels.relation for record in generated.records} == {
+        Relation.DISJOINT,
+        Relation.TOUCHING,
+        Relation.NEAR_MISS,
+        Relation.INTERSECTING,
+    }
     record = generated.records[0]
     assert record.source == "cadevolve"
     assert "def object_a():" in record.assembly_script
     assert "def object_b():" in record.assembly_script
     assert record.metadata["candidate_strategy"] == "clear_disjoint"
+    assert record.metadata["pre_balance_geometry_id"] == "geom_cadevolve_000001"
     assert record.metadata["source_paths"] == ["CADEvolve-C/test/b.py", "CADEvolve-P/test/a.py"]
     assert record.metadata["cadquery_version"] is not None
 
