@@ -15,6 +15,7 @@ dependencies = [
     "numpy>=2.4.4",
     "psutil>=7.2.2",
     "pydantic>=2.0",
+    "python-dotenv>=1.2.2",
     "pyvista>=0.47.3",
     "pyyaml>=6.0",
 ]
@@ -24,6 +25,7 @@ intersectionqa-generate = "scripts.generate_dataset:main"
 intersectionqa-validate = "scripts.validate_dataset:main"
 intersectionqa-aabb-baseline = "scripts.evaluate_baseline:main"
 intersectionqa-evaluate-predictions = "scripts.evaluate_predictions:main"
+intersectionqa-evaluate-zero-shot = "scripts.evaluate_zero_shot:main"
 intersectionqa-audit-leakage = "scripts.audit_leakage:main"
 intersectionqa-audit-reproducibility = "scripts.audit_reproducibility:main"
 intersectionqa-stats = "scripts.dataset_stats:main"
