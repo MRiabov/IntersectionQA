@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from intersectionqa.enums import TaskType
 from intersectionqa.hashing import sha256_json
 from intersectionqa.schema import LabelPolicy
 
@@ -18,11 +19,11 @@ class SmokeConfig(BaseModel):
     use_synthetic_fixtures: bool = True
     include_cadevolve_if_available: bool = True
     geometry_limit: int = 100
-    task_types: list[str] = Field(
+    task_types: list[TaskType] = Field(
         default_factory=lambda: [
-            "binary_interference",
-            "relation_classification",
-            "volume_bucket",
+            TaskType.BINARY_INTERFERENCE,
+            TaskType.RELATION_CLASSIFICATION,
+            TaskType.VOLUME_BUCKET,
         ]
     )
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from intersectionqa.enums import Split, TaskType
 from intersectionqa.geometry.labels import binary_answer
 from intersectionqa.prompts.common import object_code_from_script, public_row, transforms_text
 from intersectionqa.schema import GeometryRecord, PublicTaskRow
@@ -36,10 +37,10 @@ Answer with exactly one token: yes or no"""
 def materialize_binary_row(record: GeometryRecord, row_number: int, split: str) -> PublicTaskRow:
     return public_row(
         record=record,
-        task_type="binary_interference",
+        task_type=TaskType.BINARY_INTERFERENCE,
         answer=binary_answer(record.labels.relation),
         prompt=make_binary_prompt(record),
         row_number=row_number,
-        split=split,
+        split=Split(split),
         template_version=TEMPLATE_VERSION,
     )

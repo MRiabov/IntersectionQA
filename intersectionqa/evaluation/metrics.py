@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
+from intersectionqa.enums import TaskType
 from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.schema import FailureRecord, ObjectValidationRecord, PublicTaskRow
 
@@ -18,7 +19,7 @@ class Prediction:
 
 @dataclass(frozen=True)
 class TaskMetrics:
-    task_type: str
+    task_type: TaskType
     total: int
     correct: int
     invalid_outputs: int
@@ -30,7 +31,7 @@ class TaskMetrics:
 def evaluate_predictions(rows: Iterable[PublicTaskRow], predictions: Iterable[Prediction]) -> list[TaskMetrics]:
     rows_by_id = {row.id: row for row in rows}
     predictions_by_id = {prediction.row_id: prediction.output for prediction in predictions}
-    by_task: dict[str, list[tuple[PublicTaskRow, str | None]]] = defaultdict(list)
+    by_task: dict[TaskType, list[tuple[PublicTaskRow, str | None]]] = defaultdict(list)
 
     for row_id, row in rows_by_id.items():
         output = predictions_by_id.get(row_id, "")
@@ -76,7 +77,7 @@ def manifest_stats(
     }
 
 
-def _metrics_for_task(task_type: str, items: list[tuple[PublicTaskRow, str | None]]) -> TaskMetrics:
+def _metrics_for_task(task_type: TaskType, items: list[tuple[PublicTaskRow, str | None]]) -> TaskMetrics:
     total = len(items)
     correct = sum(1 for row, parsed in items if parsed == row.answer)
     invalid = sum(1 for _, parsed in items if parsed is None)

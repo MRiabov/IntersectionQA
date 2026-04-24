@@ -127,6 +127,15 @@ def write_source_manifest(manifest: SourceManifest, path: Path) -> None:
     path.write_text(manifest.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
 
+def read_source_manifest(path: Path) -> SourceManifest | None:
+    if not path.exists():
+        return None
+    try:
+        return SourceManifest.model_validate_json(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError(f"{path}: invalid source manifest: {exc}") from exc
+
+
 def write_schema(path: Path) -> None:
     path.write_text(
         json.dumps(PublicTaskRow.model_json_schema(), indent=2, sort_keys=True) + "\n",
@@ -173,6 +182,15 @@ def build_metadata(
 
 def write_metadata(metadata: DatasetMetadata, path: Path) -> None:
     path.write_text(metadata.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+
+def read_metadata(path: Path) -> DatasetMetadata | None:
+    if not path.exists():
+        return None
+    try:
+        return DatasetMetadata.model_validate_json(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError(f"{path}: invalid dataset metadata: {exc}") from exc
 
 
 def source_manifest_hash(records: object) -> str:

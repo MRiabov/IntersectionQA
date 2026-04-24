@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from intersectionqa.enums import Split, TaskType
 from intersectionqa.prompts.common import object_code_from_script, public_row, transforms_text
 from intersectionqa.schema import GeometryRecord, PublicTaskRow
 
@@ -48,10 +49,10 @@ Answer with exactly one label."""
 def materialize_relation_row(record: GeometryRecord, row_number: int, split: str) -> PublicTaskRow:
     return public_row(
         record=record,
-        task_type="relation_classification",
+        task_type=TaskType.RELATION_CLASSIFICATION,
         answer=record.labels.relation,
         prompt=make_relation_prompt(record),
         row_number=row_number,
-        split=split,
+        split=Split(split),
         template_version=TEMPLATE_VERSION,
     )
