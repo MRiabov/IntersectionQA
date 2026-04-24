@@ -23,6 +23,7 @@ from intersectionqa.hashing import sha256_json, sha256_text
 from intersectionqa.schema import (
     ArtifactIds,
     BoundingBox,
+    Diagnostics,
     FailureRecord,
     GeometryRecord,
     Hashes,
@@ -45,6 +46,7 @@ class _CandidateSpec:
     translation_gap: float
     rotation_b: tuple[float, float, float]
     tags: tuple[str, ...]
+    placement: str = "x_gap"
     center_offset_y: float = 0.0
     center_offset_z: float = 0.0
     changed_parameter: str | None = "transform_b.translation[0]"
@@ -113,7 +115,14 @@ def generate_cadevolve_geometry_records(
         validation_a = validations_by_object_id[object_a.object_id]
         validation_b = validations_by_object_id[object_b.object_id]
         for spec_index, spec in enumerate(
-            _candidate_specs(validation_a, validation_b, policy, pair_key=f"{object_a.source_id}|{object_b.source_id}"),
+            _candidate_specs(
+                object_a,
+                object_b,
+                validation_a,
+                validation_b,
+                policy,
+                pair_key=f"{object_a.source_id}|{object_b.source_id}",
+            ),
             start=1,
         ):
             if len(candidate_records) >= pool_target:
@@ -282,6 +291,8 @@ def _select_balanced_records(
             overflow.append(record)
         else:
             bucket.append(record)
+    for bucket in buckets.values():
+        bucket.sort(key=_record_selection_priority)
 
     selected: list[GeometryRecord] = []
     while len(selected) < max_records:
@@ -319,6 +330,8 @@ def _relation_counts(records: list[GeometryRecord]) -> dict[str, int]:
 
 
 def _candidate_specs(
+    object_a: SourceObjectRecord,
+    object_b: SourceObjectRecord,
     validation_a: ObjectValidationRecord,
     validation_b: ObjectValidationRecord,
     policy: LabelPolicy,
@@ -335,7 +348,7 @@ def _candidate_specs(
     broad_scale = _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
     broad_jitter = _stable_unit_interval(f"{pair_key}:broad")
     broad_rotation = -35.0 + 70.0 * _stable_unit_interval(f"{pair_key}:rot_z")
-    return [
+    specs = [
         _CandidateSpec(
             strategy="clear_disjoint",
             translation_gap=clear_gap,
@@ -383,6 +396,18 @@ def _candidate_specs(
             changed_parameter="transform_b.rotation_xyz_deg[2]",
         ),
     ]
+    if _is_cavity_candidate_pair(object_a, object_b, validation_a, validation_b):
+        specs.append(
+            _CandidateSpec(
+                strategy="cavity_center_probe",
+                translation_gap=0.0,
+                rotation_b=(0.0, 0.0, 0.0),
+                tags=("cavity_targeted",),
+                placement="center",
+                changed_parameter="transform_b.translation",
+            )
+        )
+    return specs
 
 
 def _measure_candidate(
@@ -471,7 +496,7 @@ def _measure_candidate(
         assembly_script=assembly.script(),
         labels=labels,
         diagnostics=diagnostics,
-        difficulty_tags=_difficulty_tags(object_a, object_b, spec),
+        difficulty_tags=_difficulty_tags(object_a, object_b, spec, diagnostics),
         label_policy=policy,
         hashes=Hashes(
             source_code_hash=sha256_text(assembly.object_code),
@@ -500,6 +525,7 @@ def _measure_candidate(
             "cadquery_version": cadquery_version(),
             "ocp_version": ocp_version(),
             "candidate_transform_values": {
+                "placement": spec.placement,
                 "translation_gap": spec.translation_gap,
                 "transform_a": transform_a.model_dump(mode="json"),
                 "transform_b": transform_b.model_dump(mode="json"),
@@ -511,11 +537,18 @@ def _measure_candidate(
 
 
 def _bbox_guided_transform(local_a: AABB, local_b: AABB, spec: _CandidateSpec) -> Transform:
-    translation = [
-        local_a.max[0] + spec.translation_gap - local_b.min[0],
-        _center(local_a, 1) - _center(local_b, 1) + spec.center_offset_y,
-        _center(local_a, 2) - _center(local_b, 2) + spec.center_offset_z,
-    ]
+    if spec.placement == "center":
+        translation = [
+            _center(local_a, 0) - _center(local_b, 0),
+            _center(local_a, 1) - _center(local_b, 1) + spec.center_offset_y,
+            _center(local_a, 2) - _center(local_b, 2) + spec.center_offset_z,
+        ]
+    else:
+        translation = [
+            local_a.max[0] + spec.translation_gap - local_b.min[0],
+            _center(local_a, 1) - _center(local_b, 1) + spec.center_offset_y,
+            _center(local_a, 2) - _center(local_b, 2) + spec.center_offset_z,
+        ]
     return Transform(translation=tuple(translation), rotation_xyz_deg=spec.rotation_b)
 
 
@@ -541,10 +574,18 @@ def _difficulty_tags(
     object_a: SourceObjectRecord,
     object_b: SourceObjectRecord,
     spec: _CandidateSpec,
+    diagnostics: Diagnostics,
 ) -> list[str]:
     tags = {"cadevolve_compound" if _is_compoundish(object_a, object_b) else "cadevolve_simple"}
     tags.update(spec.tags)
+    if diagnostics.aabb_overlap is True and diagnostics.exact_overlap is False:
+        tags.add("aabb_exact_disagreement")
     return sorted(tags)
+
+
+def _record_selection_priority(record: GeometryRecord) -> tuple[int, str]:
+    priority = 0 if "cavity_targeted" in record.difficulty_tags else 1
+    return priority, record.geometry_id
 
 
 def _is_compoundish(object_a: SourceObjectRecord, object_b: SourceObjectRecord) -> bool:
@@ -562,6 +603,47 @@ def _is_compoundish(object_a: SourceObjectRecord, object_b: SourceObjectRecord) 
     }
     ops = set(object_a.cadquery_ops) | set(object_b.cadquery_ops)
     return bool(ops & compound_ops)
+
+
+def _is_cavity_candidate_pair(
+    object_a: SourceObjectRecord,
+    object_b: SourceObjectRecord,
+    validation_a: ObjectValidationRecord,
+    validation_b: ObjectValidationRecord,
+) -> bool:
+    return _is_cavity_like(object_a, validation_a) or _is_cavity_like(object_b, validation_b)
+
+
+def _is_cavity_like(record: SourceObjectRecord, validation: ObjectValidationRecord) -> bool:
+    text_markers = {
+        "cut",
+        "hole",
+        "slot",
+        "shell",
+        "ring",
+        "tube",
+        "pipe",
+        "bracket",
+        "u_shape",
+        "u-shape",
+        "cavity",
+        "void",
+    }
+    lowered_values = {
+        *(item.lower() for item in record.cadquery_ops),
+        *(item.lower() for item in record.topology_tags),
+        record.object_name.lower(),
+        str(record.metadata.get("source_path", "")).lower(),
+        str(record.metadata.get("source_subset", "")).lower(),
+    }
+    if any(any(marker in value for marker in text_markers) for value in lowered_values):
+        return True
+    if validation.bbox is None or validation.volume is None:
+        return False
+    bbox_volume = _aabb_from_bbox(validation.bbox).volume
+    if bbox_volume <= 0.0:
+        return False
+    return validation.volume / bbox_volume < 0.65
 
 
 def _failure_record(
@@ -593,6 +675,7 @@ def _failure_record(
                     "candidate_strategy": spec.strategy,
                     "translation_gap": spec.translation_gap,
                     "rotation_b": spec.rotation_b,
+                    "placement": spec.placement,
                     "center_offset_y": spec.center_offset_y,
                     "center_offset_z": spec.center_offset_z,
                 }

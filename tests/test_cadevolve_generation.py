@@ -2,6 +2,8 @@ from intersectionqa.config import DatasetConfig
 from intersectionqa.enums import Relation
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.generation.geometry_cache import GeometryLabelCache
+from intersectionqa.hashing import sha256_json, sha256_text
+from intersectionqa.schema import Hashes, SourceObjectRecord
 from intersectionqa.sources.synthetic import synthetic_source_object
 from intersectionqa.sources.validation import validate_source_object
 
@@ -21,6 +23,45 @@ def _cadevolve_box(object_id: str, source_path: str, dimensions: tuple[float, fl
                 "source_subset": "/".join(source_path.split("/")[:2]),
             },
         }
+    )
+
+
+def _cadevolve_code_object(
+    object_id: str,
+    source_path: str,
+    object_name: str,
+    function_name: str,
+    code: str,
+    cadquery_ops: list[str],
+    topology_tags: list[str],
+) -> SourceObjectRecord:
+    return SourceObjectRecord(
+        object_id=object_id,
+        source="cadevolve",
+        source_id=source_path,
+        generator_id="cadevolve_test_generator",
+        source_path=source_path,
+        source_license="apache-2.0",
+        object_name=object_name,
+        normalized_code=code,
+        object_function_name=function_name,
+        cadquery_ops=cadquery_ops,
+        topology_tags=topology_tags,
+        metadata={
+            "units": "mm",
+            "source_tree": source_path.split("/", 1)[0],
+            "source_subset": "/".join(source_path.split("/")[:2]),
+        },
+        hashes=Hashes(
+            source_code_hash=sha256_text(code),
+            object_hash=sha256_json(
+                {"source": "cadevolve", "source_path": source_path, "code": code}
+            ),
+            transform_hash=None,
+            geometry_hash=None,
+            config_hash=None,
+            prompt_hash=None,
+        ),
     )
 
 
@@ -139,3 +180,70 @@ def test_cadevolve_candidate_generation_includes_broad_placement_examples():
 
     assert any(record.metadata["candidate_strategy"] == "broad_random_disjoint" for record in generated.records)
     assert any("broad_placement" in record.difficulty_tags for record in generated.records)
+
+
+def test_cadevolve_candidate_generation_includes_cavity_targeted_examples():
+    config = DatasetConfig()
+    ring = _cadevolve_code_object(
+        "obj_ring",
+        "CADEvolve-P/test/ring.py",
+        "ring_with_cutout",
+        "ring_object",
+        "\n".join(
+            [
+                "def ring_object():",
+                "    outer = cq.Workplane('XY').circle(5.0).extrude(4.0)",
+                "    inner = cq.Workplane('XY').circle(2.0).extrude(4.0)",
+                "    return outer.cut(inner)",
+                "",
+            ]
+        ),
+        ["circle", "extrude", "cut"],
+        ["ring", "cutout"],
+    )
+    probe = _cadevolve_code_object(
+        "obj_probe",
+        "CADEvolve-C/test/probe.py",
+        "center_probe",
+        "probe_object",
+        "\n".join(
+            [
+                "def probe_object():",
+                "    return cq.Workplane('XY').circle(0.5).extrude(6.0)",
+                "",
+            ]
+        ),
+        ["circle", "extrude"],
+        ["cylinder"],
+    )
+    validations = [
+        validate_source_object(
+            source,
+            config_hash=config.config_hash,
+            validated_at_version="test",
+            isolated=False,
+        )
+        for source in (ring, probe)
+    ]
+
+    generated = generate_cadevolve_geometry_records(
+        [ring, probe],
+        {validation.object_id: validation for validation in validations},
+        policy=config.label_policy,
+        config_hash=config.config_hash,
+        max_records=8,
+    )
+
+    cavity_records = [
+        record
+        for record in generated.records
+        if record.metadata["candidate_strategy"] == "cavity_center_probe"
+    ]
+    assert cavity_records
+    assert any(record.labels.relation == Relation.DISJOINT for record in cavity_records)
+    assert all("cavity_targeted" in record.difficulty_tags for record in cavity_records)
+    assert any("aabb_exact_disagreement" in record.difficulty_tags for record in cavity_records)
+    assert any(
+        record.diagnostics.aabb_overlap is True and record.diagnostics.exact_overlap is False
+        for record in cavity_records
+    )
