@@ -13,7 +13,10 @@ from intersectionqa.pipeline import build_smoke_rows, validate_dataset_dir, writ
 
 
 def test_jsonl_export_round_trips(tmp_path):
-    config = DatasetConfig(output_dir=tmp_path)
+    config = DatasetConfig(
+        output_dir=tmp_path,
+        smoke=SmokeConfig(include_cadevolve_if_available=False),
+    )
     rows, report = build_smoke_rows(config)
     path = tmp_path / "rows.jsonl"
     assert write_jsonl(rows, path) == len(rows)
@@ -23,7 +26,10 @@ def test_jsonl_export_round_trips(tmp_path):
 
 
 def test_smoke_export_writes_manifests(tmp_path):
-    config = DatasetConfig(output_dir=tmp_path)
+    config = DatasetConfig(
+        output_dir=tmp_path,
+        smoke=SmokeConfig(include_cadevolve_if_available=False),
+    )
     report = write_smoke_dataset(config)
     assert (tmp_path / "source_manifest.json").exists()
     assert (tmp_path / "failure_manifest.jsonl").exists()

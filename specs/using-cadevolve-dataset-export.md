@@ -118,7 +118,7 @@ IntersectionQA's loader does this automatically when
 directory is:
 
 ```text
-.cache/intersectionqa/cadevolve_sources/
+data/cadevolve_sources/
 ```
 
 This directory is a local build artifact. Public JSONL rows must continue to

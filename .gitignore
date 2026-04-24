@@ -11,3 +11,8 @@ wheels/
 .cache/
 .cace/
 data/cadevolve.tar
+data/cadevolve_sources
+data/cache/
+data/debug/
+data/eval/
+data/intersectionqa*/
