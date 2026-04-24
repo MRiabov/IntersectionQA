@@ -5,6 +5,8 @@ smoke:
   use_synthetic_fixtures: true
   include_cadevolve_if_available: true
   geometry_limit: 100
+  object_validation_limit: 25
+  object_validation_timeout_seconds: 5.0
   task_types:
     - binary_interference
     - relation_classification

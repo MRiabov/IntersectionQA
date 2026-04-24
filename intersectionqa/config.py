@@ -19,6 +19,8 @@ class SmokeConfig(BaseModel):
     use_synthetic_fixtures: bool = True
     include_cadevolve_if_available: bool = True
     geometry_limit: int = 100
+    object_validation_limit: int = 25
+    object_validation_timeout_seconds: float = 5.0
     task_types: list[TaskType] = Field(
         default_factory=lambda: [
             TaskType.BINARY_INTERFERENCE,

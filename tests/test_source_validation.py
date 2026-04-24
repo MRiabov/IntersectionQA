@@ -1,10 +1,12 @@
+import pytest
+
 from intersectionqa.config import DatasetConfig
 from intersectionqa.geometry.cadquery_exec import cadquery_available
 from intersectionqa.sources.synthetic import synthetic_source_object
 from intersectionqa.sources.validation import validate_source_object
 
 
-def test_synthetic_source_validation_is_analytic():
+def test_synthetic_source_validation_uses_cadquery():
     config = DatasetConfig()
     source = synthetic_source_object("obj_test", "object_a", (2.0, 3.0, 4.0))
     validation = validate_source_object(
@@ -13,9 +15,11 @@ def test_synthetic_source_validation_is_analytic():
         validated_at_version="test",
     )
     assert validation.valid is True
-    assert validation.volume == 24.0
+    assert validation.volume == pytest.approx(24.0)
     assert validation.bbox is not None
     assert validation.failure_reason is None
+    assert validation.cadquery_version is not None
+    assert validation.ocp_version is not None
 
 
 def test_invalid_synthetic_dimensions_report_volume_failure():
@@ -27,8 +31,31 @@ def test_invalid_synthetic_dimensions_report_volume_failure():
         validated_at_version="test",
     )
     assert validation.valid is False
-    assert validation.failure_reason == "zero_or_negative_volume"
+    assert validation.failure_reason == "source_exec_error"
 
 
 def test_cadquery_availability_check_returns_bool():
     assert isinstance(cadquery_available(), bool)
+
+
+def test_isolated_validation_times_out_slow_source():
+    config = DatasetConfig()
+    source = synthetic_source_object("obj_slow", "object_a", (1.0, 1.0, 1.0))
+    source.normalized_code = "\n".join(
+        [
+            "def object_a():",
+            "    import time",
+            "    time.sleep(2.0)",
+            "    return cq.Workplane('XY').box(1.0, 1.0, 1.0)",
+            "",
+        ]
+    )
+    validation = validate_source_object(
+        source,
+        config_hash=config.config_hash,
+        validated_at_version="test",
+        timeout_seconds=0.1,
+        isolated=True,
+    )
+    assert validation.valid is False
+    assert validation.failure_reason == "timeout"

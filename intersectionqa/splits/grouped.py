@@ -42,15 +42,42 @@ def assign_geometry_splits(records: list[GeometryRecord], seed: int) -> dict[str
     for record in records:
         groups[split_group(record)].append(record)
 
+    heldout_generators = _heldout_generators(groups, seed)
     assignments: dict[str, str] = {}
     for group_id, group_records in sorted(groups.items()):
-        split = _group_split(group_id, group_records, seed)
+        split = _group_split(group_id, group_records, seed, heldout_generators)
         for record in group_records:
             assignments[record.geometry_id] = split
     return assignments
 
 
-def _group_split(group_id: str, records: list[GeometryRecord], seed: int) -> str:
+def _heldout_generators(
+    groups: dict[str, list[GeometryRecord]],
+    seed: int,
+) -> set[str]:
+    generators = sorted(
+        {
+            record.metadata.get("generator_ids", [record.metadata.get("generator_id")])[0]
+            for group_records in groups.values()
+            for record in group_records
+            if record.source != "synthetic"
+            and (record.metadata.get("generator_ids", [record.metadata.get("generator_id")])[0])
+        }
+    )
+    if len(generators) < 2:
+        return set()
+    selected = {generator for generator in generators if _stable_bucket(generator, seed, 100) >= 88}
+    if not selected:
+        selected = {generators[-1]}
+    return selected
+
+
+def _group_split(
+    group_id: str,
+    records: list[GeometryRecord],
+    seed: int,
+    heldout_generators: set[str],
+) -> str:
     tags = set().union(*(set(record.difficulty_tags) for record in records))
     relations = {record.labels.relation for record in records}
     if "near_boundary" in tags or relations & {"touching", "near_miss"}:
@@ -59,14 +86,19 @@ def _group_split(group_id: str, records: list[GeometryRecord], seed: int) -> str
         # Keep fixture smoke rows represented across non-heldout splits without splitting groups.
         bucket = _stable_bucket(group_id, seed, 3)
         return ["train", "validation", "test_random"][bucket]
+    group_generators = {
+        record.metadata.get("generator_ids", [record.metadata.get("generator_id")])[0]
+        for record in records
+        if record.metadata.get("generator_ids", [record.metadata.get("generator_id")])[0]
+    }
+    if group_generators & heldout_generators:
+        return "test_generator_heldout"
     bucket = _stable_bucket(group_id, seed, 100)
     if bucket < 70:
         return "train"
     if bucket < 80:
         return "validation"
-    if bucket < 88:
-        return "test_generator_heldout"
-    if bucket < 96:
+    if bucket < 90:
         return "test_object_pair_heldout"
     return "test_random"
 
@@ -113,7 +145,10 @@ def audit_group_leakage(
 
 
 def _fields_for_pair(left: str, right: str) -> list[str]:
-    fields = ["base_object_pair_id", "assembly_group_id", "counterfactual_group_id"]
+    if "test_near_boundary" in {left, right}:
+        fields = ["counterfactual_group_id"]
+    else:
+        fields = ["base_object_pair_id", "assembly_group_id", "counterfactual_group_id"]
     if "test_generator_heldout" in {left, right}:
         fields.append("generator_id")
     return fields

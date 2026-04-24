@@ -49,6 +49,19 @@ def dataset_stats(rows: Iterable[PublicTaskRow]) -> dict[str, object]:
         "by_split": _counts(row.split for row in rows),
         "by_relation": _counts(row.labels.relation for row in rows),
         "by_answer": _counts(row.answer for row in rows),
+        "by_candidate_strategy": _counts(
+            row.metadata.get("candidate_strategy") or "unknown" for row in rows
+        ),
+        "by_source_subtree": _counts(
+            subtree
+            for row in rows
+            for subtree in sorted(set(row.metadata.get("source_subtrees") or ["unknown"]))
+            if subtree
+        ),
+        "by_split_relation": {
+            split: _counts(row.labels.relation for row in rows if row.split == split)
+            for split in sorted({row.split for row in rows})
+        },
         "by_task_answer": {
             task_type: _counts(row.answer for row in rows if row.task_type == task_type)
             for task_type in sorted({row.task_type for row in rows})

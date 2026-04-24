@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
-from intersectionqa.enums import AuditStatus
+from intersectionqa.enums import AuditStatus, FailureStage
 from intersectionqa.config import DatasetConfig
 from intersectionqa.export.jsonl import (
     build_metadata,
@@ -21,15 +22,19 @@ from intersectionqa.export.jsonl import (
     write_source_manifest,
     write_jsonl_like,
 )
+from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.schema import (
     GeometryRecord,
+    FailureRecord,
+    ObjectValidationRecord,
     PublicTaskRow,
     SmokeDatasetReport,
     SmokeGeometryReport,
     SmokeRowsReport,
     SourceManifest,
     SourceManifestEntry,
+    SourceObjectRecord,
 )
 from intersectionqa.sources.cadevolve import CadevolveTarLoader
 from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
@@ -42,37 +47,89 @@ from intersectionqa.splits.grouped import (
 )
 
 
+@dataclass(frozen=True)
+class _SmokeGeometryArtifacts:
+    records: list[GeometryRecord]
+    report: SmokeGeometryReport
+    source_records: list[SourceObjectRecord]
+    object_validations: list[ObjectValidationRecord]
+    failures: list[FailureRecord]
+
+
 def build_smoke_geometry(config: DatasetConfig) -> tuple[list[GeometryRecord], SmokeGeometryReport]:
-    cadevolve = CadevolveTarLoader(config.cadevolve_archive, config.config_hash).load(
-        limit=config.smoke.geometry_limit
-    )
+    artifacts = _build_smoke_geometry_artifacts(config)
+    return artifacts.records, artifacts.report
+
+
+def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArtifacts:
+    cadevolve = _load_cadevolve_for_smoke(config)
     records: list[GeometryRecord] = []
+    source_records: list[SourceObjectRecord] = []
+    object_validations: list[ObjectValidationRecord] = []
+    failures: list[FailureRecord] = [*cadevolve.failures]
+
+    if config.smoke.include_cadevolve_if_available:
+        cadevolve_validations = _validate_sources_for_smoke(config, cadevolve.records)
+        source_records.extend(cadevolve.records)
+        object_validations.extend(cadevolve_validations)
+        failures.extend(_object_validation_failures(cadevolve.records, cadevolve_validations))
+        validations_by_id = {validation.object_id: validation for validation in cadevolve_validations}
+        cadevolve_generation = generate_cadevolve_geometry_records(
+            cadevolve.records,
+            validations_by_id,
+            policy=config.label_policy,
+            config_hash=config.config_hash,
+            max_records=config.smoke.geometry_limit,
+        )
+        records.extend(cadevolve_generation.records)
+        failures.extend(cadevolve_generation.failures)
+
+    synthetic_fixture_count = 0
     if config.smoke.use_synthetic_fixtures:
-        records.extend(fixture_geometry_records(config.label_policy, config.config_hash))
+        remaining = max(0, config.smoke.geometry_limit - len(records))
+        if remaining:
+            synthetic_records = fixture_geometry_records(config.label_policy, config.config_hash)[:remaining]
+            synthetic_fixture_count = len(synthetic_records)
+            synthetic_sources = synthetic_source_records()
+            source_records.extend(synthetic_sources)
+            object_validations.extend(_validate_sources_for_smoke(config, synthetic_sources))
+            records.extend(synthetic_records)
+
+    source_manifest = _source_manifest(
+        config,
+        cadevolve.scanned_count,
+        len(cadevolve.records),
+        synthetic_fixture_count,
+    )
+    _set_source_validation_counts(source_manifest, source_records)
     report = SmokeGeometryReport(
         cadevolve_archive_members_scanned=cadevolve.scanned_count,
         cadevolve_source_records_loaded=len(cadevolve.records),
         cadevolve_source_failures=len(cadevolve.failures),
         geometry_records=len(records),
-        synthetic_fixture_count=len(records),
+        synthetic_fixture_count=synthetic_fixture_count,
         label_policy=config.label_policy,
         seed=config.seed,
         config_hash=config.config_hash,
-        source_manifest=_source_manifest(
-            config, cadevolve.scanned_count, len(cadevolve.records), len(records)
-        ),
+        source_manifest=source_manifest,
     )
-    return records, report
+    return _SmokeGeometryArtifacts(
+        records=records,
+        report=report,
+        source_records=source_records,
+        object_validations=object_validations,
+        failures=failures,
+    )
 
 
 def build_smoke_rows(config: DatasetConfig) -> tuple[list[PublicTaskRow], SmokeRowsReport]:
-    geometry_records, report = build_smoke_geometry(config)
-    split_by_geometry_id = assign_geometry_splits(geometry_records, config.seed)
-    rows = materialize_rows(geometry_records, split_by_geometry_id, config.smoke.task_types)
+    artifacts = _build_smoke_geometry_artifacts(config)
+    split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
+    rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
     validate_rows(rows)
     audit = audit_group_leakage(rows)
     return rows, SmokeRowsReport(
-        **report.model_dump(),
+        **artifacts.report.model_dump(),
         task_rows=len(rows),
         task_counts=_counts(row.task_type for row in rows),
         relation_counts=_counts(row.labels.relation for row in rows),
@@ -83,29 +140,33 @@ def build_smoke_rows(config: DatasetConfig) -> tuple[list[PublicTaskRow], SmokeR
 
 
 def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
-    rows, report = build_smoke_rows(config)
+    artifacts = _build_smoke_geometry_artifacts(config)
+    split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
+    rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
+    validate_rows(rows)
+    audit = audit_group_leakage(rows)
+    report = SmokeRowsReport(
+        **artifacts.report.model_dump(),
+        task_rows=len(rows),
+        task_counts=_counts(row.task_type for row in rows),
+        relation_counts=_counts(row.labels.relation for row in rows),
+        split_counts=_counts(row.split for row in rows),
+        leakage_audit_status=audit.status,
+        leakage_violation_count=audit.violation_count,
+    )
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     split_summary = write_split_files(rows, output_dir)
     write_schema(output_dir / "schema.json")
-    object_validations = [
-        validate_source_object(
-            source,
-            config_hash=config.config_hash,
-            validated_at_version="intersectionqa:v0.1-smoke",
-        )
-        for source in synthetic_source_records()
-    ]
-    write_jsonl_like(object_validations, output_dir / "object_validation_manifest.jsonl")
+    write_jsonl_like(artifacts.object_validations, output_dir / "object_validation_manifest.jsonl")
     manifest = split_manifest(rows)
     (output_dir / "split_manifest.json").write_text(
         manifest.model_dump_json(indent=2) + "\n", encoding="utf-8"
     )
     source_manifest = report.source_manifest
-    source_manifest.sources[1].object_validation_records = len(object_validations)
     source_hash = source_manifest_hash(source_manifest)
     write_source_manifest(source_manifest, output_dir / "source_manifest.json")
-    write_failure_manifest([], output_dir / "failure_manifest.jsonl")
+    write_failure_manifest(artifacts.failures, output_dir / "failure_manifest.jsonl")
     metadata = build_metadata(
         dataset_version=config.dataset_version,
         config_hash=config.config_hash,
@@ -119,7 +180,7 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
     smoke_report = SmokeDatasetReport(
         **report.model_dump(),
         source_manifest_hash=source_hash,
-        object_validation_records=len(object_validations),
+        object_validation_records=len(artifacts.object_validations),
         output_dir=str(output_dir),
     )
     (output_dir / "smoke_report.json").write_text(
@@ -146,7 +207,7 @@ def _source_manifest(
                 ),
                 archive_members_scanned=cadevolve_scanned_count,
                 source_records_loaded=cadevolve_source_count,
-                execution_policy="not_executed_in_mvp_smoke_process",
+                execution_policy="cadquery_validation_and_bbox_guided_geometry_generation_enabled",
             ),
             SourceManifestEntry(
                 source="synthetic",
@@ -156,6 +217,62 @@ def _source_manifest(
             ),
         ],
     )
+
+
+def _load_cadevolve_for_smoke(config: DatasetConfig):
+    limit = config.smoke.object_validation_limit
+    return CadevolveTarLoader(config.cadevolve_archive, config.config_hash).load(limit=limit)
+
+
+def _validate_sources_for_smoke(
+    config: DatasetConfig,
+    source_records: list[SourceObjectRecord],
+) -> list[ObjectValidationRecord]:
+    return [
+        validate_source_object(
+            source,
+            config_hash=config.config_hash,
+            validated_at_version="intersectionqa:v0.1-smoke",
+            timeout_seconds=config.smoke.object_validation_timeout_seconds,
+        )
+        for source in source_records
+    ]
+
+
+def _set_source_validation_counts(
+    source_manifest: SourceManifest,
+    source_records: list[SourceObjectRecord],
+) -> None:
+    counts = _counts(record.source for record in source_records)
+    for entry in source_manifest.sources:
+        entry.object_validation_records = counts.get(entry.source, 0)
+
+
+def _object_validation_failures(
+    sources: list[SourceObjectRecord],
+    validations: object,
+) -> list[FailureRecord]:
+    source_by_id = {source.object_id: source for source in sources}
+    failures: list[FailureRecord] = []
+    for index, validation in enumerate(validations, start=1):  # type: ignore[assignment]
+        if validation.valid:
+            continue
+        source = source_by_id.get(validation.object_id)
+        failures.append(
+            FailureRecord(
+                failure_id=f"fail_{index:06d}",
+                stage=FailureStage.OBJECT_VALIDATION,
+                source=source.source if source else None,
+                source_id=source.source_id if source else None,
+                object_id=validation.object_id,
+                geometry_id=None,
+                failure_reason=validation.failure_reason,
+                error_summary=f"Object validation failed: {validation.failure_reason}",
+                retry_count=0,
+                hashes=validation.hashes,
+            )
+        )
+    return failures
 
 
 def validate_dataset_dir(path: Path) -> list[PublicTaskRow]:

@@ -8,13 +8,11 @@ from typing import Any
 from intersectionqa.generation.assembly import TwoObjectAssembly
 from intersectionqa.geometry.bbox import (
     AABB,
-    aabb_intersection_volume,
-    aabb_minimum_distance,
-    aabb_overlap,
     box_aabb,
     transform_aabb,
 )
-from intersectionqa.geometry.labels import RawGeometry, derive_labels
+from intersectionqa.geometry.cadquery_exec import measure_source_pair
+from intersectionqa.geometry.labels import derive_labels
 from intersectionqa.hashing import sha256_json, sha256_text
 from intersectionqa.schema import (
     ArtifactIds,
@@ -37,7 +35,6 @@ class SyntheticFixture:
     bbox_b: AABB
     transform_a: Transform
     transform_b: Transform
-    raw_geometry: RawGeometry
     changed_value: Any
     difficulty_tags: list[str]
     metadata: dict[str, Any]
@@ -102,9 +99,6 @@ def synthetic_fixtures(policy: LabelPolicy) -> list[SyntheticFixture]:
         object_b: SourceObjectRecord,
         bbox_b: AABB,
         tx: float,
-        intersection_volume: float | None = None,
-        minimum_distance: float | None = None,
-        contains_b_in_a: bool = False,
         rotation_b: tuple[float, float, float] = (0.0, 0.0, 0.0),
         tags: list[str] | None = None,
         strategy: str = "golden_box_fixture",
@@ -113,27 +107,6 @@ def synthetic_fixtures(policy: LabelPolicy) -> list[SyntheticFixture]:
         transform_b = Transform(translation=(tx, 0.0, 0.0), rotation_xyz_deg=rotation_b)
         world_a = transform_aabb(bbox10, transform_a)
         world_b = transform_aabb(bbox_b, transform_b)
-        raw_intersection = (
-            aabb_intersection_volume(world_a, world_b)
-            if intersection_volume is None
-            else intersection_volume
-        )
-        raw_distance = (
-            aabb_minimum_distance(world_a, world_b)
-            if minimum_distance is None
-            else minimum_distance
-        )
-        raw = RawGeometry(
-            volume_a=bbox10.volume,
-            volume_b=bbox_b.volume,
-            intersection_volume=raw_intersection,
-            minimum_distance=raw_distance,
-            contains_a_in_b=False,
-            contains_b_in_a=contains_b_in_a,
-            aabb_overlap=aabb_overlap(world_a, world_b),
-            boolean_status="ok",
-            distance_status="ok" if raw_intersection <= policy.epsilon_volume(bbox10.volume, bbox_b.volume) else "skipped_positive_overlap",
-        )
         return SyntheticFixture(
             name=name,
             object_a=box10_a,
@@ -142,7 +115,6 @@ def synthetic_fixtures(policy: LabelPolicy) -> list[SyntheticFixture]:
             bbox_b=world_b,
             transform_a=transform_a,
             transform_b=transform_b,
-            raw_geometry=raw,
             changed_value=tx,
             difficulty_tags=["axis_aligned", "primitive_fixture", *(tags or [])],
             metadata={"candidate_strategy": strategy},
@@ -159,9 +131,6 @@ def synthetic_fixtures(policy: LabelPolicy) -> list[SyntheticFixture]:
             box6_b,
             bbox6,
             0.0,
-            intersection_volume=216.0,
-            minimum_distance=0.0,
-            contains_b_in_a=True,
             tags=["contained"],
         ),
         fixture(
@@ -180,7 +149,14 @@ def fixture_geometry_records(policy: LabelPolicy, config_hash: str) -> list[Geom
     records: list[GeometryRecord] = []
     for index, fixture in enumerate(synthetic_fixtures(policy), start=1):
         group = _fixture_group(index, fixture.name)
-        labels, diagnostics = derive_labels(fixture.raw_geometry, policy)
+        raw_geometry = measure_source_pair(
+            fixture.object_a,
+            fixture.object_b,
+            fixture.transform_a,
+            fixture.transform_b,
+            policy,
+        )
+        labels, diagnostics = derive_labels(raw_geometry, policy)
         assembly = TwoObjectAssembly(
             fixture.object_a,
             fixture.object_b,
