@@ -45,6 +45,8 @@ class _CandidateSpec:
     translation_gap: float
     rotation_b: tuple[float, float, float]
     tags: tuple[str, ...]
+    center_offset_y: float = 0.0
+    center_offset_z: float = 0.0
     changed_parameter: str | None = "transform_b.translation[0]"
 
 
@@ -110,7 +112,10 @@ def generate_cadevolve_geometry_records(
         pair_index += 1
         validation_a = validations_by_object_id[object_a.object_id]
         validation_b = validations_by_object_id[object_b.object_id]
-        for spec_index, spec in enumerate(_candidate_specs(validation_a, validation_b, policy), start=1):
+        for spec_index, spec in enumerate(
+            _candidate_specs(validation_a, validation_b, policy, pair_key=f"{object_a.source_id}|{object_b.source_id}"),
+            start=1,
+        ):
             if len(candidate_records) >= pool_target:
                 stop_generation = True
                 break
@@ -317,6 +322,8 @@ def _candidate_specs(
     validation_a: ObjectValidationRecord,
     validation_b: ObjectValidationRecord,
     policy: LabelPolicy,
+    *,
+    pair_key: str = "",
 ) -> list[_CandidateSpec]:
     assert validation_a.bbox is not None
     assert validation_b.bbox is not None
@@ -325,12 +332,24 @@ def _candidate_specs(
     overlap_clear = max(overlap_small * 4.0, span_x * 0.25)
     clear_gap = max(policy.near_miss_threshold_mm + 5.0, span_x * 0.5)
     far_gap = clear_gap + _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
+    broad_scale = _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
+    broad_jitter = _stable_unit_interval(f"{pair_key}:broad")
+    broad_rotation = -35.0 + 70.0 * _stable_unit_interval(f"{pair_key}:rot_z")
     return [
         _CandidateSpec(
             strategy="clear_disjoint",
             translation_gap=clear_gap,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned",),
+        ),
+        _CandidateSpec(
+            strategy="broad_random_disjoint",
+            translation_gap=far_gap * (1.0 + broad_jitter),
+            rotation_b=(0.0, 0.0, broad_rotation),
+            tags=("broad_placement", "rotated"),
+            center_offset_y=broad_scale * (-0.5 + _stable_unit_interval(f"{pair_key}:y")),
+            center_offset_z=broad_scale * (-0.5 + _stable_unit_interval(f"{pair_key}:z")),
+            changed_parameter="transform_b.translation",
         ),
         _CandidateSpec(
             strategy="bbox_touching",
@@ -446,9 +465,7 @@ def _measure_candidate(
         counterfactual_group_id=counterfactual_group_id,
         variant_id=variant_id,
         changed_parameter=spec.changed_parameter,
-        changed_value=transform_b.translation[0]
-        if spec.changed_parameter == "transform_b.translation[0]"
-        else transform_b.rotation_xyz_deg[2],
+        changed_value=_changed_value(spec, transform_b),
         transform_a=transform_a,
         transform_b=transform_b,
         assembly_script=assembly.script(),
@@ -496,8 +513,8 @@ def _measure_candidate(
 def _bbox_guided_transform(local_a: AABB, local_b: AABB, spec: _CandidateSpec) -> Transform:
     translation = [
         local_a.max[0] + spec.translation_gap - local_b.min[0],
-        _center(local_a, 1) - _center(local_b, 1),
-        _center(local_a, 2) - _center(local_b, 2),
+        _center(local_a, 1) - _center(local_b, 1) + spec.center_offset_y,
+        _center(local_a, 2) - _center(local_b, 2) + spec.center_offset_z,
     ]
     return Transform(translation=tuple(translation), rotation_xyz_deg=spec.rotation_b)
 
@@ -576,6 +593,8 @@ def _failure_record(
                     "candidate_strategy": spec.strategy,
                     "translation_gap": spec.translation_gap,
                     "rotation_b": spec.rotation_b,
+                    "center_offset_y": spec.center_offset_y,
+                    "center_offset_z": spec.center_offset_z,
                 }
             ),
             geometry_hash=None,
@@ -637,6 +656,19 @@ def _span(bbox: BoundingBox, axis: int) -> float:
 
 def _diagonal(bbox: BoundingBox) -> float:
     return sum((bbox.max[index] - bbox.min[index]) ** 2 for index in range(3)) ** 0.5
+
+
+def _stable_unit_interval(value: str) -> float:
+    digest = sha256_text(value).removeprefix("sha256:")
+    return int(digest[:12], 16) / float(16**12 - 1)
+
+
+def _changed_value(spec: _CandidateSpec, transform: Transform) -> Any:
+    if spec.changed_parameter == "transform_b.translation[0]":
+        return transform.translation[0]
+    if spec.changed_parameter == "transform_b.translation":
+        return transform.translation
+    return transform.rotation_xyz_deg[2]
 
 
 def _progress(message: str) -> None:

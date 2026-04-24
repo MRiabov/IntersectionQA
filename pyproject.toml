@@ -12,8 +12,10 @@ dependencies = [
     "cadquery>=2.7.0",
     "huggingface-hub>=1.11.0",
     "jsonschema>=4.26.0",
+    "modal>=1.4.2",
     "numpy>=2.4.4",
     "psutil>=7.2.2",
+    "pyarrow>=24.0.0",
     "pydantic>=2.0",
     "python-dotenv>=1.2.2",
     "pyvista>=0.47.3",
@@ -32,6 +34,10 @@ intersectionqa-stats = "scripts.dataset_stats:main"
 intersectionqa-inspect = "scripts.inspect_example:main"
 intersectionqa-export-row-artifacts = "scripts.export_row_artifacts:main"
 intersectionqa-render-row-artifacts = "scripts.render_row_artifacts:main"
+intersectionqa-prepare-cadevolve-sources = "scripts.prepare_cadevolve_sources:main"
+intersectionqa-baseline-comparison-table = "scripts.baseline_comparison_table:main"
+intersectionqa-failure-case-analysis = "scripts.failure_case_analysis:main"
+intersectionqa-build-release-candidate = "scripts.build_release_candidate:main"
 
 [tool.setuptools.packages.find]
 include = ["intersectionqa*", "scripts*"]

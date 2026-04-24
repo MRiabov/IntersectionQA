@@ -37,6 +37,7 @@ DIFFICULTY_TAGS = {
     "aabb_exact_disagreement",
     "contained",
     "primitive_fixture",
+    "broad_placement",
     "invalid",
 }
 

@@ -27,6 +27,9 @@ class SmokeConfig(BaseModel):
     object_validation_worker_count: int = 2
     use_source_member_index_cache: bool = True
     source_member_index_cache_dir: Path = Path(".cache/intersectionqa/source_indexes")
+    use_extracted_source_cache: bool = True
+    extracted_source_cache_dir: Path = Path(".cache/intersectionqa/cadevolve_sources")
+    cadevolve_source_cache_root: Path | None = None
     use_object_validation_cache: bool = True
     object_validation_cache_dir: Path = Path(".cache/intersectionqa/objects")
     use_geometry_label_cache: bool = True
@@ -67,6 +70,9 @@ class DatasetConfig(BaseModel):
                 "object_validation_worker_count",
                 "use_source_member_index_cache",
                 "source_member_index_cache_dir",
+                "use_extracted_source_cache",
+                "extracted_source_cache_dir",
+                "cadevolve_source_cache_root",
                 "use_geometry_label_cache",
                 "geometry_label_cache_dir",
             ):
