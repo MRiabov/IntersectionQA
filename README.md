@@ -86,6 +86,26 @@ This writes `renders/object_a.png`, `renders/object_b.png`,
 `renders/assembly.png`, `renders/intersection.png` when applicable, and a
 `renders/contact_sheet.png` overview.
 
+## Zero-Shot Evaluation
+
+The zero-shot runner uses the exported public rows directly, wraps each prompt in
+the versioned closed-book evaluation prompt, records decoding settings, writes
+raw predictions, and reports the strict parser invalid-output rate:
+
+```bash
+rtk uv run python -m scripts.evaluate_zero_shot \
+  /tmp/intersectionqa_smoke_cadevolve \
+  --provider openai-chat \
+  --model gpt-5.4 \
+  --limit 25 \
+  --requests-jsonl /tmp/intersectionqa_zero_shot_requests.jsonl
+```
+
+For open code models served through Hugging Face Inference Providers, use
+`--provider huggingface-chat --model <repo-or-provider-model>`. Add
+`--export-requests-only` to write the fixed request JSONL without making model
+calls.
+
 ## Reproducibility Checks
 
 To compare two generated dataset directories for byte-identical release
