@@ -40,10 +40,12 @@ current_snapshot:
     - deterministic_cadevolve_member_selection
     - cadevolve_member_index_cache
     - isolated_worker_queue_result_read
+    - bounded_parallel_object_validation
     - cached_shape_mutation_guard
     - cadquery_label_consistency_hardening
     - content_stable_config_hash
     - reproducibility_audit_cli
+    - sharded_resumable_generation
     - row_debug_step_artifact_export
     - pyvista_row_rendering
     - render_audited_cadevolve_smoke_sample
@@ -472,7 +474,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: work-in-progress
+        status: implemented
         stable: false
       - id: "7.5"
         title: Few-shot LLM evaluation
@@ -827,20 +829,20 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: High
         recommendation: Build now
-        status: planned
+        status: work-in-progress
         stable: false
         source_document: specs/useful-implementation-optimization.md
-        notes: Use configurable process-level worker pools for validation and geometry jobs without letting completion order affect stable IDs.
+        notes: Object validation now uses configurable bounded isolated worker processes while preserving deterministic output order; geometry-label worker pools remain open.
       - id: "12.9"
         title: Sharded resumable generation
         priority: P0
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
         source_document: specs/useful-implementation-optimization.md
-        notes: Write completed jobs incrementally, validate shards independently, and merge only validated shards for larger CADEvolve runs.
+        notes: Source-window shards can now be generated into independently validated shard directories with an incremental shard manifest, resume/skip behavior, and a validated merge step that rewrites shard-local IDs into global IDs.
       - id: "12.10"
         title: Generation progress and timing logs
         priority: P0
