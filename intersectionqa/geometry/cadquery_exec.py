@@ -138,7 +138,7 @@ def bounding_box_from_shape(shape: Any) -> BoundingBox:
 
 
 def apply_transform(shape: Any, transform: Transform) -> Any:
-    transformed = shape
+    transformed = shape.copy() if hasattr(shape, "copy") else shape
     transformed = transformed.rotate((0, 0, 0), (1, 0, 0), transform.rotation_xyz_deg[0])
     transformed = transformed.rotate((0, 0, 0), (0, 1, 0), transform.rotation_xyz_deg[1])
     transformed = transformed.rotate((0, 0, 0), (0, 0, 1), transform.rotation_xyz_deg[2])
@@ -155,8 +155,18 @@ def measure_source_pair(
 ) -> RawGeometry:
     measured_a = execute_source_object(object_a)
     measured_b = execute_source_object(object_b)
-    placed_a = apply_transform(measured_a.shape, transform_a)
-    placed_b = apply_transform(measured_b.shape, transform_b)
+    return measure_shape_pair(measured_a.shape, measured_b.shape, transform_a, transform_b, policy)
+
+
+def measure_shape_pair(
+    shape_a: Any,
+    shape_b: Any,
+    transform_a: Transform,
+    transform_b: Transform,
+    policy: LabelPolicy,
+) -> RawGeometry:
+    placed_a = apply_transform(shape_a, transform_a)
+    placed_b = apply_transform(shape_b, transform_b)
     placed_a_measure = measure_shape(placed_a)
     placed_b_measure = measure_shape(placed_b)
     bbox_a = _aabb_from_schema(placed_a_measure.bbox)
@@ -224,8 +234,8 @@ def _containment_flags(
     if intersection_volume is None:
         return False, False
     tolerance = policy.epsilon_volume(volume_a, volume_b)
-    contains_a_in_b = abs(intersection_volume - volume_a) <= tolerance
-    contains_b_in_a = abs(intersection_volume - volume_b) <= tolerance
+    contains_a_in_b = volume_a <= volume_b + tolerance and abs(intersection_volume - volume_a) <= tolerance
+    contains_b_in_a = volume_b <= volume_a + tolerance and abs(intersection_volume - volume_b) <= tolerance
     return contains_a_in_b, contains_b_in_a
 
 

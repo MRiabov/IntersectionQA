@@ -1,7 +1,7 @@
 import pytest
 
 from intersectionqa.enums import BooleanStatus, DistanceStatus
-from intersectionqa.geometry.cadquery_exec import execute_source_object, measure_source_pair
+from intersectionqa.geometry.cadquery_exec import execute_source_object, measure_shape_pair, measure_source_pair
 from intersectionqa.schema import LabelPolicy, Transform
 from intersectionqa.sources.synthetic import synthetic_source_object
 
@@ -41,3 +41,38 @@ def test_measure_source_pair_uses_exact_cadquery_boolean_and_distance():
     assert near_miss.intersection_volume == 0.0
     assert near_miss.minimum_distance == pytest.approx(0.5)
     assert near_miss.distance_status == DistanceStatus.OK
+
+
+def test_measure_shape_pair_does_not_mutate_cached_shapes():
+    policy = LabelPolicy()
+    object_a = synthetic_source_object("obj_a", "object_a", (10.0, 10.0, 10.0))
+    object_b = synthetic_source_object("obj_b", "object_b", (10.0, 10.0, 10.0))
+    shape_a = execute_source_object(object_a).shape
+    shape_b = execute_source_object(object_b).shape
+
+    first = measure_shape_pair(
+        shape_a,
+        shape_b,
+        Transform(translation=(0.0, 0.0, 0.0), rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        Transform(translation=(20.0, 0.0, 0.0), rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        policy,
+    )
+    second = measure_shape_pair(
+        shape_a,
+        shape_b,
+        Transform(translation=(0.0, 0.0, 0.0), rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        Transform(translation=(9.99, 0.0, 0.0), rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        policy,
+    )
+    repeated_first = measure_shape_pair(
+        shape_a,
+        shape_b,
+        Transform(translation=(0.0, 0.0, 0.0), rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        Transform(translation=(20.0, 0.0, 0.0), rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        policy,
+    )
+
+    assert first.intersection_volume == pytest.approx(0.0)
+    assert second.intersection_volume == pytest.approx(1.0)
+    assert repeated_first.intersection_volume == pytest.approx(first.intersection_volume)
+    assert repeated_first.minimum_distance == pytest.approx(first.minimum_distance)

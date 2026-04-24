@@ -21,6 +21,8 @@ class SmokeConfig(BaseModel):
     geometry_limit: int = 100
     object_validation_limit: int = 25
     object_validation_timeout_seconds: float = 5.0
+    use_object_validation_cache: bool = True
+    object_validation_cache_dir: Path = Path(".cache/intersectionqa/objects")
     task_types: list[TaskType] = Field(
         default_factory=lambda: [
             TaskType.BINARY_INTERFERENCE,
