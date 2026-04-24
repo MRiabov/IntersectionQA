@@ -17,7 +17,7 @@ from intersectionqa.geometry.cadquery_exec import (
     measure_shape_pair,
     ocp_version,
 )
-from intersectionqa.geometry.labels import derive_labels
+from intersectionqa.geometry.labels import derive_labels, validate_label_consistency
 from intersectionqa.hashing import sha256_json, sha256_text
 from intersectionqa.schema import (
     ArtifactIds,
@@ -150,6 +150,22 @@ def generate_cadevolve_geometry_records(
                         geometry_index,
                         record.diagnostics.failure_reason or FailureReason.UNKNOWN_ERROR,
                         "candidate measured but produced an invalid label",
+                        config_hash=config_hash,
+                        geometry_id=record.geometry_id,
+                    )
+                )
+                continue
+            try:
+                validate_label_consistency(record.labels, record.diagnostics, policy)
+            except ValueError as exc:
+                failures.append(
+                    _failure_record(
+                        object_a,
+                        object_b,
+                        spec,
+                        geometry_index,
+                        FailureReason.UNKNOWN_ERROR,
+                        f"candidate failed label consistency: {exc}",
                         config_hash=config_hash,
                         geometry_id=record.geometry_id,
                     )

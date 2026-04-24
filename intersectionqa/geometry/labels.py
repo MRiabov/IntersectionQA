@@ -163,6 +163,12 @@ def validate_label_consistency(labels: GeometryLabels, diagnostics: Diagnostics,
         raise ValueError("exact_overlap does not match label policy")
     if expected_overlap and diagnostics.aabb_overlap is False:
         raise ValueError("exact overlap cannot have disjoint AABBs")
+    if (
+        diagnostics.aabb_overlap is False
+        and labels.minimum_distance is not None
+        and labels.minimum_distance <= policy.epsilon_distance_mm
+    ):
+        raise ValueError("touching distance cannot have disjoint AABBs")
     if labels.relation in {Relation.INTERSECTING, Relation.CONTAINED} and not expected_overlap:
         raise ValueError("positive-overlap relation requires policy-positive intersection")
     if labels.relation == Relation.CONTAINED:

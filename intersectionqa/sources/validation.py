@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing as mp
+from queue import Empty
 
 from intersectionqa.enums import FailureReason
 from intersectionqa.geometry.cadquery_exec import (
@@ -93,14 +94,15 @@ def _validate_source_object_isolated(
             validated_at_version,
             failure_reason=FailureReason.WORKER_CRASH,
         )
-    if queue.empty():
+    try:
+        result = queue.get_nowait()
+    except Empty:
         return _invalid_record(
             record,
             config_hash,
             validated_at_version,
             failure_reason=FailureReason.WORKER_CRASH,
         )
-    result = queue.get()
     if result["status"] == "error":
         return _invalid_record(
             record,

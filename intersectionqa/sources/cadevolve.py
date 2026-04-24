@@ -25,15 +25,19 @@ class CadevolveTarLoader:
             return SourceLoadResult(records=[], failures=[], scanned_count=0)
 
         records: list[SourceObjectRecord] = []
-        scanned = 0
         with tarfile.open(self.archive_path, "r:*") as archive:
-            for member in archive:
-                source_path = _normalized_path(member.name)
-                if not _is_executable_source_member(member, source_path):
-                    continue
+            executable_members = sorted(
+                (
+                    (_normalized_path(member.name), member)
+                    for member in archive.getmembers()
+                    if _is_executable_source_member(member, _normalized_path(member.name))
+                ),
+                key=lambda item: item[0],
+            )
+            selected_members = executable_members[:limit] if limit is not None else executable_members
+            for source_path, member in selected_members:
                 if limit is not None and len(records) >= limit:
                     break
-                scanned += 1
                 fileobj = archive.extractfile(member)
                 if fileobj is None:
                     continue
@@ -77,7 +81,7 @@ class CadevolveTarLoader:
                         ),
                     )
                 )
-        return SourceLoadResult(records=records, failures=[], scanned_count=scanned)
+        return SourceLoadResult(records=records, failures=[], scanned_count=len(selected_members))
 
 
 def _normalized_path(path: str) -> str:

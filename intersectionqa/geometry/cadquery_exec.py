@@ -173,7 +173,10 @@ def measure_shape_pair(
     bbox_b = _aabb_from_schema(placed_b_measure.bbox)
     overlap = aabb_overlap(bbox_a, bbox_b)
 
-    intersection_volume, boolean_status = _intersection_volume(placed_a, placed_b)
+    if overlap:
+        intersection_volume, boolean_status = _intersection_volume(placed_a, placed_b)
+    else:
+        intersection_volume, boolean_status = 0.0, BooleanStatus.SKIPPED_AABB_DISJOINT
     minimum_distance, distance_status = _minimum_distance(
         placed_a,
         placed_b,

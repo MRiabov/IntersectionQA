@@ -102,3 +102,13 @@ def test_label_consistency_rejects_exact_overlap_with_disjoint_aabbs():
     )
     with pytest.raises(ValueError, match="disjoint AABBs"):
         validate_label_consistency(labels, diagnostics, policy)
+
+
+def test_label_consistency_rejects_touching_distance_with_disjoint_aabbs():
+    policy = LabelPolicy()
+    labels, diagnostics = derive_labels(
+        RawGeometry(100.0, 100.0, 0.0, 0.0, aabb_overlap=False),
+        policy,
+    )
+    with pytest.raises(ValueError, match="touching distance"):
+        validate_label_consistency(labels, diagnostics, policy)

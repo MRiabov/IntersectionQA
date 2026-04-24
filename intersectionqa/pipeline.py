@@ -69,10 +69,14 @@ def build_smoke_geometry(config: DatasetConfig) -> tuple[list[GeometryRecord], S
 
 def _build_smoke_geometry_artifacts(config: DatasetConfig) -> _SmokeGeometryArtifacts:
     started = time.monotonic()
+    _progress(
+        "loading CADEvolve sources: "
+        f"archive={config.cadevolve_archive}, limit={config.smoke.object_validation_limit}"
+    )
     cadevolve = _load_cadevolve_for_smoke(config)
     _progress(
         f"loaded CADEvolve sources: {len(cadevolve.records)} records "
-        f"from {cadevolve.scanned_count} scanned members"
+        f"from {cadevolve.scanned_count} scanned members, elapsed={_elapsed(started)}"
     )
     records: list[GeometryRecord] = []
     source_records: list[SourceObjectRecord] = []
