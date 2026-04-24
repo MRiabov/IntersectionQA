@@ -1,0 +1,11 @@
+dataset_version: v0.1
+seed: 1234
+output_dir: data/intersectionqa_v0_1
+smoke:
+  use_synthetic_fixtures: true
+  include_cadevolve_if_available: true
+  geometry_limit: 100
+  task_types:
+    - binary_interference
+    - relation_classification
+    - volume_bucket

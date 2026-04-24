@@ -1,5 +1,4 @@
-def main():
-    print("Hello from intersectionqa!")
+from scripts.generate_dataset import main
 
 
 if __name__ == "__main__":
