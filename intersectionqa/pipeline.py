@@ -158,6 +158,7 @@ def build_smoke_rows(config: DatasetConfig) -> tuple[list[PublicTaskRow], SmokeR
     artifacts = _build_smoke_geometry_artifacts(config)
     split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
     rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
+    rows = _limit_public_rows(rows, config.smoke.public_row_limit)
     validate_rows(rows)
     audit = audit_group_leakage(rows)
     return rows, SmokeRowsReport(
@@ -176,6 +177,7 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
     artifacts = _build_smoke_geometry_artifacts(config)
     split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
     rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
+    rows = _limit_public_rows(rows, config.smoke.public_row_limit)
     validate_rows(rows)
     audit = audit_group_leakage(rows)
     _progress(
@@ -231,6 +233,45 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
     )
     _progress(f"dataset export complete: output_dir={output_dir}, elapsed={_elapsed(started)}")
     return smoke_report
+
+
+def _limit_public_rows(rows: list[PublicTaskRow], limit: int | None) -> list[PublicTaskRow]:
+    if limit is None:
+        return rows
+    if len(rows) < limit:
+        raise ValueError(
+            f"public_row_limit={limit} requested, but only {len(rows)} rows were materialized. "
+            "Increase smoke.geometry_limit or smoke.object_validation_limit."
+        )
+    if len(rows) == limit:
+        return rows
+
+    buckets: dict[str, list[int]] = {}
+    task_order: list[str] = []
+    for index, row in enumerate(rows):
+        task_type = str(row.task_type)
+        if task_type not in buckets:
+            buckets[task_type] = []
+            task_order.append(task_type)
+        buckets[task_type].append(index)
+
+    selected: set[int] = set()
+    positions = {task_type: 0 for task_type in task_order}
+    while len(selected) < limit:
+        added = False
+        for task_type in task_order:
+            bucket = buckets[task_type]
+            position = positions[task_type]
+            if position >= len(bucket):
+                continue
+            selected.add(bucket[position])
+            positions[task_type] = position + 1
+            added = True
+            if len(selected) == limit:
+                break
+        if not added:
+            break
+    return [row for index, row in enumerate(rows) if index in selected]
 
 
 def _source_manifest(
