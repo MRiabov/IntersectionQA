@@ -1,4 +1,5 @@
 from intersectionqa.config import DatasetConfig
+from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import Prediction, dataset_stats, evaluate_predictions, manifest_stats
 from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.pipeline import build_smoke_rows
@@ -43,3 +44,18 @@ def test_manifest_stats_counts_validation_records():
     stats = manifest_stats([], [])
     assert stats["object_validation_records"] == 0
     assert stats["failure_manifest_records"] == 0
+
+
+def test_failure_case_analysis_counts_prediction_failures():
+    rows, _ = build_smoke_rows(DatasetConfig())
+    predictions = [
+        Prediction(row_id=row.id, output=row.answer if index % 2 == 0 else "invalid prose")
+        for index, row in enumerate(rows)
+    ]
+
+    report = failure_case_analysis(rows, [], [], predictions=predictions, max_examples=3)
+
+    prediction_failures = report["prediction_failures"]
+    assert prediction_failures["incorrect_count"] > 0
+    assert prediction_failures["invalid_output_count"] > 0
+    assert len(prediction_failures["examples"]) == 3
