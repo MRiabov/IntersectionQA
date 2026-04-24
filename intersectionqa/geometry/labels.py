@@ -154,9 +154,15 @@ def validate_label_consistency(labels: GeometryLabels, diagnostics: Diagnostics,
         raise ValueError("ok labels require positive volume_b")
     if labels.intersection_volume is None or labels.intersection_volume < 0:
         raise ValueError("ok labels require non-negative intersection_volume")
+    if labels.normalized_intersection is None or labels.normalized_intersection < 0:
+        raise ValueError("ok labels require non-negative normalized_intersection")
+    if labels.normalized_intersection > 1.0 + policy.epsilon_volume_ratio:
+        raise ValueError("normalized_intersection exceeds valid range")
     expected_overlap = labels.intersection_volume > policy.epsilon_volume(labels.volume_a, labels.volume_b)
     if diagnostics.exact_overlap != expected_overlap:
         raise ValueError("exact_overlap does not match label policy")
+    if expected_overlap and diagnostics.aabb_overlap is False:
+        raise ValueError("exact overlap cannot have disjoint AABBs")
     if labels.relation in {Relation.INTERSECTING, Relation.CONTAINED} and not expected_overlap:
         raise ValueError("positive-overlap relation requires policy-positive intersection")
     if labels.relation == Relation.CONTAINED:
