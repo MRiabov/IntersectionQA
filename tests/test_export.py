@@ -1,3 +1,5 @@
+from collections import Counter
+
 import pytest
 
 from intersectionqa.config import DatasetConfig, SmokeConfig
@@ -65,10 +67,13 @@ def test_public_row_limit_caps_exported_rows(tmp_path):
     )
 
     report = write_smoke_dataset(config)
+    rows = validate_dataset_dir(tmp_path)
+    answer_counts = Counter((row.task_type, row.answer) for row in rows)
 
     assert report.task_rows == 10
-    assert len(validate_dataset_dir(tmp_path)) == 10
+    assert len(rows) == 10
     assert sum(report.task_counts.values()) == 10
+    assert answer_counts[("binary_interference", "yes")] == answer_counts[("binary_interference", "no")]
 
 
 def test_public_row_limit_fails_when_underproduced(tmp_path):
