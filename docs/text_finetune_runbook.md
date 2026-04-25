@@ -12,20 +12,23 @@ agents can resume without rediscovering the same failure modes.
   - `MRiabov/IntersectionQA-15K`
   - `MRiabov/IntersectionQA-90K`
 
-The 90K export has 90,000 final public rows. The train split was augmented on
-April 25, 2026 to include a leakage-safe subset of counterfactual groups from
-`test_near_boundary`. The active A100 baseline run that started earlier that
-morning is still training on the pre-augmentation split, because its dataloader
-was already constructed before this local dataset rewrite.
+The original 90K export had 90,000 final public rows. The current local
+`data/IntersectionQA-90K` export has 94,501 rows after two April 25, 2026
+augmentations:
+
+- A leakage-safe subset of counterfactual groups was moved from
+  `test_near_boundary` to `train`.
+- `pairwise_interference` rows were rebuilt from exported relation rows and
+  capped to balanced `A`, `B`, `both`, and `neither` counts within each split.
 
 Current local `data/IntersectionQA-90K` split counts:
 
-- `train`: 44,149 rows, including 21,644 rows with
+- `train`: 45,446 rows, including 22,941 rows with
   `counterfactual_group_id`
 - `validation`: 2,895 rows
 - `test_random`: 2,345 rows
 - `test_object_pair_heldout`: 3,095 rows
-- `test_near_boundary`: 37,516 rows, including 37,096 rows with
+- `test_near_boundary`: 39,720 rows, including 39,300 rows with
   `counterfactual_group_id`
 
 Current train task counts:
@@ -39,9 +42,13 @@ Current train task counts:
 - `volume_bucket`
 
 Exact train counts are 8,496 `binary_interference`, 8,494
-`clearance_bucket`, 839 `pairwise_interference`, 838
+`clearance_bucket`, 2,136 `pairwise_interference`, 838
 `ranking_normalized_intersection`, 8,494 `relation_classification`, 8,494
 `tolerance_fit`, and 8,494 `volume_bucket`.
+
+Current train `pairwise_interference` answer counts are 534 each for `A`,
+`B`, `both`, and `neither`. Current `test_near_boundary` pairwise answer
+counts are 910 each for `A`, `B`, `both`, and `neither`.
 
 The augmentation moved 839 of 1,678 eligible counterfactual groups into train.
 Eligibility excludes groups whose `base_object_pair_id` or `assembly_group_id`
@@ -83,6 +90,28 @@ See `docs/dataset_split_framing.md` before interpreting evaluation numbers.
   `test_near_boundary` to `train`. It creates
   `data/IntersectionQA-90K/pre_counterfactual_train_backup` before rewriting
   split files.
+- `scripts/rebalance_pairwise_rows.py`: deterministic in-place export rewrite
+  that removes old pairwise rows and rebuilds balanced pairwise comparisons
+  from already exported relation-classification rows. It creates
+  `data/IntersectionQA-90K/pre_pairwise_rebalance_backup` before rewriting
+  split files.
+- `scripts/audit_answer_balance.py`: answer-distribution audit by split and
+  task. Use it before publishing a dataset or starting a new training run:
+
+```bash
+rtk uv run python -m scripts.audit_answer_balance \
+  --dataset-dir data/IntersectionQA-90K \
+  --min-share 0.10 \
+  --max-share 0.70 \
+  --min-count 30
+```
+
+Current audit state: `pairwise_interference` is exactly balanced in `train`
+and `test_near_boundary`; `tolerance_fit` is balanced in `train`; remaining
+distribution risks are sparse geometry-label classes, especially `contained`,
+tiny clearance buckets, and nonzero normalized-volume buckets. Do not blindly
+cap those to the rarest class without generating more source geometry first,
+because that would discard most of the useful dataset.
 
 ## Vast State And Hardware Choice
 
