@@ -34,15 +34,14 @@ The intended clean development path is:
 - `test_random` has no row ID, base object-pair, assembly, or counterfactual
   group overlap with `train`.
 - `test_object_pair_heldout` is the strict object-pair/assembly holdout suite.
-- `test_near_boundary` is a difficulty-targeted challenge suite. It forbids
-  counterfactual group leakage, but it is not currently a strict base
-  object-pair/assembly holdout. Interpret it as boundary/counterfactual stress
-  testing, not as the clean primary test split.
+- `test_near_boundary` is a small difficulty-targeted challenge suite. It uses
+  the same group-safe assignment policy as the other held-out splits and should
+  stay roughly 5-10% of the release, not half of it.
 
-The April 25, 2026 90K augmentation moved a leakage-safe subset of
-counterfactual groups from `test_near_boundary` into `train` so pairwise and
-ranking tasks are represented during training. The remaining near-boundary
-counterfactual groups stay held out by `counterfactual_group_id`.
+The April 25, 2026 split redistribution changed near-boundary/counterfactual
+assignment from "all hard examples go to `test_near_boundary`" to a
+deterministic group-level split policy: most boundary groups go to `train` and
+`validation`, with a small held-out `test_near_boundary` challenge slice.
 
 ## Reporting Template
 
@@ -65,5 +64,7 @@ Breakdown by task:
 ```
 
 If precision/recall/F1 are reported, prefer per-task metrics over a single
-global number. Several tasks have strong label imbalance, so exact accuracy can
-look better than macro precision or macro F1.
+global number. The release pipeline now balances the main relation target in
+splits where all target classes exist and caps pairwise answers, but several
+derived bucket tasks still have real geometry scarcity. Exact accuracy can
+therefore look better than macro precision or macro F1.

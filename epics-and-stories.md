@@ -722,6 +722,11 @@ Hard split includes:
 * AABB-overlap-but-no-intersection
 * Convex-hull-overlap-but-no-intersection
 
+The hard split is a bounded challenge slice, not the default destination for
+all hard examples. Boundary and counterfactual groups are distributed
+deterministically across train, validation, random test, object-pair heldout,
+and near-boundary challenge splits while preserving group leakage rules.
+
 ---
 
 ## Story 6.7 — Balance dataset classes
@@ -742,6 +747,14 @@ Binary target distribution approximates:
 Relation target distribution is reported.
 
 Oversampling/undersampling logic is documented.
+
+Class balancing runs after row materialization and before release validation.
+It deterministically downsamples whole geometry groups to the relation target
+when all target classes exist in a split, caps pairwise answers to equal
+`A`/`B`/`both`/`neither` counts, and writes `class_balance_report.json`.
+
+Splits or derived tasks that lack enough source geometry for a target class are
+reported explicitly instead of silently overclaiming balance.
 
 ---
 

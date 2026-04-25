@@ -13,22 +13,32 @@ agents can resume without rediscovering the same failure modes.
   - `MRiabov/IntersectionQA-90K`
 
 The original 90K export had 90,000 final public rows. The current local
-`data/IntersectionQA-90K` export has 94,501 rows after two April 25, 2026
-augmentations:
+`data/IntersectionQA-90K` export has 58,155 rows after April 25, 2026
+augmentation, split redistribution, and class-balancing passes:
 
-- A leakage-safe subset of counterfactual groups was moved from
-  `test_near_boundary` to `train`.
+- Near-boundary/counterfactual assembly groups were redistributed into the
+  normal split mix instead of being routed wholesale to `test_near_boundary`.
+  The deterministic target policy for boundary groups is 75% `train`, 10%
+  `validation`, 5% `test_random`, 3% `test_object_pair_heldout`, and 7%
+  `test_near_boundary`.
 - `pairwise_interference` rows were rebuilt from exported relation rows and
   capped to balanced `A`, `B`, `both`, and `neither` counts within each split.
+- Single-geometry public rows were downsampled by geometry group to target the
+  v0.1 relation mix where all target classes exist: 40% `intersecting`, 30%
+  `disjoint`, 15% `touching`, and 15% `near_miss`. Non-target relation classes
+  such as `contained` are preserved, not forced into that target distribution.
 
 Current local `data/IntersectionQA-90K` split counts:
 
-- `train`: 45,446 rows, including 22,941 rows with
+- `train`: 43,664 rows, including 31,919 rows with
   `counterfactual_group_id`
-- `validation`: 2,895 rows
-- `test_random`: 2,345 rows
-- `test_object_pair_heldout`: 3,095 rows
-- `test_near_boundary`: 39,720 rows, including 39,300 rows with
+- `validation`: 5,622 rows, including 4,232 rows with
+  `counterfactual_group_id`
+- `test_random`: 2,981 rows, including 2,271 rows with
+  `counterfactual_group_id`
+- `test_object_pair_heldout`: 2,080 rows, including 1,580 rows with
+  `counterfactual_group_id`
+- `test_near_boundary`: 3,808 rows, including 2,908 rows with
   `counterfactual_group_id`
 
 Current train task counts:
@@ -41,19 +51,32 @@ Current train task counts:
 - `tolerance_fit`
 - `volume_bucket`
 
-Exact train counts are 8,496 `binary_interference`, 8,494
-`clearance_bucket`, 2,136 `pairwise_interference`, 838
-`ranking_normalized_intersection`, 8,494 `relation_classification`, 8,494
-`tolerance_fit`, and 8,494 `volume_bucket`.
+Exact train counts are 7,535 `binary_interference`, 7,535
+`clearance_bucket`, 4,288 `pairwise_interference`, 1,701
+`ranking_normalized_intersection`, 7,535 `relation_classification`, 7,535
+`tolerance_fit`, and 7,535 `volume_bucket`.
 
-Current train `pairwise_interference` answer counts are 534 each for `A`,
+Current train `pairwise_interference` answer counts are 1,072 each for `A`,
 `B`, `both`, and `neither`. Current `test_near_boundary` pairwise answer
-counts are 910 each for `A`, `B`, `both`, and `neither`.
+counts are 87 each for `A`, `B`, `both`, and `neither`.
 
-The augmentation moved 839 of 1,678 eligible counterfactual groups into train.
-Eligibility excludes groups whose `base_object_pair_id` or `assembly_group_id`
-appears in validation, random test, or object-pair heldout splits. The remaining
-near-boundary counterfactual groups stay held out.
+Current relation-classification counts after class balancing:
+
+- `train`: 2,962 `intersecting`, 2,221 `disjoint`, 1,111 `touching`,
+  1,110 `near_miss`, and 131 preserved `contained` rows.
+- `validation`: 383 `intersecting`, 287 `disjoint`, 143 `near_miss`, 143
+  `touching`, and 13 preserved `contained` rows.
+- `test_random`: 207 `intersecting`, 155 `disjoint`, 78 `touching`, 77
+  `near_miss`, and 7 preserved `contained` rows.
+- `test_object_pair_heldout`: 137 `intersecting`, 103 `disjoint`, 52
+  `touching`, 51 `near_miss`, and 12 preserved `contained` rows.
+- `test_near_boundary`: 258 `intersecting`, 193 `disjoint`, 97 `touching`,
+  96 `near_miss`, and 18 preserved `contained` rows.
+
+The split redistribution is recorded in
+`data/IntersectionQA-90K/split_redistribution_report.json`; the final
+per-split balancing pass is recorded in
+`data/IntersectionQA-90K/class_balance_report.json`.
 
 Interpret the splits as a conventional supervised split plus named challenge
 suites:
@@ -63,9 +86,8 @@ suites:
 - `test_random`: primary in-distribution held-out test.
 - `test_object_pair_heldout`: strict object-pair/assembly generalization
   challenge.
-- `test_near_boundary`: boundary/counterfactual challenge suite. It is not the
-  clean headline test split; it forbids counterfactual group leakage, but the
-  current export can share base object-pair/assembly IDs with train.
+- `test_near_boundary`: small boundary/counterfactual challenge suite, now
+  about 6.5% of the local export after class balancing.
 - `test_generator_heldout`: reserved generator-family challenge split; currently
   empty in the 90K export.
 
@@ -85,15 +107,27 @@ See `docs/dataset_split_framing.md` before interpreting evaluation numbers.
   per-task label precision, recall, F1, and confusion counts.
 - `scripts/text_sft_smoke.py`: tiny local/remote SFT smoke test.
 - `scripts/text_grpo_smoke.py`: tiny RL/GRPO smoke test.
-- `scripts/add_counterfactual_train_rows.py`: deterministic in-place
+- `scripts/add_counterfactual_train_rows.py`: legacy deterministic in-place
   augmentation helper for moving leakage-safe counterfactual groups from
-  `test_near_boundary` to `train`. It creates
+  `test_near_boundary` to `train`. Prefer
+  `scripts/redistribute_dataset_splits.py` for current exports. It creates
   `data/IntersectionQA-90K/pre_counterfactual_train_backup` before rewriting
   split files.
 - `scripts/rebalance_pairwise_rows.py`: deterministic in-place export rewrite
   that removes old pairwise rows and rebuilds balanced pairwise comparisons
   from already exported relation-classification rows. It creates
   `data/IntersectionQA-90K/pre_pairwise_rebalance_backup` before rewriting
+  split files.
+- `scripts/redistribute_dataset_splits.py`: deterministic in-place export
+  rewrite that applies the current group-safe split policy to already exported
+  rows, refreshes JSONL, metadata, Parquet, dataset card files, writes
+  `split_redistribution_report.json`, and optionally reruns class balancing.
+  It creates `data/IntersectionQA-90K/pre_split_redistribution_backup` before
+  rewriting split files.
+- `scripts/balance_dataset_classes.py`: deterministic in-place export rewrite
+  that applies the release class-balancing policy, refreshes JSONL, metadata,
+  Parquet, dataset card files, and writes `class_balance_report.json`. It
+  creates `data/IntersectionQA-90K/pre_class_balance_backup` before rewriting
   split files.
 - `scripts/audit_answer_balance.py`: answer-distribution audit by split and
   task. Use it before publishing a dataset or starting a new training run:
@@ -106,12 +140,16 @@ rtk uv run python -m scripts.audit_answer_balance \
   --min-count 30
 ```
 
-Current audit state: `pairwise_interference` is exactly balanced in `train`
-and `test_near_boundary`; `tolerance_fit` is balanced in `train`; remaining
-distribution risks are sparse geometry-label classes, especially `contained`,
-tiny clearance buckets, and nonzero normalized-volume buckets. Do not blindly
-cap those to the rarest class without generating more source geometry first,
-because that would discard most of the useful dataset.
+Current audit state: relation classes hit the v0.1 target in all non-empty
+splits, and `pairwise_interference` is exactly balanced in all splits that
+contain pairwise rows. Remaining distribution risks are sparse
+geometry-derived bucket classes, especially `contained`, tiny clearance
+buckets, nonzero normalized-volume buckets, and exact ranking permutations. Do
+not blindly cap those to the rarest class without generating more targeted
+source geometry first, because that would discard most of the useful dataset.
+Future CADEvolve runs now include deterministic clearance-bucket and
+overlap-magnitude candidate strategies to improve those scarce buckets before
+the post-materialization capping pass.
 
 ## Vast State And Hardware Choice
 
