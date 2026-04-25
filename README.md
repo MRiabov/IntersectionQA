@@ -100,6 +100,14 @@ rtk uv run python -m scripts.build_release_candidate \
   --output-dir data/intersectionedit_repair_smoke
 ```
 
+Repair release-candidate builds write `reports/repair_verifier.json` and add
+repair-success rows to `reports/baseline_comparison.json` and
+`reports/baseline_comparison.md`. The standard `reports/failure_analysis.json`
+also includes a `repair_prediction_verifier` block when repair rows and
+predictions are available. `reports/dataset_stats.json` and
+`scripts.dataset_stats` include a `repair_direction` summary with policy,
+selected-direction, and selected-magnitude counts.
+
 Repair predictions can also be verifier-checked by applying the predicted move
 to `object_b` and remeasuring exact geometry:
 

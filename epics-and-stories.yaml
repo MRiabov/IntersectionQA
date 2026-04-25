@@ -69,6 +69,7 @@ current_snapshot:
     - intersectionedit_repair_direction_aabb_slice
     - intersectionedit_repair_prediction_verifier_cli
     - intersectionedit_repair_smoke_config
+    - intersectionedit_repair_reporting
     - dataset_card_generation
     - smoke_dataset_generation
 
@@ -1036,7 +1037,7 @@ epics:
         status: implemented
         stable: false
         source_document: specs/intersectionedit-task-spec.md
-        notes: Implemented opt-in repair_direction rows for positive-overlap two-object records, with conservative AABB-separating metadata, strict parsing, schema validation, exact CadQuery verifier coverage, repair-prediction verifier CLI, per-output repair-success reporting, export validation, release-candidate repair_verifier.json coverage, baseline-comparison repair-success rows, single-geometry class-balance grouping, dataset-card discoverability, and configs/repair_smoke.yaml.
+        notes: Implemented opt-in repair_direction rows for positive-overlap two-object records, with conservative AABB-separating metadata, strict parsing, schema validation, direct AABB policy/tie-break unit coverage, exact CadQuery verifier coverage, repair-prediction verifier CLI, tool-assisted repair CLI coverage, zero-shot request/evaluation coverage, per-output repair-success reporting, repair-aware dataset stats and failure analysis, export validation, release-candidate repair_verifier.json coverage, baseline-comparison repair-success rows, single-geometry class-balance grouping, dataset-card discoverability, and configs/repair_smoke.yaml.
       - id: "14.4"
         title: Package and layout rename decision
         track: shared_core
