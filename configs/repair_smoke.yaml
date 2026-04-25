@@ -16,3 +16,12 @@ smoke:
     - binary_interference
     - repair_direction
     - repair_translation
+    - axis_aligned_repair
+    - axis_aligned_repair_vector
+    - axis_aligned_repair_program
+    - target_clearance_repair
+    - target_clearance_move
+    - target_contact_move
+    - centroid_distance_move
+    - edit_candidate_selection
+    - edit_candidate_ranking

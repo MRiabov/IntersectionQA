@@ -63,6 +63,15 @@ def test_repair_smoke_config_is_opt_in_and_keeps_dataset_name():
         TaskType.BINARY_INTERFERENCE,
         TaskType.REPAIR_DIRECTION,
         TaskType.REPAIR_TRANSLATION,
+        TaskType.AXIS_ALIGNED_REPAIR,
+        TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+        TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+        TaskType.TARGET_CLEARANCE_REPAIR,
+        TaskType.TARGET_CLEARANCE_MOVE,
+        TaskType.TARGET_CONTACT_MOVE,
+        TaskType.CENTROID_DISTANCE_MOVE,
+        TaskType.EDIT_CANDIDATE_SELECTION,
+        TaskType.EDIT_CANDIDATE_RANKING,
     ]
     assert DatasetConfig().smoke.task_types == [
         TaskType.BINARY_INTERFERENCE,

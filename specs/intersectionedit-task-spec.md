@@ -12,6 +12,20 @@ constraint-satisfying edits for CAD assemblies after diagnosing an intersection,
 clearance, or fit problem. The task family moves from answering what is wrong to
 choosing an action that repairs or improves the assembly.
 
+## Naming and Framing
+
+The task family name is `IntersectionEdit`. It is a sibling task family built on
+the IntersectionQA geometry, provenance, split, export, and verifier core. The
+paper framing should describe IntersectionQA as diagnostic spatial reasoning
+from CAD code, and IntersectionEdit as verified edit prediction: a model must
+produce an auditable action or constrained choice that can be applied to the
+same CAD assembly and checked by exact geometry measurement.
+
+IntersectionEdit rows are not free-form design tasks. The implemented public
+rows use constrained answer formats, target metadata, and verifier-oriented
+structured answers so distance errors, movement overshoot, target satisfaction,
+and candidate ranking quality can be scored consistently.
+
 ## Relationship to IntersectionQA
 
 IntersectionEdit should reuse the same source objects, CadQuery execution,
@@ -71,6 +85,14 @@ geometry records whose stored relation is `intersecting` or `contained`.
 magnitude under the same policy. The answer format is exactly
 `<direction> <magnitude_mm>` with six digits after the decimal point, for
 example `+x 0.500100`.
+
+`axis_aligned_repair_vector` asks for the verified exact repair as a full
+world-coordinate translation vector with one decimal per component, for example
+`dx=1.2, dy=0.0, dz=0.0`.
+
+`axis_aligned_repair_program` asks for the same verified exact repair as a
+single CadQuery edit statement, for example
+`object_b = object_b.translate((1.2, 0.0, 0.0))`.
 
 The current label policy is
 `conservative_aabb_separating_translation_v01`. It uses stored world-space

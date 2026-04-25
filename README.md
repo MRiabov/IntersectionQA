@@ -10,8 +10,11 @@ This repository is currently IntersectionQA-first, but is evolving into shared
 benchmark tooling for IntersectionQA and IntersectionEdit task families.
 IntersectionQA covers diagnostic and question-answering tasks over CAD
 intersections. IntersectionEdit covers edit, repair, and action tasks over the
-same geometry and verifier infrastructure; the first implemented slice is a
-conservative `repair_direction` and `repair_translation` tasks. The shared core is expected to own
+same geometry and verifier infrastructure; implemented opt-in slices include
+conservative `repair_direction`/`repair_translation` tasks plus exact
+axis-aligned repair, full-vector/program repair formats, target-clearance
+repair/movement, target-contact movement, centroid-distance movement, and
+candidate edit tasks. The shared core is expected to own
 geometry, CadQuery execution, transforms, grouping, splitting, leakage audits,
 export, evaluation, and verifier/reward logic.
 
@@ -61,8 +64,11 @@ The first implementation target is intentionally narrow:
 
 The schema supports later task types such as `clearance_bucket`,
 `pairwise_interference`, `ranking_normalized_intersection`, `repair_direction`,
-`repair_translation`, and `tolerance_fit`, but those are not first-class frozen
-v0.1 MVP tasks.
+`repair_translation`, `axis_aligned_repair`, `target_clearance_repair`,
+`axis_aligned_repair_vector`, `axis_aligned_repair_program`,
+`target_clearance_move`, `target_contact_move`, `centroid_distance_move`,
+`edit_candidate_selection`, `edit_candidate_ranking`, and `tolerance_fit`, but those are not first-class
+frozen v0.1 MVP tasks.
 
 ## Release-Candidate Builds
 
@@ -91,9 +97,12 @@ rtk uv run python -m scripts.build_release_candidate \
   --source-shard-size 250
 ```
 
-For the opt-in first IntersectionEdit repair slice, use the separate smoke
+For opt-in IntersectionEdit repair and candidate-edit slices, use the separate smoke
 config. This keeps the frozen IntersectionQA v0.1 defaults unchanged while
-exercising `repair_direction`/`repair_translation` export, validation, and verifier reports:
+exercising `repair_direction`, `repair_translation`, exact axis-aligned repair,
+full-vector/program repair formats, target-clearance repair/movement,
+target-contact movement, centroid-distance movement, and candidate edit
+export/validation paths:
 
 ```bash
 rtk uv run python -m scripts.build_release_candidate \
@@ -107,9 +116,27 @@ exact-verify, write `reports/repair_verifier.json` for direction-prediction
 verification, and add repair-success rows to `reports/baseline_comparison.json`
 and `reports/baseline_comparison.md`. The standard
 `reports/failure_analysis.json` also includes a `repair_prediction_verifier`
-block when repair rows and predictions are available. `reports/dataset_stats.json`
-and `scripts.dataset_stats` include repair summaries with policy,
-selected-direction, and selected-magnitude counts.
+block when repair rows and predictions are available, plus an
+`intersectionedit_prediction_failures` block with edit-specific failure modes for
+prediction reports. `reports/dataset_stats.json` and `scripts.dataset_stats` include repair summaries with policy,
+selected-direction, selected-magnitude, ambiguity, edit-difficulty tags,
+candidate-answer, and ranking metric counts.
+
+IntersectionEdit rows also carry `metadata.edit_counterfactual_group_id` and
+`metadata.edit_counterfactual_variant` so SFT/GRPO splits can keep related source
+variants and target-family variants together.
+
+`intersectionqa.evaluation.rewards` provides row-aware reward helpers for GRPO
+and rejection-sampling experiments. The rewards preserve strict parser checks,
+then add partial credit for exact repair distance tolerance, target satisfaction,
+movement minimality, candidate selection quality, and candidate ranking pairwise
+accuracy. `scripts/text_grpo_smoke.py` uses these helpers instead of a plain
+exact-string reward.
+
+IntersectionEdit rows also carry `metadata.edit_split_group` and
+`metadata.edit_family`. Use `intersectionqa.splits.grouped.partition_internal_train_eval_rows`
+when deriving inner train/eval splits for SFT or GRPO; it keeps target-clearance
+families and candidate sets inseparable.
 
 The exact repair verifier executes trusted dataset row scripts to reconstruct
 CadQuery geometry. Do not run verifier commands on untrusted JSONL rows without

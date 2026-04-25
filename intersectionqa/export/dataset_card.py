@@ -45,6 +45,42 @@ TASK_DESCRIPTIONS = {
         "IntersectionEdit task: choose the signed world-axis direction and six-decimal "
         "movement magnitude for moving `object_b` under the conservative AABB-separating repair policy."
     ),
+    "axis_aligned_repair": (
+        "IntersectionEdit exact-label task: choose the signed world-axis direction and "
+        "one-decimal movement that removes positive-volume overlap under exact CadQuery search."
+    ),
+    "axis_aligned_repair_vector": (
+        "IntersectionEdit exact-label task: output the full world-coordinate translation "
+        "vector for the selected exact axis-aligned repair."
+    ),
+    "axis_aligned_repair_program": (
+        "IntersectionEdit exact-label task: output a single CadQuery translation statement "
+        "for the selected exact axis-aligned repair."
+    ),
+    "target_clearance_repair": (
+        "IntersectionEdit exact-label task: choose the smallest cardinal-axis move that "
+        "achieves the row's target clearance."
+    ),
+    "target_clearance_move": (
+        "IntersectionEdit exact-label task: move an already non-intersecting object closer "
+        "or farther along a specified cardinal direction to reach target clearance."
+    ),
+    "target_contact_move": (
+        "IntersectionEdit exact-label task: move an already non-intersecting object along "
+        "a specified cardinal direction until it just touches without interference."
+    ),
+    "centroid_distance_move": (
+        "IntersectionEdit exact-label task: move an already non-intersecting object along "
+        "the centroid-to-centroid direction to reach a target centroid distance."
+    ),
+    "edit_candidate_selection": (
+        "IntersectionEdit discrete task: choose the smallest candidate edit that satisfies "
+        "non-intersection and target-clearance constraints."
+    ),
+    "edit_candidate_ranking": (
+        "IntersectionEdit ranking task: order candidate edits by target satisfaction, "
+        "non-intersection, and movement magnitude."
+    ),
 }
 
 FIELD_DESCRIPTIONS = [
@@ -144,6 +180,20 @@ def build_dataset_card(dataset_dir: Path) -> str:
     ] or ["- No known limitations recorded in `metadata.json`."]
     has_repair_direction = "repair_direction" in metadata.task_types
     has_repair_translation = "repair_translation" in metadata.task_types
+    has_intersectionedit_exact = any(
+        task_type in metadata.task_types
+        for task_type in {
+            "axis_aligned_repair",
+            "axis_aligned_repair_vector",
+            "axis_aligned_repair_program",
+            "target_clearance_repair",
+            "target_clearance_move",
+            "target_contact_move",
+            "centroid_distance_move",
+            "edit_candidate_selection",
+            "edit_candidate_ranking",
+        }
+    )
     yaml_lines = [
         "---",
         f"license: {metadata.license}",
@@ -172,6 +222,7 @@ def build_dataset_card(dataset_dir: Path) -> str:
                 "- repair-translation",
             ]
             if has_repair_direction or has_repair_translation
+            or has_intersectionedit_exact
             else []
         ),
         f"pretty_name: {release_name}",
@@ -251,6 +302,14 @@ def build_dataset_card(dataset_dir: Path) -> str:
                     "- `repair_translation` is an opt-in IntersectionEdit task. It asks for the signed world-axis direction and six-decimal conservative movement magnitude for `object_b`.",
                 ]
                 if has_repair_translation
+                else []
+            ),
+            *(
+                [
+                    "- `axis_aligned_repair`, `axis_aligned_repair_vector`, `axis_aligned_repair_program`, `target_clearance_repair`, `target_clearance_move`, `target_contact_move`, and `centroid_distance_move` use exact CadQuery checks, then publish one-decimal distance/vector labels with numeric tolerance metadata.",
+                    "- `edit_candidate_selection` and `edit_candidate_ranking` expose verifier-scored candidate edits for discrete evaluation and RL-style reward experiments.",
+                ]
+                if has_intersectionedit_exact
                 else []
             ),
             "",

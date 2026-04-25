@@ -12,6 +12,8 @@ from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import GRPOConfig, GRPOTrainer
 
+from intersectionqa.evaluation.rewards import reward_from_fields
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -37,6 +39,9 @@ def main() -> None:
                     {"role": "user", "content": row["prompt"]},
                 ],
                 "answer": row["answer"],
+                "id": row["id"],
+                "task_type": row["task_type"],
+                "metadata": row.get("metadata", {}),
             }
             for row in rows
         ]
@@ -68,7 +73,7 @@ def main() -> None:
     )
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=_exact_answer_reward,
+        reward_funcs=_row_reward,
         args=training_args,
         train_dataset=dataset,
         processing_class=tokenizer,
@@ -97,14 +102,28 @@ def main() -> None:
     )
 
 
-def _exact_answer_reward(completions, answer, **_kwargs) -> list[float]:
+def _row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list[float]:
     rewards = []
-    for completion, expected in zip(completions, answer, strict=True):
+    for completion, expected, row_id, row_task_type, row_metadata in zip(
+        completions,
+        answer,
+        id,
+        task_type,
+        metadata,
+        strict=True,
+    ):
         if isinstance(completion, list) and completion:
             text = completion[-1].get("content", "")
         else:
             text = str(completion)
-        rewards.append(1.0 if text.strip() == expected else 0.0)
+        result = reward_from_fields(
+            row_id=row_id,
+            task_type=row_task_type,
+            answer=expected,
+            metadata=row_metadata,
+            output=text,
+        )
+        rewards.append(result.reward)
     return rewards
 
 

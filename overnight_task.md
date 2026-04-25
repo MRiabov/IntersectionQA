@@ -17,9 +17,236 @@ We have a set of tasks today:
 5. Also, we didn't have a proper evaluation wired into the training loop(s). We trained blindly. Add evals every so often so that we can track it.
 6. At the end of the night, whatever the train artifacts, upload them to hf bucket. https://huggingface.co/docs/huggingface_hub/guides/buckets.md. Also update the qwen3p5-4b-tuning experiment.
 7. Make sure that the IntersectionEdit is well-covered in the document.
+Oh yes. Try to spend no more than 5-7$ on the Vast.ai account. Which means - you either have to a) run 3-5 hours of H100 or 6 hours of A100 80gb. Decide on your own.
 
 (I'm not quite sure if I should do any SFT going forward. It may prove results, and in fact it did in @docs/experiments/qwen-3p5-4b-tuning.md, however I don't know...)
 Also, I suspect that we have dropped all unsloth training in SFT pipeline. Unsloth is 2x faster and results could be supreme!
 Also, GRPO isn't the best, there is also Dr. GRPO, there is also GSPO... I'm not sure what these do, but I know they are improvements. Check out Unsloth docs, it implements both.
 
 Also, commit your changes every once in a while.
+
+## Execution log
+
+<!--Add checklists here as To Do and Done so that you don't have to rescan what was done or not done... though you also have @epics-and-stories.yaml for that, but that's for broader features. -->
+
+## Locked overnight course of action
+
+Decision: prioritize a reliable, measurable GRPO pilot over a broad but
+unverified full fine-tuning sweep. SFT is fallback/bootstrap only, not the main
+overnight objective. Do not spend the night comparing every RL variant.
+
+Budget decision: cap Vast.ai spend at roughly `$5-7`. Default to an A100 80GB
+run for up to 6 hours because the previous A100 path is known to work and gives
+more wall-clock room for dataset fixes, canaries, and evals. Use H100 only if
+current Vast pricing makes a 3-5 hour run fit inside the cap and the canary
+needs the speed. Check live Vast prices before renting; do not assume the old
+contract price is still available.
+
+Container decision: optionally build the training container locally and have the
+Vast instance pull the prepared image instead of installing dependencies on paid
+GPU time. Use this if a Dockerfile/image path is already close to working or can
+be made ready in under ~30 local minutes; it can save roughly 10-15% of the Vast
+budget. Do not let container work block the dataset/reward canary path.
+
+Primary success condition by morning:
+
+- IntersectionEdit has a validated release-candidate dataset with balanced
+  public splits and documented internal SFT/RL split hygiene.
+- At least one Qwen3.5 4B GRPO/GSPO pilot has run from a clean dataset split,
+  with periodic eval metrics and saved adapter/artifacts.
+- The experiment document records exact commands, hardware, metrics, failures,
+  and artifact locations.
+
+Secondary success condition:
+
+- If GRPO cannot train stably, leave a working canary plus a smaller SFT or
+  GRPO-debug artifact, with the failure reason and next command written down.
+
+Non-goals for tonight:
+
+- Do not implement multi-object repair.
+- Do not chase 9B/27B/35B unless 4B is blocked for a reason unrelated to model
+  size.
+- Do not publish a dataset/model artifact that fails validation or has unclear
+  split leakage.
+
+## Priority order
+
+1. Stabilize the current repo state.
+   - Run the focused tests that cover the changed files.
+   - Fix obvious breakages in rewards, parsing, splits, prompts, schema,
+     release build, and GRPO smoke only.
+   - Commit once this baseline is green.
+
+2. Decide whether to prebuild a GPU image.
+   - If a local Docker build/push is straightforward, build/push it before
+     renting the Vast instance.
+   - If image work takes more than ~30 local minutes or hits CUDA/package
+     churn, skip it and install on the instance.
+   - Record the image tag or the reason for skipping it in the experiment doc.
+
+3. Make IntersectionEdit publishable enough for the night.
+   - Build a repair/edit release candidate from `configs/repair_smoke.yaml` or
+     the largest safe config available locally.
+   - Validate JSONL/parquet, dataset stats, split manifests, leakage audits,
+     edit verifier reports, and dataset card content.
+   - Check class/task balance per split. If imbalance is found, fix balancing
+     before training.
+   - Publish only if validation is clean and credentials are available. If not,
+     leave a tarball plus exact upload command.
+
+4. Prevent SFT/RL label contamination.
+   - Treat public `train` as the only source for training-time internal splits.
+   - Use group-safe internal split helpers, with `metadata.edit_split_group`
+     preferred over generic split groups.
+   - Materialize or log internal assignments for GRPO/SFT runs.
+   - Never mix `validation`/`test_*` into optimizer updates.
+
+5. Make GRPO production-runnable.
+   - Replace answer-only instruction with reasoning-compatible chat format:
+     system asks for concise reasoning in `<think>...</think>` and final answer
+     in `<answer>...</answer>`.
+   - Rewards should give format credit, canonical-answer correctness, and
+     IntersectionEdit partial verifier-style credit where available.
+   - Use `max_completion_length` around 512 for canaries, then 1024-2048 only
+     if memory and step time are acceptable.
+   - Start with `num_generations=4`; increase to 8 only after the canary is
+     stable.
+   - Prefer Unsloth GRPO/GSPO for the serious run. Plain TRL GRPO is acceptable
+     for local smoke only.
+
+6. Run training in staged gates.
+   - Gate A: local/unit smoke on tiny rows, max 1-5 steps.
+   - Gate B: GPU canary, 32-128 rows, 10-20 steps, frequent logging.
+   - Gate C: pilot, at least 300 steps if reward is non-degenerate.
+   - Gate D: overnight extension from the best pilot checkpoint if metrics are
+     improving.
+   - If rewards are flat because completions are invalid, fix prompt/reward
+     formatting before extending the run.
+   - Hard budget gate: destroy/stop the Vast instance when projected spend
+     reaches `$7`, even if the pilot has not converged.
+
+7. Evaluate during and after training.
+   - Add or use periodic eval every 50-100 optimizer steps on internal eval.
+   - Track exact answer accuracy, invalid-output rate, task-type accuracy,
+     repair distance tolerance, candidate/ranking metrics, and reward mean.
+   - Compare against the existing answer-only SFT baseline with the caveat that
+     SFT used very short completions and may not be comparable on reasoning
+     completions.
+
+8. Persist artifacts.
+   - Save adapters/checkpoints, metrics JSONL, train result JSON, eval outputs,
+     release candidate reports, and command logs.
+   - Upload final train artifacts to an HF bucket if credentials and bandwidth
+     permit.
+   - Update `docs/experiments/qwen3p5-4b-tuning.md` with the actual result,
+     even if the result is a failed canary.
+
+## Concrete command skeletons
+
+Stabilize:
+
+```bash
+rtk uv run pytest -q tests/test_rewards.py tests/test_splits.py tests/test_metrics.py tests/test_prompts.py tests/test_config.py
+rtk uv run python -m scripts.text_grpo_smoke --dataset-dir data/intersectionedit_repair_smoke --max-rows 8 --max-steps 1
+```
+
+Build IntersectionEdit release candidate:
+
+```bash
+rtk uv run python -m scripts.build_release_candidate \
+  --config configs/repair_smoke.yaml \
+  --output-dir data/intersectionedit_repair_rc
+```
+
+GPU canary target:
+
+```bash
+python scripts/text_grpo_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_repair_rc \
+  --model unsloth/Qwen3.5-4B \
+  --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionedit_canary \
+  --max-train-rows 128 \
+  --max-eval-rows 64 \
+  --max-steps 20 \
+  --max-prompt-length 2048 \
+  --max-completion-length 512 \
+  --num-generations 4 \
+  --eval-steps 10 \
+  --save-steps 10
+```
+
+Pilot target if canary is healthy:
+
+```bash
+python scripts/text_grpo_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_repair_rc \
+  --model unsloth/Qwen3.5-4B \
+  --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_pilot \
+  --max-steps 300 \
+  --max-prompt-length 2048 \
+  --max-completion-length 1024 \
+  --num-generations 4 \
+  --eval-steps 50 \
+  --save-steps 50 \
+  --resume
+```
+
+Use GSPO for the serious run if the installed TRL/Unsloth stack exposes the
+config field:
+
+```python
+importance_sampling_level = "sequence"
+```
+
+Use Dr. GRPO only as the second variant after a normal GRPO/GSPO canary exists:
+
+```python
+loss_type = "dr_grpo"
+```
+
+## Stop rules
+
+- If release candidate validation fails: fix dataset/release first; do not
+  train on a suspect dataset.
+- If live Vast pricing cannot keep the run under `$7`: do not rent the GPU;
+  leave the exact launch command and local smoke status instead.
+- If local container prebuild is viable, do it before GPU rental; if it is not
+  ready quickly, skip it rather than burning planning time.
+- If using A100 80GB: reserve about 30-45 minutes for setup/upload/eval and
+  cap training extension around 5 hours of actual GPU runtime.
+- If using H100: cap training extension around 3-4 hours unless live price is
+  low enough to stay below `$7`.
+- If canary OOMs: reduce `max_completion_length` to 256, then
+  `num_generations` to 2, then train rows/batch.
+- If invalid-output rate stays high after 50-100 steps: fix prompt/template and
+  reward formatting instead of extending training.
+- If reward mean is flat and exact accuracy is zero by 300 steps: preserve logs,
+  stop extension, and run the smaller SFT fallback only if time remains.
+- If HF upload fails: keep local tarball/checksums and write the exact failed
+  command plus error into the experiment doc.
+
+## To Do
+
+- [ ] Run focused tests for changed reward/split/prompt/config code.
+- [ ] Fix any failing tests or obvious reward/parser bugs.
+- [ ] Commit the stabilized code baseline.
+- [ ] Decide whether to prebuild/push a training container locally.
+- [ ] Build and validate IntersectionEdit release candidate.
+- [ ] Inspect split/task/answer balance reports.
+- [ ] Add or confirm internal SFT/RL train/eval split usage in training code.
+- [ ] Add production GRPO/Unsloth runner if missing.
+- [ ] Run local GRPO smoke.
+- [ ] Launch GPU GRPO canary.
+- [ ] Launch 300-step pilot if canary is healthy.
+- [ ] Run held-out/internal eval and compare with SFT baseline.
+- [ ] Upload validated dataset/artifacts if possible.
+- [ ] Update `docs/experiments/qwen3p5-4b-tuning.md`.
+- [ ] Commit final docs/code state.
+
+## Done
+
+- [x] Narrowed the overnight objective to validated IntersectionEdit data plus
+  one measurable Qwen3.5 4B GRPO/GSPO pilot.
+- [x] Deferred broad SFT/model-size/RL-algorithm comparisons unless the main
+  path is blocked.
