@@ -21,6 +21,7 @@ class SmokeConfig(BaseModel):
     geometry_limit: int = 100
     public_row_limit: int | None = Field(default=None, ge=1)
     balance_geometry_relations: bool = True
+    balance_public_classes: bool = True
     geometry_candidate_pool_multiplier: int = Field(default=2, ge=1)
     object_validation_offset: int = 0
     object_validation_limit: int = 25

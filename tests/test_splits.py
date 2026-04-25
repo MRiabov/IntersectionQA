@@ -17,13 +17,28 @@ def test_group_split_is_deterministic_and_leak_free():
     assert audit.violation_count == 0
 
 
-def test_near_boundary_records_go_to_hard_split():
+def test_near_boundary_records_use_bounded_group_split_policy():
     config = DatasetConfig()
     records = fixture_geometry_records(config.label_policy, config.config_hash)
     splits = assign_geometry_splits(records, config.seed)
+    near_boundary_splits = {
+        splits[record.geometry_id]
+        for record in records
+        if "near_boundary" in record.difficulty_tags
+    }
+    assert near_boundary_splits
+    assert near_boundary_splits <= {
+        "train",
+        "validation",
+        "test_random",
+        "test_object_pair_heldout",
+        "test_near_boundary",
+    }
+
+    by_assembly = {}
     for record in records:
-        if "near_boundary" in record.difficulty_tags:
-            assert splits[record.geometry_id] == "test_near_boundary"
+        by_assembly.setdefault(record.assembly_group_id, set()).add(splits[record.geometry_id])
+    assert all(len(group_splits) == 1 for group_splits in by_assembly.values())
 
 
 def test_synthetic_counterfactual_group_has_label_diversity():

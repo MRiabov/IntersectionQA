@@ -26,6 +26,7 @@ from intersectionqa.export.jsonl import (
     write_jsonl_like,
 )
 from intersectionqa.export.dataset_card import write_dataset_card
+from intersectionqa.export.balance import balance_rows
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.generation.geometry_cache import GeometryLabelCache
@@ -158,6 +159,11 @@ def build_smoke_rows(config: DatasetConfig) -> tuple[list[PublicTaskRow], SmokeR
     artifacts = _build_smoke_geometry_artifacts(config)
     split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
     rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
+    if config.smoke.balance_public_classes:
+        rows, _ = balance_rows(
+            rows,
+            cap_pairwise=True,
+        )
     rows = _limit_public_rows(rows, config.smoke.public_row_limit)
     validate_rows(rows)
     audit = audit_group_leakage(rows)
@@ -177,6 +183,13 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
     artifacts = _build_smoke_geometry_artifacts(config)
     split_by_geometry_id = assign_geometry_splits(artifacts.records, config.seed)
     rows = materialize_rows(artifacts.records, split_by_geometry_id, config.smoke.task_types)
+    if config.smoke.balance_public_classes:
+        rows, class_balance_report = balance_rows(
+            rows,
+            cap_pairwise=True,
+        )
+    else:
+        class_balance_report = None
     rows = _limit_public_rows(rows, config.smoke.public_row_limit)
     validate_rows(rows)
     audit = audit_group_leakage(rows)
@@ -222,6 +235,11 @@ def write_smoke_dataset(config: DatasetConfig) -> SmokeDatasetReport:
         json.dumps({"files": parquet_counts, "compression": "zstd"}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    if class_balance_report is not None:
+        (output_dir / "class_balance_report.json").write_text(
+            json.dumps(class_balance_report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     smoke_report = SmokeDatasetReport(
         **report.model_dump(),
         source_manifest_hash=source_hash,

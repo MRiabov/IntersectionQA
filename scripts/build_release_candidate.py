@@ -18,6 +18,7 @@ from intersectionqa.evaluation.obb import evaluate_obb_binary
 from intersectionqa.evaluation.tool_assisted import run_tool_assisted_upper_bound
 from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import dataset_stats, manifest_stats
+from intersectionqa.export.balance import balance_dataset_dir
 from intersectionqa.export.jsonl import read_failure_manifest, read_object_validation_manifest
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.logging import configure_logging
@@ -45,6 +46,7 @@ def main() -> None:
     parser.add_argument("--shard-count", type=int, default=None)
     parser.add_argument("--source-shard-size", type=int, default=None)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--balance-classes", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
     configure_logging()
@@ -77,6 +79,9 @@ def main() -> None:
         merge_manifest = merge_validated_source_shards(shard_root, dataset_dir, config=config)
         build_report = {"mode": "sharded", "shards": shard_manifest, "merge": merge_manifest}
 
+    class_balance_report = None
+    if args.balance_classes:
+        class_balance_report = balance_dataset_dir(dataset_dir)
     rows = validate_dataset_dir(dataset_dir)
     parquet_counts = write_parquet_files(rows, dataset_dir / "parquet")
     _write_json({"files": parquet_counts, "compression": "zstd"}, dataset_dir / "parquet_manifest.json")
@@ -113,6 +118,7 @@ def main() -> None:
         "reports_dir": str(reports_dir),
         "elapsed_seconds": round(monotonic() - started, 3),
         "build": build_report,
+        "class_balance": class_balance_report,
         "validated_rows": len(rows),
         "parquet_dir": str(dataset_dir / "parquet"),
     }

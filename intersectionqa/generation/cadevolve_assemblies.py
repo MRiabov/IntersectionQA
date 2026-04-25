@@ -343,6 +343,8 @@ def _candidate_specs(
     span_x = min(_span(validation_a.bbox, 0), _span(validation_b.bbox, 0))
     overlap_small = max(0.01, min(0.05, span_x * 0.01))
     overlap_clear = max(overlap_small * 4.0, span_x * 0.25)
+    targeted_overlap_gap = _targeted_overlap_gap(span_x, pair_key)
+    targeted_clearance_gap = _targeted_clearance_gap(policy, pair_key)
     clear_gap = max(policy.near_miss_threshold_mm + 5.0, span_x * 0.5)
     far_gap = clear_gap + _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
     broad_scale = _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
@@ -377,10 +379,27 @@ def _candidate_specs(
             tags=("axis_aligned", "near_boundary", "near_miss"),
         ),
         _CandidateSpec(
+            strategy=f"{targeted_clearance_gap[0]}_clearance",
+            translation_gap=targeted_clearance_gap[1],
+            rotation_b=(0.0, 0.0, 0.0),
+            tags=(
+                "axis_aligned",
+                "near_boundary",
+                "clearance_bucket_targeted",
+                f"{targeted_clearance_gap[0]}_clearance",
+            ),
+        ),
+        _CandidateSpec(
             strategy="tiny_overlap",
             translation_gap=-overlap_small,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned", "near_boundary", "tiny_overlap"),
+        ),
+        _CandidateSpec(
+            strategy=f"{targeted_overlap_gap[0]}_overlap",
+            translation_gap=-targeted_overlap_gap[1],
+            rotation_b=(0.0, 0.0, 0.0),
+            tags=("axis_aligned", "volume_bucket_targeted", f"{targeted_overlap_gap[0]}_overlap"),
         ),
         _CandidateSpec(
             strategy="clear_overlap",
@@ -744,6 +763,30 @@ def _diagonal(bbox: BoundingBox) -> float:
 def _stable_unit_interval(value: str) -> float:
     digest = sha256_text(value).removeprefix("sha256:")
     return int(digest[:12], 16) / float(16**12 - 1)
+
+
+def _stable_index(value: str, count: int) -> int:
+    digest = sha256_text(value).removeprefix("sha256:")
+    return int(digest[:8], 16) % count
+
+
+def _targeted_clearance_gap(policy: LabelPolicy, pair_key: str) -> tuple[str, float]:
+    tiny_gap = max(policy.epsilon_distance_mm * 10.0, min(0.05, policy.near_miss_threshold_mm * 0.05))
+    mid_gap = min(4.0, max(policy.near_miss_threshold_mm + 0.5, 2.5))
+    options = (
+        ("tiny", tiny_gap),
+        ("mid", mid_gap),
+    )
+    return options[_stable_index(f"{pair_key}:targeted_clearance_gap", len(options))]
+
+
+def _targeted_overlap_gap(span_x: float, pair_key: str) -> tuple[str, float]:
+    options = (
+        ("small", max(0.02, span_x * 0.05)),
+        ("medium", max(0.05, span_x * 0.15)),
+        ("deep", max(0.10, span_x * 0.50)),
+    )
+    return options[_stable_index(f"{pair_key}:targeted_overlap_gap", len(options))]
 
 
 def _changed_value(spec: _CandidateSpec, transform: Transform) -> Any:
