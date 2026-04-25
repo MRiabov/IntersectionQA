@@ -43,6 +43,9 @@ BOUNDARY_SPLIT_BUCKETS = (
     (100, "test_near_boundary"),
 )
 
+INTERNAL_TRAIN_SPLIT = "inner_train"
+INTERNAL_EVAL_SPLIT = "inner_eval"
+
 
 def split_group(record: GeometryRecord | PublicTaskRow) -> str:
     return (
@@ -51,6 +54,93 @@ def split_group(record: GeometryRecord | PublicTaskRow) -> str:
         or record.counterfactual_group_id
         or record.geometry_ids[0]  # type: ignore[attr-defined]
     )
+
+
+def training_split_group(row: PublicTaskRow) -> str:
+    value = (
+        row.metadata.get("edit_counterfactual_group_id")
+        or row.metadata.get("edit_split_group")
+        or row.metadata.get("split_group")
+    )
+    if isinstance(value, str) and value:
+        return value
+    return split_group(row)
+
+
+def assign_internal_train_eval_splits(
+    rows: Iterable[PublicTaskRow],
+    seed: int,
+    *,
+    eval_fraction: float = 0.1,
+) -> dict[str, str]:
+    """Assign row IDs to deterministic group-safe inner train/eval splits."""
+    if not 0.0 < eval_fraction < 1.0:
+        raise ValueError("eval_fraction must be between 0 and 1")
+    rows = list(rows)
+    groups: dict[str, list[PublicTaskRow]] = defaultdict(list)
+    for row in rows:
+        groups[training_split_group(row)].append(row)
+    if not groups:
+        return {}
+
+    eval_groups = {
+        group_id
+        for group_id in groups
+        if _stable_bucket(group_id, seed, 1_000_000) < int(eval_fraction * 1_000_000)
+    }
+    if not eval_groups and len(groups) > 1:
+        eval_groups = {
+            min(
+                groups,
+                key=lambda group_id: _stable_bucket(group_id, seed, 1_000_000),
+            )
+        }
+    if len(eval_groups) == len(groups) and len(groups) > 1:
+        eval_groups.remove(
+            max(
+                eval_groups,
+                key=lambda group_id: _stable_bucket(group_id, seed, 1_000_000),
+            )
+        )
+    return {
+        row.id: (INTERNAL_EVAL_SPLIT if group_id in eval_groups else INTERNAL_TRAIN_SPLIT)
+        for group_id, group_rows in groups.items()
+        for row in group_rows
+    }
+
+
+def partition_internal_train_eval_rows(
+    rows: Iterable[PublicTaskRow],
+    seed: int,
+    *,
+    eval_fraction: float = 0.1,
+) -> tuple[list[PublicTaskRow], list[PublicTaskRow], dict[str, object]]:
+    rows = list(rows)
+    assignments = assign_internal_train_eval_splits(rows, seed, eval_fraction=eval_fraction)
+    train_rows = [row for row in rows if assignments.get(row.id) == INTERNAL_TRAIN_SPLIT]
+    eval_rows = [row for row in rows if assignments.get(row.id) == INTERNAL_EVAL_SPLIT]
+    report = {
+        "schema": "intersectionqa_internal_train_eval_split_v1",
+        "seed": seed,
+        "eval_fraction": eval_fraction,
+        "row_counts": {
+            INTERNAL_TRAIN_SPLIT: len(train_rows),
+            INTERNAL_EVAL_SPLIT: len(eval_rows),
+        },
+        "group_counts": _counts(assignments[row.id] for row in _representative_group_rows(rows)),
+        "group_field": (
+            "metadata.edit_counterfactual_group_id || metadata.edit_split_group "
+            "|| metadata.split_group || split_group(row)"
+        ),
+    }
+    return train_rows, eval_rows, report
+
+
+def _representative_group_rows(rows: list[PublicTaskRow]) -> list[PublicTaskRow]:
+    representatives: dict[str, PublicTaskRow] = {}
+    for row in rows:
+        representatives.setdefault(training_split_group(row), row)
+    return list(representatives.values())
 
 
 def split_names_for_rows(rows: Iterable[PublicTaskRow]) -> list[str]:

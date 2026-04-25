@@ -4,7 +4,15 @@ from intersectionqa.export.jsonl import write_split_files
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.sources.synthetic import fixture_geometry_records
-from intersectionqa.splits.grouped import assign_geometry_splits, audit_group_leakage, split_manifest
+from intersectionqa.splits.grouped import (
+    INTERNAL_EVAL_SPLIT,
+    INTERNAL_TRAIN_SPLIT,
+    assign_geometry_splits,
+    audit_group_leakage,
+    partition_internal_train_eval_rows,
+    split_manifest,
+    training_split_group,
+)
 
 
 def test_group_split_is_deterministic_and_leak_free():
@@ -51,6 +59,89 @@ def test_synthetic_counterfactual_group_has_label_diversity():
     assert len(group_records) >= 2
     assert len({record.labels.relation for record in group_records}) >= 2
     assert {record.changed_parameter for record in group_records} == {"transform_b.translation[0]"}
+
+
+def test_intersectionedit_rows_expose_group_safe_internal_training_split_groups():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    rows = materialize_rows(
+        records,
+        splits,
+        [
+            TaskType.AXIS_ALIGNED_REPAIR,
+            TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+            TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+            TaskType.TARGET_CLEARANCE_REPAIR,
+            TaskType.TARGET_CLEARANCE_MOVE,
+            TaskType.TARGET_CONTACT_MOVE,
+            TaskType.CENTROID_DISTANCE_MOVE,
+            TaskType.EDIT_CANDIDATE_SELECTION,
+            TaskType.EDIT_CANDIDATE_RANKING,
+        ],
+    )
+
+    assert rows
+    assert all(row.metadata.get("edit_split_group") for row in rows)
+    assert all(row.metadata.get("edit_counterfactual_group_id") for row in rows)
+
+    train_rows, eval_rows, report = partition_internal_train_eval_rows(
+        rows,
+        config.seed,
+        eval_fraction=0.35,
+    )
+
+    assert train_rows
+    assert eval_rows
+    assert report["schema"] == "intersectionqa_internal_train_eval_split_v1"
+    grouped_splits: dict[str, set[str]] = {}
+    for row in train_rows:
+        grouped_splits.setdefault(training_split_group(row), set()).add(INTERNAL_TRAIN_SPLIT)
+    for row in eval_rows:
+        grouped_splits.setdefault(training_split_group(row), set()).add(INTERNAL_EVAL_SPLIT)
+    assert all(len(values) == 1 for values in grouped_splits.values())
+
+
+def test_intersectionedit_rows_expose_counterfactual_edit_variant_metadata():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    rows = materialize_rows(
+        records,
+        splits,
+        [
+            TaskType.AXIS_ALIGNED_REPAIR,
+            TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+            TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+            TaskType.TARGET_CLEARANCE_REPAIR,
+            TaskType.TARGET_CLEARANCE_MOVE,
+            TaskType.TARGET_CONTACT_MOVE,
+            TaskType.CENTROID_DISTANCE_MOVE,
+            TaskType.EDIT_CANDIDATE_SELECTION,
+            TaskType.EDIT_CANDIDATE_RANKING,
+        ],
+    )
+
+    counterfactual_rows = [
+        row for row in rows if row.counterfactual_group_id == "cfg_000001"
+    ]
+
+    assert counterfactual_rows
+    assert {training_split_group(row) for row in counterfactual_rows} == {
+        "cfg_000001:intersectionedit_v01"
+    }
+    assert {
+        row.metadata["edit_counterfactual_variant"]["source_variant_id"]
+        for row in counterfactual_rows
+    } >= {"cfg_000001_v01", "cfg_000001_v02"}
+    assert all(
+        "initial_translation" in row.metadata["edit_counterfactual_dimensions"]
+        for row in counterfactual_rows
+    )
+    assert {
+        row.metadata["edit_counterfactual_variant"]["edit_family"]
+        for row in counterfactual_rows
+    } >= {"axis_aligned_intersection_repair", "axis_aligned_intersection_repair_vector", "centroid_distance_move"}
 
 
 def test_topology_heldout_split_uses_rare_topology_metadata():
