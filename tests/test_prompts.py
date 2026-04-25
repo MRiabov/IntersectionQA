@@ -16,6 +16,11 @@ from intersectionqa.prompts.common import strict_parse
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.prompts.repair import ALLOWED_ANSWERS as REPAIR_ALLOWED
 from intersectionqa.prompts.repair import make_repair_direction_prompt, make_repair_translation_prompt
+from intersectionqa.prompts.repair import make_axis_aligned_repair_prompt, make_target_clearance_repair_prompt
+from intersectionqa.prompts.repair import make_axis_aligned_repair_program_prompt, make_axis_aligned_repair_vector_prompt
+from intersectionqa.prompts.repair import make_target_clearance_move_prompt, target_clearance_move_metadata
+from intersectionqa.prompts.repair import make_target_contact_move_prompt, target_contact_move_metadata
+from intersectionqa.prompts.repair import make_centroid_distance_move_prompt, centroid_distance_move_metadata
 from intersectionqa.prompts.repair import repair_candidates, repair_metadata, repair_plan
 from intersectionqa.prompts.relation import ALLOWED_ANSWERS as RELATION_ALLOWED
 from intersectionqa.schema import Transform
@@ -41,6 +46,28 @@ def test_strict_parsers_reject_prose_and_case_changes():
     assert parse_answer(TaskType.REPAIR_TRANSLATION, "+x 1.250000") == "+x 1.250000"
     assert parse_answer(TaskType.REPAIR_TRANSLATION, "+x 1.25") is None
     assert parse_answer(TaskType.REPAIR_TRANSLATION, "+x -1.250000") is None
+    assert (
+        parse_answer(TaskType.AXIS_ALIGNED_REPAIR, "direction=+x, distance_mm=1.2")
+        == "direction=+x, distance_mm=1.2"
+    )
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR, "direction=+x, distance_mm=1.25") is None
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR_VECTOR, "dx=1.2, dy=0.0, dz=-3.4") == "dx=1.2, dy=0.0, dz=-3.4"
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR_VECTOR, "dx=1.25, dy=0.0, dz=-3.4") is None
+    assert (
+        parse_answer(
+            TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+            "object_b = object_b.translate((1.2, 0.0, -3.4))",
+        )
+        == "object_b = object_b.translate((1.2, 0.0, -3.4))"
+    )
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR_PROGRAM, "object_b.translate((1.2, 0.0, -3.4))") is None
+    assert parse_answer(TaskType.TARGET_CLEARANCE_MOVE, "distance_mm=-4.0") == "distance_mm=-4.0"
+    assert parse_answer(TaskType.TARGET_CLEARANCE_MOVE, "distance_mm=4.00") is None
+    assert parse_answer(TaskType.TARGET_CONTACT_MOVE, "distance_mm=-5.0") == "distance_mm=-5.0"
+    assert parse_answer(TaskType.CENTROID_DISTANCE_MOVE, "distance_mm=5.0") == "distance_mm=5.0"
+    assert parse_answer(TaskType.CENTROID_DISTANCE_MOVE, "distance_mm=5.00") is None
+    assert parse_answer(TaskType.EDIT_CANDIDATE_SELECTION, "C") == "C"
+    assert parse_answer(TaskType.EDIT_CANDIDATE_RANKING, "CDBA") == "CDBA"
 
 
 def test_prompts_do_not_leak_stored_labels_or_diagnostics():
@@ -62,6 +89,41 @@ def test_prompts_do_not_leak_stored_labels_or_diagnostics():
     assert str(record.labels.intersection_volume) not in repair_translation_prompt
     assert record.labels.relation not in repair_translation_prompt
     assert "selected_magnitude_mm" not in repair_translation_prompt
+
+    axis_repair_prompt = make_axis_aligned_repair_prompt(record)
+    assert str(record.labels.intersection_volume) not in axis_repair_prompt
+    assert record.labels.relation not in axis_repair_prompt
+
+    vector_prompt = make_axis_aligned_repair_vector_prompt(record)
+    assert str(record.labels.intersection_volume) not in vector_prompt
+    assert record.labels.relation not in vector_prompt
+
+    program_prompt = make_axis_aligned_repair_program_prompt(record)
+    assert str(record.labels.intersection_volume) not in program_prompt
+    assert record.labels.relation not in program_prompt
+
+    target_repair_prompt = make_target_clearance_repair_prompt(record)
+    assert str(record.labels.intersection_volume) not in target_repair_prompt
+    assert record.labels.relation not in target_repair_prompt
+
+    move_record = fixture_geometry_records(config.label_policy, config.config_hash)[0]
+    move_metadata = target_clearance_move_metadata(move_record)
+    assert move_metadata is not None
+    target_move_prompt = make_target_clearance_move_prompt(move_record, move_metadata)
+    assert str(move_record.labels.minimum_distance) not in target_move_prompt
+    assert move_record.labels.relation not in target_move_prompt
+
+    contact_metadata = target_contact_move_metadata(move_record)
+    assert contact_metadata is not None
+    contact_prompt = make_target_contact_move_prompt(move_record, contact_metadata)
+    assert str(move_record.labels.minimum_distance) not in contact_prompt
+    assert move_record.labels.relation not in contact_prompt
+
+    centroid_metadata = centroid_distance_move_metadata(move_record)
+    assert centroid_metadata is not None
+    centroid_prompt = make_centroid_distance_move_prompt(move_record, centroid_metadata)
+    assert str(move_record.labels.minimum_distance) not in centroid_prompt
+    assert move_record.labels.relation not in centroid_prompt
 
 
 def test_materialized_rows_validate_answers():
@@ -166,6 +228,109 @@ def test_repair_translation_rows_use_canonical_six_decimal_answer():
         assert direction == row.metadata["selected_direction"]
         assert magnitude == f"{float(row.metadata['selected_magnitude_mm']):.6f}"
         assert parse_answer(TaskType.REPAIR_TRANSLATION, row.answer) == row.answer
+
+
+def test_epic15_exact_repair_and_candidate_rows_materialize_from_positive_overlap():
+    config = DatasetConfig()
+    record = fixture_geometry_records(config.label_policy, config.config_hash)[2]
+    splits = {record.geometry_id: "train"}
+
+    rows = materialize_rows(
+        [record],
+        splits,
+        [
+            TaskType.AXIS_ALIGNED_REPAIR,
+            TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+            TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+            TaskType.TARGET_CLEARANCE_REPAIR,
+            TaskType.EDIT_CANDIDATE_SELECTION,
+            TaskType.EDIT_CANDIDATE_RANKING,
+        ],
+    )
+    by_task = {row.task_type: row for row in rows}
+
+    assert set(by_task) == {
+        TaskType.AXIS_ALIGNED_REPAIR,
+        TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+        TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+        TaskType.TARGET_CLEARANCE_REPAIR,
+        TaskType.EDIT_CANDIDATE_SELECTION,
+        TaskType.EDIT_CANDIDATE_RANKING,
+    }
+    axis_row = by_task[TaskType.AXIS_ALIGNED_REPAIR]
+    vector_row = by_task[TaskType.AXIS_ALIGNED_REPAIR_VECTOR]
+    program_row = by_task[TaskType.AXIS_ALIGNED_REPAIR_PROGRAM]
+    target_row = by_task[TaskType.TARGET_CLEARANCE_REPAIR]
+    selection_row = by_task[TaskType.EDIT_CANDIDATE_SELECTION]
+    ranking_row = by_task[TaskType.EDIT_CANDIDATE_RANKING]
+
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR, axis_row.answer) == axis_row.answer
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR_VECTOR, vector_row.answer) == vector_row.answer
+    assert parse_answer(TaskType.AXIS_ALIGNED_REPAIR_PROGRAM, program_row.answer) == program_row.answer
+    assert parse_answer(TaskType.TARGET_CLEARANCE_REPAIR, target_row.answer) == target_row.answer
+    assert axis_row.metadata["edit_policy"] == "exact_axis_aligned_cardinal_search_v01"
+    assert vector_row.metadata["output_format"] == "translation_vector"
+    assert program_row.metadata["output_format"] == "edit_program"
+    assert vector_row.metadata["selected_translation_vector_mm"] == program_row.metadata["selected_translation_vector_mm"]
+    assert target_row.metadata["target"]["target_clearance_mm"] == 1.0
+    assert target_row.metadata["verification"]["satisfies_target"] is True
+    assert selection_row.answer == selection_row.metadata["candidate_selection_answer"]
+    assert ranking_row.answer == ranking_row.metadata["candidate_ranking_answer"]
+    assert set(selection_row.metadata["candidate_edits"]) == {"A", "B", "C", "D"}
+    assert parse_answer(TaskType.EDIT_CANDIDATE_SELECTION, selection_row.answer) == selection_row.answer
+    assert parse_answer(TaskType.EDIT_CANDIDATE_RANKING, ranking_row.answer) == ranking_row.answer
+
+
+def test_target_clearance_move_rows_materialize_from_disjoint_records():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+
+    rows = materialize_rows(records, splits, [TaskType.TARGET_CLEARANCE_MOVE])
+
+    assert rows
+    assert all(row.task_type == TaskType.TARGET_CLEARANCE_MOVE for row in rows)
+    assert all(row.labels.relation in {Relation.DISJOINT, Relation.NEAR_MISS} for row in rows)
+    for row in rows:
+        assert parse_answer(TaskType.TARGET_CLEARANCE_MOVE, row.answer) == row.answer
+        assert row.metadata["target"]["target_clearance_mm"] == 1.0
+        assert row.metadata["verification"]["satisfies_target"] is True
+        assert row.metadata["allowed_edit"]["edit_type"] == "signed_translation_distance"
+
+
+def test_target_contact_move_rows_materialize_from_disjoint_records():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+
+    rows = materialize_rows(records, splits, [TaskType.TARGET_CONTACT_MOVE])
+
+    assert rows
+    assert all(row.task_type == TaskType.TARGET_CONTACT_MOVE for row in rows)
+    assert all(row.labels.relation in {Relation.DISJOINT, Relation.NEAR_MISS} for row in rows)
+    for row in rows:
+        assert parse_answer(TaskType.TARGET_CONTACT_MOVE, row.answer) == row.answer
+        assert row.metadata["target"]["target_clearance_mm"] == 0.0
+        assert row.metadata["target"]["allow_touching"] is True
+        assert row.metadata["verification"]["satisfies_target"] is True
+
+
+def test_centroid_distance_move_rows_materialize_from_non_intersecting_records():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+
+    rows = materialize_rows(records, splits, [TaskType.CENTROID_DISTANCE_MOVE])
+
+    assert rows
+    assert all(row.task_type == TaskType.CENTROID_DISTANCE_MOVE for row in rows)
+    assert all(row.labels.relation in {Relation.DISJOINT, Relation.NEAR_MISS, Relation.TOUCHING} for row in rows)
+    for row in rows:
+        assert parse_answer(TaskType.CENTROID_DISTANCE_MOVE, row.answer) == row.answer
+        assert row.metadata["edit_policy"] == "exact_centroid_direction_move_v01"
+        assert row.metadata["target"]["type"] == "centroid_distance"
+        assert row.metadata["allowed_edit"]["edit_type"] == "signed_centroid_direction_distance"
+        assert row.metadata["verification"]["satisfies_target"] is True
 
 
 def test_repair_direction_policy_chooses_smallest_aabb_separating_move():

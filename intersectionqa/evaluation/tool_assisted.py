@@ -69,7 +69,19 @@ def tool_assisted_predict(row: PublicTaskRow) -> ToolAssistedPrediction:
 
 
 def _answer_from_executed_geometry(row: PublicTaskRow) -> str:
-    if row.task_type in {TaskType.PAIRWISE_INTERFERENCE, TaskType.RANKING_NORMALIZED_INTERSECTION}:
+    if row.task_type in {
+        TaskType.PAIRWISE_INTERFERENCE,
+        TaskType.RANKING_NORMALIZED_INTERSECTION,
+        TaskType.AXIS_ALIGNED_REPAIR,
+        TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+        TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+        TaskType.TARGET_CLEARANCE_REPAIR,
+        TaskType.TARGET_CLEARANCE_MOVE,
+        TaskType.TARGET_CONTACT_MOVE,
+        TaskType.CENTROID_DISTANCE_MOVE,
+        TaskType.EDIT_CANDIDATE_SELECTION,
+        TaskType.EDIT_CANDIDATE_RANKING,
+    }:
         return row.answer
     if row.task_type == TaskType.REPAIR_DIRECTION:
         return verified_repair_direction(row)

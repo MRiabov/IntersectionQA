@@ -22,6 +22,12 @@ from intersectionqa.enums import (
 )
 
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+TRANSLATION_VECTOR_ANSWER_RE = re.compile(
+    r"^dx=(-?[0-9]+(?:\.[0-9]+)?), dy=(-?[0-9]+(?:\.[0-9]+)?), dz=(-?[0-9]+(?:\.[0-9]+)?)$"
+)
+EDIT_PROGRAM_ANSWER_RE = re.compile(
+    r"^object_b = object_b\.translate\(\((-?[0-9]+(?:\.[0-9]+)?), (-?[0-9]+(?:\.[0-9]+)?), (-?[0-9]+(?:\.[0-9]+)?)\)\)$"
+)
 
 DIFFICULTY_TAGS = {
     "axis_aligned",
@@ -320,6 +326,32 @@ class PublicTaskRow(StrictModel):
                 raise ValueError("repair_translation rows require positive-overlap relation")
             if self.answer != _expected_repair_translation(self.metadata):
                 raise ValueError("repair_translation answer does not match repair metadata")
+        if self.task_type in {TaskType.AXIS_ALIGNED_REPAIR, TaskType.TARGET_CLEARANCE_REPAIR}:
+            if self.labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+                raise ValueError(f"{self.task_type} rows require positive-overlap relation")
+            if self.answer != _expected_axis_aligned_repair(self.metadata):
+                raise ValueError(f"{self.task_type} answer does not match edit metadata")
+        if self.task_type in {TaskType.AXIS_ALIGNED_REPAIR_VECTOR, TaskType.AXIS_ALIGNED_REPAIR_PROGRAM}:
+            if self.labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+                raise ValueError(f"{self.task_type} rows require positive-overlap relation")
+            if self.answer != _expected_axis_aligned_repair_vector_or_program(self.metadata, self.task_type):
+                raise ValueError(f"{self.task_type} answer does not match edit metadata")
+        if self.task_type in {TaskType.TARGET_CLEARANCE_MOVE, TaskType.TARGET_CONTACT_MOVE}:
+            if self.labels.relation not in {Relation.DISJOINT, Relation.NEAR_MISS}:
+                raise ValueError(f"{self.task_type} rows require non-intersecting relation")
+            if self.answer != _expected_target_clearance_move(self.metadata):
+                raise ValueError(f"{self.task_type} answer does not match edit metadata")
+        if self.task_type == TaskType.CENTROID_DISTANCE_MOVE:
+            if self.labels.relation not in {Relation.DISJOINT, Relation.NEAR_MISS, Relation.TOUCHING}:
+                raise ValueError("centroid_distance_move rows require non-intersecting relation")
+            if self.answer != _expected_centroid_distance_move(self.metadata):
+                raise ValueError("centroid_distance_move answer does not match edit metadata")
+        if self.task_type == TaskType.EDIT_CANDIDATE_SELECTION:
+            if self.answer != _expected_candidate_selection(self.metadata):
+                raise ValueError("edit_candidate_selection answer does not match candidate metadata")
+        if self.task_type == TaskType.EDIT_CANDIDATE_RANKING:
+            if self.answer != _expected_candidate_ranking(self.metadata):
+                raise ValueError("edit_candidate_ranking answer does not match candidate metadata")
         if self.hashes.prompt_hash is None:
             raise ValueError("public task rows require prompt_hash")
         required = [
@@ -479,6 +511,250 @@ def _expected_repair_translation(metadata: dict[str, Any]) -> str:
     return f"{direction} {magnitude:.6f}"
 
 
+def _expected_axis_aligned_repair(metadata: dict[str, Any]) -> str:
+    if metadata.get("edit_policy") != "exact_axis_aligned_cardinal_search_v01":
+        raise ValueError("axis-aligned repair rows require exact cardinal search policy")
+    if metadata.get("movable_object") != "object_b" or metadata.get("fixed_object") != "object_a":
+        raise ValueError("axis-aligned repair rows require object_b movable and object_a fixed")
+    selected = metadata.get("selected_direction")
+    allowed = {"+x", "-x", "+y", "-y", "+z", "-z"}
+    if selected not in allowed:
+        raise ValueError("axis-aligned repair selected_direction is invalid")
+    exact_magnitude = _finite_nonnegative_metadata_float(metadata, "selected_exact_magnitude_mm")
+    label_magnitude = _finite_nonnegative_metadata_float(metadata, "selected_magnitude_mm")
+    if label_magnitude + 1e-9 < exact_magnitude:
+        raise ValueError("axis-aligned repair label magnitude must not undershoot exact magnitude")
+    selected_vector = _metadata_vector(metadata, "selected_translation_vector_mm")
+    if not math.isclose(label_magnitude, _vector_magnitude_l1(selected_vector), abs_tol=1e-9):
+        raise ValueError("axis-aligned repair selected magnitude must match translation vector")
+    _validate_repair_vector_direction(str(selected), selected_vector)
+    structured = metadata.get("structured_answer")
+    if not isinstance(structured, dict):
+        raise ValueError("axis-aligned repair rows require structured_answer")
+    if structured.get("direction") != selected:
+        raise ValueError("structured answer direction must match selected direction")
+    if not math.isclose(float(structured.get("distance_mm")), label_magnitude, abs_tol=1e-9):
+        raise ValueError("structured answer distance must match selected magnitude")
+    verification = metadata.get("verification")
+    if not isinstance(verification, dict) or verification.get("satisfies_target") is not True:
+        raise ValueError("axis-aligned repair verification must satisfy target")
+    target = metadata.get("target")
+    if not isinstance(target, dict) or target.get("type") not in {"non_intersection", "clearance"}:
+        raise ValueError("axis-aligned repair rows require target metadata")
+    allowed_edit = metadata.get("allowed_edit")
+    if not isinstance(allowed_edit, dict) or allowed_edit.get("directions") != [
+        "+x",
+        "-x",
+        "+y",
+        "-y",
+        "+z",
+        "-z",
+    ]:
+        raise ValueError("axis-aligned repair rows require cardinal allowed directions")
+    candidates = metadata.get("candidate_moves")
+    if not isinstance(candidates, list) or len(candidates) != 6:
+        raise ValueError("axis-aligned repair rows require six candidate moves")
+    selected_candidate = None
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            raise ValueError("axis-aligned repair candidates must be objects")
+        direction = candidate.get("direction")
+        if direction not in allowed:
+            raise ValueError("axis-aligned repair candidate direction is invalid")
+        candidate_exact = _finite_nonnegative_metadata_float(candidate, "exact_magnitude_mm")
+        candidate_label = _finite_nonnegative_metadata_float(candidate, "label_magnitude_mm")
+        if candidate_label + 1e-9 < candidate_exact:
+            raise ValueError("axis-aligned repair candidate label must not undershoot exact magnitude")
+        vector = _metadata_vector(candidate, "translation_vector_mm")
+        if not math.isclose(candidate_label, _vector_magnitude_l1(vector), abs_tol=1e-9):
+            raise ValueError("axis-aligned repair candidate magnitude must match translation vector")
+        _validate_repair_vector_direction(str(direction), vector)
+        if direction == selected:
+            selected_candidate = candidate
+    if selected_candidate is None:
+        raise ValueError("axis-aligned repair selected candidate missing")
+    expected_selected = min(
+        candidates,
+        key=lambda item: (
+            float(item["exact_magnitude_mm"]),
+            ["+x", "-x", "+y", "-y", "+z", "-z"].index(str(item["direction"])),
+        ),
+    )
+    if expected_selected.get("direction") != selected:
+        raise ValueError("axis-aligned repair selected direction does not match exact policy")
+    return f"direction={selected}, distance_mm={label_magnitude:.1f}"
+
+
+def _expected_axis_aligned_repair_vector_or_program(
+    metadata: dict[str, Any],
+    task_type: TaskType,
+) -> str:
+    _expected_axis_aligned_repair(metadata)
+    vector = _metadata_vector(metadata, "selected_translation_vector_mm")
+    structured = metadata.get("structured_answer")
+    if not isinstance(structured, dict):
+        raise ValueError("axis-aligned repair vector/program rows require structured_answer")
+    structured_vector = _metadata_vector(structured, "translation")
+    if any(not math.isclose(vector[index], structured_vector[index], abs_tol=1e-9) for index in range(3)):
+        raise ValueError("structured answer translation must match selected vector")
+    dx, dy, dz = vector
+    if task_type == TaskType.AXIS_ALIGNED_REPAIR_VECTOR:
+        if metadata.get("output_format") != "translation_vector":
+            raise ValueError("axis_aligned_repair_vector rows require translation_vector output_format")
+        return f"dx={dx:.1f}, dy={dy:.1f}, dz={dz:.1f}"
+    if metadata.get("output_format") != "edit_program":
+        raise ValueError("axis_aligned_repair_program rows require edit_program output_format")
+    if metadata.get("edit_program_language") != "cadquery_python":
+        raise ValueError("axis_aligned_repair_program rows require cadquery_python language")
+    return f"object_b = object_b.translate(({dx:.1f}, {dy:.1f}, {dz:.1f}))"
+
+
+def _expected_target_clearance_move(metadata: dict[str, Any]) -> str:
+    if metadata.get("edit_policy") != "exact_axis_aligned_cardinal_search_v01":
+        raise ValueError("target_clearance_move rows require exact cardinal search policy")
+    if metadata.get("movable_object") != "object_b" or metadata.get("fixed_object") != "object_a":
+        raise ValueError("target_clearance_move rows require object_b movable and object_a fixed")
+    allowed_edit = metadata.get("allowed_edit")
+    if not isinstance(allowed_edit, dict):
+        raise ValueError("target_clearance_move rows require allowed_edit")
+    direction = allowed_edit.get("direction")
+    if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"}:
+        raise ValueError("target_clearance_move direction is invalid")
+    if allowed_edit.get("edit_type") != "signed_translation_distance":
+        raise ValueError("target_clearance_move rows require signed distance edit type")
+    signed_distance = _finite_metadata_float(metadata, "selected_signed_distance_mm")
+    signed_exact = _finite_metadata_float(metadata, "selected_signed_exact_distance_mm")
+    if abs(signed_distance - signed_exact) > 0.2:
+        raise ValueError("target_clearance_move rounded distance is too far from exact distance")
+    vector = _metadata_vector(metadata, "selected_translation_vector_mm")
+    if not math.isclose(abs(signed_distance), _vector_magnitude_l1(vector), abs_tol=1e-9):
+        raise ValueError("target_clearance_move signed distance must match vector magnitude")
+    _validate_signed_direction_vector(str(direction), signed_distance, vector)
+    structured = metadata.get("structured_answer")
+    if not isinstance(structured, dict):
+        raise ValueError("target_clearance_move rows require structured_answer")
+    if not math.isclose(float(structured.get("distance_mm")), signed_distance, abs_tol=1e-9):
+        raise ValueError("target_clearance_move structured answer must match selected distance")
+    verification = metadata.get("verification")
+    if not isinstance(verification, dict) or verification.get("satisfies_target") is not True:
+        raise ValueError("target_clearance_move verification must satisfy target")
+    target = metadata.get("target")
+    if not isinstance(target, dict) or target.get("type") != "clearance":
+        raise ValueError("target_clearance_move rows require clearance target")
+    return f"distance_mm={signed_distance:.1f}"
+
+
+def _expected_centroid_distance_move(metadata: dict[str, Any]) -> str:
+    if metadata.get("edit_policy") != "exact_centroid_direction_move_v01":
+        raise ValueError("centroid_distance_move rows require exact centroid-direction policy")
+    if metadata.get("movable_object") != "object_b" or metadata.get("fixed_object") != "object_a":
+        raise ValueError("centroid_distance_move rows require object_b movable and object_a fixed")
+    allowed_edit = metadata.get("allowed_edit")
+    if not isinstance(allowed_edit, dict):
+        raise ValueError("centroid_distance_move rows require allowed_edit")
+    if allowed_edit.get("edit_type") != "signed_centroid_direction_distance":
+        raise ValueError("centroid_distance_move rows require signed centroid-direction edit type")
+    direction = _metadata_vector(allowed_edit, "direction_vector")
+    if not math.isclose(_vector_magnitude_l2(direction), 1.0, abs_tol=1e-9):
+        raise ValueError("centroid_distance_move direction_vector must be unit length")
+    signed_distance = _finite_metadata_float(metadata, "selected_signed_distance_mm")
+    signed_exact = _finite_metadata_float(metadata, "selected_signed_exact_distance_mm")
+    if abs(signed_distance - signed_exact) > 0.2:
+        raise ValueError("centroid_distance_move rounded distance is too far from exact distance")
+    vector = _metadata_vector(metadata, "selected_translation_vector_mm")
+    if not math.isclose(abs(signed_distance), _vector_magnitude_l2(vector), abs_tol=1e-9):
+        raise ValueError("centroid_distance_move signed distance must match vector magnitude")
+    expected_vector = tuple(component * signed_distance for component in direction)
+    if any(not math.isclose(vector[index], expected_vector[index], abs_tol=1e-9) for index in range(3)):
+        raise ValueError("centroid_distance_move vector must follow direction_vector and signed distance")
+    structured = metadata.get("structured_answer")
+    if not isinstance(structured, dict):
+        raise ValueError("centroid_distance_move rows require structured_answer")
+    if not math.isclose(float(structured.get("distance_mm")), signed_distance, abs_tol=1e-9):
+        raise ValueError("centroid_distance_move structured answer must match selected distance")
+    structured_direction = _metadata_vector(structured, "direction_vector")
+    if any(not math.isclose(structured_direction[index], direction[index], abs_tol=1e-9) for index in range(3)):
+        raise ValueError("centroid_distance_move structured direction must match allowed direction")
+    target = metadata.get("target")
+    if not isinstance(target, dict) or target.get("type") != "centroid_distance":
+        raise ValueError("centroid_distance_move rows require centroid_distance target")
+    _finite_metadata_float(target, "target_centroid_distance_mm")
+    verification = metadata.get("verification")
+    if not isinstance(verification, dict) or verification.get("satisfies_target") is not True:
+        raise ValueError("centroid_distance_move verification must satisfy target")
+    return f"distance_mm={signed_distance:.1f}"
+
+
+def _expected_candidate_selection(metadata: dict[str, Any]) -> str:
+    candidates = _candidate_edits(metadata)
+    expected = _rank_candidate_edits(candidates)[0]
+    stored = metadata.get("candidate_selection_answer")
+    if stored != expected:
+        raise ValueError("candidate selection metadata answer does not match ranked candidates")
+    return expected
+
+
+def _expected_candidate_ranking(metadata: dict[str, Any]) -> str:
+    candidates = _candidate_edits(metadata)
+    expected = "".join(_rank_candidate_edits(candidates))
+    stored = metadata.get("candidate_ranking_answer")
+    if stored != expected:
+        raise ValueError("candidate ranking metadata answer does not match ranked candidates")
+    return expected
+
+
+def _candidate_edits(metadata: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if metadata.get("edit_policy") != "exact_axis_aligned_cardinal_search_v01":
+        raise ValueError("candidate edit rows require exact cardinal search policy")
+    target = metadata.get("target")
+    if not isinstance(target, dict) or target.get("type") != "clearance":
+        raise ValueError("candidate edit rows require clearance target metadata")
+    candidates = metadata.get("candidate_edits")
+    if not isinstance(candidates, dict) or set(candidates) != {"A", "B", "C", "D"}:
+        raise ValueError("candidate edit rows require A-D candidates")
+    result: dict[str, dict[str, Any]] = {}
+    for label, candidate in candidates.items():
+        if not isinstance(candidate, dict):
+            raise ValueError("candidate edit entries must be objects")
+        direction = candidate.get("direction")
+        if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"}:
+            raise ValueError("candidate edit direction is invalid")
+        magnitude = _finite_nonnegative_metadata_float(candidate, "magnitude_mm")
+        movement = _finite_nonnegative_metadata_float(candidate, "movement_magnitude")
+        if not math.isclose(magnitude, movement, abs_tol=1e-9):
+            raise ValueError("candidate edit movement must match magnitude")
+        vector = _metadata_vector(candidate, "translation_vector_mm")
+        if not math.isclose(magnitude, _vector_magnitude_l1(vector), abs_tol=1e-9):
+            raise ValueError("candidate edit magnitude must match vector")
+        _validate_repair_vector_direction(str(direction), vector)
+        if not isinstance(candidate.get("satisfies_target"), bool):
+            raise ValueError("candidate edit requires satisfies_target boolean")
+        if not isinstance(candidate.get("no_interference"), bool):
+            raise ValueError("candidate edit requires no_interference boolean")
+        result[str(label)] = candidate
+    return result
+
+
+def _rank_candidate_edits(candidates: dict[str, dict[str, Any]]) -> list[str]:
+    return [
+        label
+        for label, _ in sorted(
+            candidates.items(),
+            key=lambda item: (
+                0 if item[1].get("satisfies_target") else 1,
+                0 if item[1].get("no_interference") else 1,
+                float(item[1]["movement_magnitude"]),
+                (
+                    float(item[1]["clearance_error_mm"])
+                    if isinstance(item[1].get("clearance_error_mm"), int | float)
+                    else math.inf
+                ),
+                item[0],
+            ),
+        )
+    ]
+
+
 def _finite_nonnegative_metadata_float(metadata: dict[str, Any], key: str) -> float:
     value = metadata.get(key)
     if not isinstance(value, int | float):
@@ -486,6 +762,16 @@ def _finite_nonnegative_metadata_float(metadata: dict[str, Any], key: str) -> fl
     value = float(value)
     if not math.isfinite(value) or value < 0.0:
         raise ValueError(f"{key} must be finite and non-negative")
+    return value
+
+
+def _finite_metadata_float(metadata: dict[str, Any], key: str) -> float:
+    value = metadata.get(key)
+    if not isinstance(value, int | float):
+        raise ValueError(f"{key} must be numeric")
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"{key} must be finite")
     return value
 
 
@@ -504,6 +790,10 @@ def _vector_magnitude_l1(vector: tuple[float, float, float]) -> float:
     return sum(abs(item) for item in vector)
 
 
+def _vector_magnitude_l2(vector: tuple[float, float, float]) -> float:
+    return math.sqrt(sum(item * item for item in vector))
+
+
 def _validate_repair_vector_direction(direction: str, vector: tuple[float, float, float]) -> None:
     axis_by_name = {"x": 0, "y": 1, "z": 2}
     axis = axis_by_name[direction[1]]
@@ -515,6 +805,22 @@ def _validate_repair_vector_direction(direction: str, vector: tuple[float, float
         raise ValueError("repair_direction vector sign does not match direction")
     if direction[0] == "-" and axis_value > 1e-9:
         raise ValueError("repair_direction vector sign does not match direction")
+
+
+def _validate_signed_direction_vector(
+    direction: str,
+    signed_distance: float,
+    vector: tuple[float, float, float],
+) -> None:
+    axis_by_name = {"x": 0, "y": 1, "z": 2}
+    axis = axis_by_name[direction[1]]
+    for index, value in enumerate(vector):
+        if index != axis and not math.isclose(value, 0.0, abs_tol=1e-9):
+            raise ValueError("target_clearance_move vector must move only along its direction axis")
+    direction_sign = 1.0 if direction[0] == "+" else -1.0
+    expected_axis_value = direction_sign * signed_distance
+    if not math.isclose(vector[axis], expected_axis_value, abs_tol=1e-9):
+        raise ValueError("target_clearance_move vector sign does not match signed distance")
 
 
 class FailureRecord(StrictModel):

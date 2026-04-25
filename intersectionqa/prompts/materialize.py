@@ -11,7 +11,19 @@ from intersectionqa.prompts.buckets import materialize_clearance_bucket_row, mat
 from intersectionqa.prompts.counterfactual import materialize_pairwise_rows
 from intersectionqa.prompts.fit import materialize_tolerance_fit_row
 from intersectionqa.prompts.ranking import materialize_ranking_rows
-from intersectionqa.prompts.repair import materialize_repair_direction_row, materialize_repair_translation_row
+from intersectionqa.prompts.repair import (
+    materialize_centroid_distance_move_row,
+    materialize_axis_aligned_repair_row,
+    materialize_axis_aligned_repair_program_row,
+    materialize_axis_aligned_repair_vector_row,
+    materialize_candidate_ranking_row,
+    materialize_candidate_selection_row,
+    materialize_repair_direction_row,
+    materialize_repair_translation_row,
+    materialize_target_contact_move_row,
+    materialize_target_clearance_move_row,
+    materialize_target_clearance_repair_row,
+)
 from intersectionqa.prompts.relation import materialize_relation_row
 from intersectionqa.schema import GeometryRecord, PublicTaskRow
 
@@ -22,6 +34,15 @@ SINGLE_RECORD_MATERIALIZERS = {
     TaskType.CLEARANCE_BUCKET: materialize_clearance_bucket_row,
     TaskType.REPAIR_DIRECTION: materialize_repair_direction_row,
     TaskType.REPAIR_TRANSLATION: materialize_repair_translation_row,
+    TaskType.AXIS_ALIGNED_REPAIR: materialize_axis_aligned_repair_row,
+    TaskType.AXIS_ALIGNED_REPAIR_VECTOR: materialize_axis_aligned_repair_vector_row,
+    TaskType.AXIS_ALIGNED_REPAIR_PROGRAM: materialize_axis_aligned_repair_program_row,
+    TaskType.TARGET_CLEARANCE_REPAIR: materialize_target_clearance_repair_row,
+    TaskType.TARGET_CLEARANCE_MOVE: materialize_target_clearance_move_row,
+    TaskType.TARGET_CONTACT_MOVE: materialize_target_contact_move_row,
+    TaskType.CENTROID_DISTANCE_MOVE: materialize_centroid_distance_move_row,
+    TaskType.EDIT_CANDIDATE_SELECTION: materialize_candidate_selection_row,
+    TaskType.EDIT_CANDIDATE_RANKING: materialize_candidate_ranking_row,
     TaskType.TOLERANCE_FIT: materialize_tolerance_fit_row,
 }
 

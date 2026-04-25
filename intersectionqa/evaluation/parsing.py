@@ -57,6 +57,13 @@ REPAIR_TRANSLATION_RE = re.compile(r"^(\+x|-x|\+y|-y|\+z|-z) ([0-9]+)\.([0-9]{6}
 AXIS_ALIGNED_REPAIR_RE = re.compile(
     r"^direction=(\+x|-x|\+y|-y|\+z|-z), distance_mm=([0-9]+)\.([0-9])$"
 )
+SIGNED_DISTANCE_RE = re.compile(r"^distance_mm=(-?[0-9]+)\.([0-9])$")
+TRANSLATION_VECTOR_RE = re.compile(
+    r"^dx=(-?[0-9]+)\.([0-9]), dy=(-?[0-9]+)\.([0-9]), dz=(-?[0-9]+)\.([0-9])$"
+)
+EDIT_PROGRAM_RE = re.compile(
+    r"^object_b = object_b\.translate\(\((-?[0-9]+)\.([0-9]), (-?[0-9]+)\.([0-9]), (-?[0-9]+)\.([0-9])\)\)$"
+)
 EDIT_CANDIDATE_SELECTION_ANSWERS = {"A", "B", "C", "D"}
 EDIT_CANDIDATE_RANKING_ANSWERS = {
     "".join(items)
@@ -98,6 +105,28 @@ def parse_answer(task_type: TaskType, output: str) -> str | None:
             return None
         magnitude = float(f"{match.group(2)}.{match.group(3)}")
         return stripped if math.isfinite(magnitude) else None
+    if task_type in {
+        TaskType.TARGET_CLEARANCE_MOVE,
+        TaskType.TARGET_CONTACT_MOVE,
+        TaskType.CENTROID_DISTANCE_MOVE,
+    }:
+        match = SIGNED_DISTANCE_RE.match(stripped)
+        if match is None:
+            return None
+        magnitude = float(f"{match.group(1)}.{match.group(2)}")
+        return stripped if math.isfinite(magnitude) else None
+    if task_type == TaskType.AXIS_ALIGNED_REPAIR_VECTOR:
+        match = TRANSLATION_VECTOR_RE.match(stripped)
+        if match is None:
+            return None
+        values = [float(f"{match.group(index)}.{match.group(index + 1)}") for index in (1, 3, 5)]
+        return stripped if all(math.isfinite(value) for value in values) else None
+    if task_type == TaskType.AXIS_ALIGNED_REPAIR_PROGRAM:
+        match = EDIT_PROGRAM_RE.match(stripped)
+        if match is None:
+            return None
+        values = [float(f"{match.group(index)}.{match.group(index + 1)}") for index in (1, 3, 5)]
+        return stripped if all(math.isfinite(value) for value in values) else None
     allowed = ALLOWED_BY_TASK.get(task_type)
     if allowed is None:
         raise ValueError(f"unsupported task type for strict parsing: {task_type}")

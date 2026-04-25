@@ -222,6 +222,25 @@ def _known_limitations(rows: list[PublicTaskRow]) -> list[str]:
             "repair_translation is an opt-in IntersectionEdit slice using a "
             "conservative AABB-separating magnitude, not exact minimal CAD repair."
         )
+    if any(
+        row.task_type
+        in {
+            TaskType.AXIS_ALIGNED_REPAIR,
+            TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+            TaskType.AXIS_ALIGNED_REPAIR_PROGRAM,
+            TaskType.TARGET_CLEARANCE_REPAIR,
+            TaskType.TARGET_CLEARANCE_MOVE,
+            TaskType.TARGET_CONTACT_MOVE,
+            TaskType.CENTROID_DISTANCE_MOVE,
+            TaskType.EDIT_CANDIDATE_SELECTION,
+            TaskType.EDIT_CANDIDATE_RANKING,
+        }
+        for row in rows
+    ):
+        limitations.append(
+            "Epic 15 IntersectionEdit rows are opt-in constrained-direction tasks; "
+            "they do not attempt arbitrary 3D minimum translation vectors."
+        )
     return limitations
 
 
