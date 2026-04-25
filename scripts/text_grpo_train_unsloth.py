@@ -82,8 +82,9 @@ def main() -> None:
         load_in_16bit=args.load_in_16bit,
         full_finetuning=False,
     )
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    text_tokenizer = text_tokenizer_from_processing_class(tokenizer)
+    if text_tokenizer.pad_token is None:
+        text_tokenizer.pad_token = text_tokenizer.eos_token
     model = FastModel.get_peft_model(
         model,
         finetune_language_layers=True,
@@ -354,6 +355,7 @@ def generate_predictions(
     max_new_tokens: int,
 ) -> list[Prediction]:
     predictions: list[Prediction] = []
+    text_tokenizer = text_tokenizer_from_processing_class(tokenizer)
     model.eval()
     with torch.no_grad():
         for row in rows:
@@ -361,18 +363,24 @@ def generate_predictions(
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": row.prompt},
             ]
-            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            inputs = tokenizer(text, return_tensors="pt").to(model.device)
+            text = text_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            inputs = text_tokenizer(text, return_tensors="pt").to(model.device)
             output_ids = model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
-                pad_token_id=tokenizer.pad_token_id,
+                pad_token_id=text_tokenizer.pad_token_id,
             )
             completion_ids = output_ids[0, inputs["input_ids"].shape[-1] :]
-            predictions.append(Prediction(row_id=row.id, output=tokenizer.decode(completion_ids, skip_special_tokens=True).strip()))
+            predictions.append(
+                Prediction(row_id=row.id, output=text_tokenizer.decode(completion_ids, skip_special_tokens=True).strip())
+            )
     model.train()
     return predictions
+
+
+def text_tokenizer_from_processing_class(processing_class: Any) -> Any:
+    return getattr(processing_class, "tokenizer", processing_class)
 
 
 if __name__ == "__main__":
