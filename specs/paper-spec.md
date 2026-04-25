@@ -1,3 +1,7 @@
+Note: This specification describes IntersectionQA v0.1. Shared geometry, split,
+provenance, and verifier concepts may be reused by IntersectionEdit, but task
+semantics here are QA-specific unless stated otherwise.
+
 Your core idea is strong because it isolates a capability that CAD-generation papers often hide inside “final model similarity”: spatial reasoning over exact executable CAD programs.
 
 The main improvement is to frame IntersectionQA not as “another CAD benchmark”, but as a controlled geometry-grounding benchmark for code models: can a model mentally execute CadQuery enough to infer contact, penetration, clearance, and relative transforms?

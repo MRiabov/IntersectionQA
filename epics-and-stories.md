@@ -4,6 +4,11 @@
 
 Deliver **IntersectionQA**, a research paper and accompanying dataset for evaluating and training models on CAD-code spatial reasoning, especially interference, contact, clearance, and intersection-volume estimation from CadQuery assemblies. The v0.1 MVP focuses on two-object closed-book tasks; ranking, repair-direction, tolerance-fit, multimodal, and multi-object tasks remain reserved extensions unless a later release promotes them.
 
+Backlog note: after the IntersectionQA v0.1 freeze, this repository is becoming
+an IntersectionQA-first shared benchmark codebase for future shared-core and
+IntersectionEdit planning. Existing IntersectionQA stories remain the canonical
+v0.1 backlog unless explicitly updated.
+
 ---
 
 # Epic 1: Research Scope and Paper Framing

@@ -1,5 +1,9 @@
 # Benchmark Task Specification: IntersectionQA
 
+Note: This specification describes IntersectionQA v0.1. Shared geometry, split,
+provenance, and verifier concepts may be reused by IntersectionEdit, but task
+semantics here are QA-specific unless stated otherwise.
+
 This document freezes the task definitions for the first IntersectionQA implementation. It is intentionally implementation-facing: prompt generation, answer parsing, metrics, and dataset schema should be derivable from this file without guessing.
 
 Threshold constants, kernel tolerances, and exact numeric epsilon values belong in `specs/label_rules.md`. This file defines task semantics, required fields, and answer contracts.

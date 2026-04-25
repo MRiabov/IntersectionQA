@@ -6,16 +6,27 @@ code-only, two-object benchmark derived primarily from CADEvolve programs, with
 small synthetic fixtures used only for golden tests, smoke/debug cases, and
 local fallback.
 
+This repository is currently IntersectionQA-first, but is evolving into shared
+benchmark tooling for IntersectionQA and a future IntersectionEdit task family.
+IntersectionQA covers diagnostic and question-answering tasks over CAD
+intersections. IntersectionEdit is reserved for edit, repair, and action tasks
+over the same geometry and verifier infrastructure. The shared core is expected
+to own geometry, CadQuery execution, transforms, grouping, splitting, leakage
+audits, export, evaluation, and verifier/reward logic. IntersectionEdit is not
+implemented yet.
+
 ## Canonical Specification Map
 
 Use these documents in `specs/` as the source of truth:
 
 | Document | Authority |
 | --- | --- |
+| `specs/benchmark-family.md` | Umbrella direction for the IntersectionQA-first shared benchmark codebase and future IntersectionEdit sibling task family. |
 | `specs/benchmark-task-spec.md` | Task semantics, prompt contracts, answer formats, parser behavior, and MVP task scope. |
 | `specs/label_rules.md` | Official geometry-label precedence, thresholds, bucket boundaries, failure reasons, and golden cases. |
 | `specs/schema.md` | Canonical internal records, public JSONL row schema, metadata files, manifests, hashes, IDs, and validation requirements. |
 | `specs/generation_policy.md` | Candidate generation, CADEvolve source policy, sampling, balancing, split grouping, diagnostics, and anti-patterns. |
+| `specs/intersectionedit-task-spec.md` | Draft seed specification for future IntersectionEdit edit/repair/action tasks; not an implemented v0.1 contract. |
 | `specs/using-cadevolve-dataset-export.md` | Practical CADEvolve archive usage notes and source-layout details. |
 | `specs/useful-implementation-optimization.md` | Implementation and scaling guidance; informative unless it conflicts with the canonical specs above. |
 | `specs/reviewer-readiness-checklist.md` | Operational checklist for validating a dataset build before review or release. |

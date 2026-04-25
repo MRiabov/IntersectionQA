@@ -1,5 +1,9 @@
 # IntersectionQA Schema Specification
 
+Note: This specification describes IntersectionQA v0.1. Shared geometry, split,
+provenance, and verifier concepts may be reused by IntersectionEdit, but task
+semantics here are QA-specific unless stated otherwise.
+
 ## 1. Purpose
 
 This file defines the canonical data model for IntersectionQA. It is the source of truth for future Pydantic models, JSON Schema export, JSONL writers, validators, split audits, and dataset packaging.

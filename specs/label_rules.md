@@ -1,5 +1,9 @@
 # IntersectionQA Label Rules
 
+Note: This specification describes IntersectionQA v0.1. Shared geometry, split,
+provenance, and verifier concepts may be reused by IntersectionEdit, but task
+semantics here are QA-specific unless stated otherwise.
+
 ## 1. Purpose
 
 This file defines the official geometry label semantics and threshold policy for IntersectionQA. Public task answers must be derived from raw CadQuery/OpenCASCADE geometry fields using these rules, not from prompt text, heuristics, or task-specific recomputation.

@@ -1,5 +1,9 @@
 # IntersectionQA Generation Policy
 
+Note: This specification describes IntersectionQA v0.1. Shared geometry, split,
+provenance, and verifier concepts may be reused by IntersectionEdit, but task
+semantics here are QA-specific unless stated otherwise.
+
 ## 1. Purpose
 
 This file defines dataset generation policy for IntersectionQA. It specifies what examples should be proposed, accepted, rejected, balanced, tagged, grouped, and recorded before implementation starts. It is not a code architecture, module layout, or execution framework.
