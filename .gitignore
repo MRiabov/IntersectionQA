@@ -5,11 +5,13 @@ build/
 dist/
 wheels/
 *.egg-info
+.env
 
 # Virtual environments
 .venv
 .cache/
 .cace/
+data/
 data/cadevolve.tar
 data/cadevolve_sources
 data/cache/

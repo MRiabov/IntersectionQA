@@ -7,6 +7,7 @@ smoke:
   include_cadevolve_if_available: true
   geometry_limit: 3000
   public_row_limit: 15000
+  geometry_candidate_pool_multiplier: 1
   object_validation_limit: 1000
   object_validation_timeout_seconds: 5.0
   object_validation_worker_count: 4
