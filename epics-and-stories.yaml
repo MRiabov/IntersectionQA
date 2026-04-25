@@ -14,6 +14,7 @@ source_documents:
   - specs/generation_policy.md
   - specs/paper-spec.md
   - specs/intersectionedit-task-spec.md
+  - specs/intersectionedit-full-spec.md
   - specs/using-cadevolve-dataset-export.md
 status_values:
   - planned
@@ -1058,3 +1059,261 @@ epics:
         stable: false
         source_document: specs/benchmark-family.md
         notes: Revisit repository, package, and directory naming only after an IntersectionEdit vertical slice demonstrates the shared-core boundary.
+
+  - id: epic-15
+    title: IntersectionEdit full-spec roadmap
+    scope: Track the broader IntersectionEdit dataset and training specification beyond the first conservative repair slice.
+    track: intersectionedit
+    priority: P1
+    implementation_complexity: High
+    debugging_difficulty: High
+    recommendation: Build after the first repair slice is stable
+    status: work-in-progress
+    stable: false
+    source_document: specs/intersectionedit-full-spec.md
+    stories:
+      - id: "15.1"
+        title: Full-spec task-family inventory
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: implemented
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: The full spec enumerates target clearance movement, intersection repair, target-clearance repair, centroid-distance editing, target contact, candidate selection, candidate ranking, and multi-object repair; this roadmap records which parts are implemented versus planned.
+      - id: "15.2"
+        title: Best separating direction and conservative repair translation
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build now
+        status: implemented
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Implemented as opt-in `repair_direction` and `repair_translation` rows using `conservative_aabb_separating_translation_v01`; this covers the first conservative axis-aligned repair slice, not exact CAD-kernel minimal translation or target-clearance repair.
+      - id: "15.3"
+        title: Exact axis-aligned repair labels
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Replace or supplement the conservative AABB label policy with exact CadQuery directional search over the six cardinal directions, including deterministic tie-breaks and ambiguity metadata.
+      - id: "15.4"
+        title: Axis-aligned target-clearance repair
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add rows that move an intersecting object by the smallest axis-aligned translation such that exact final clearance is at least a target margin.
+      - id: "15.5"
+        title: Move closer or farther to target clearance
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add disjoint-object tasks that translate the movable object along a specified axis or direction to reach a specified minimum surface-to-surface clearance.
+      - id: "15.6"
+        title: Candidate edit selection
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Generate candidate edit sets containing exact/best, under-corrected, over-corrected, wrong-axis, wrong-sign, and large-valid edits; ask the model to choose the smallest valid target-satisfying edit.
+      - id: "15.7"
+        title: Candidate edit ranking
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add ranking prompts, labels, parsers, and metrics for ordering candidate edits by target satisfaction, non-intersection, and movement magnitude.
+      - id: "15.8"
+        title: Ambiguity filtering and edit diagnostics
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Store best-direction margins, number of valid directions, ambiguity flags, and SFT/RL inclusion policy for near-tied edit labels.
+      - id: "15.9"
+        title: IntersectionEdit evaluation metrics
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build next
+        status: work-in-progress
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Direction and stored-repair success metrics exist for the initial slice; still needed are distance MAE, within-tolerance accuracy, final clearance error, movement optimality ratio, candidate-selection success-weighted accuracy, and ranking metrics.
+      - id: "15.10"
+        title: Verifier reward functions for RL
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build after supervised labels
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add reusable reward functions for repair success, target-clearance error, movement penalty, overshoot penalty, candidate-selection scores, and pairwise ranking accuracy.
+      - id: "15.11"
+        title: Edit-specific split groups
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build after task rows
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add edit-specific grouping for counterfactual edit groups, target-clearance families, candidate-set families, target-distance-held-out tests, and multi-object-hard tests while preserving existing group-safe splits.
+      - id: "15.12"
+        title: Centroid-distance and target-contact edit tasks
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build later
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add centroid-distance editing with non-intersection verification and target-contact movement tasks as separate task types from surface-clearance repair.
+      - id: "15.13"
+        title: Counterfactual edit groups
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Generate grouped rows that vary initial translation, target clearance, target centroid distance, object size, rotation, movable object, allowed direction, or fixed/movable swap.
+      - id: "15.14"
+        title: Full translation vectors and edit programs
+        track: intersectionedit
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Defer
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add harder output formats after constrained direction, axis-plus-distance, candidate-selection, and ranking formats are stable.
+      - id: "15.15"
+        title: Multi-object repair
+        track: intersectionedit
+        priority: P2
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Defer
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add tasks where one movable object must satisfy clearance and non-interference constraints against multiple fixed objects.
+      - id: "15.16"
+        title: IntersectionEdit naming and paper framing
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build later
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Record the final naming choice and paper framing from the full spec, including the positioning that IntersectionEdit predicts verified edits rather than diagnostic labels.
+      - id: "15.17"
+        title: Numeric edit output tolerance policy
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Define one-decimal labels, rounded-label parsing, absolute tolerance, relative tolerance, and acceptance thresholds such as 0.1 mm labels with 0.15 mm acceptance.
+      - id: "15.18"
+        title: IntersectionEdit prompt template suite
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add versioned prompt templates for axis-aligned collision repair, target-clearance repair, move-closer/farther target clearance, centroid-distance target, candidate edit selection, and candidate edit ranking.
+      - id: "15.19"
+        title: IntersectionEdit public schema extension
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build next
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Extend public rows or task metadata with fixed_object, movable_object, initial_state, target, allowed_edit, structured answer, verification, edit diagnostics, and split_group fields while keeping released rows self-contained.
+      - id: "15.20"
+        title: IntersectionEdit difficulty taxonomy
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build after task rows
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Track difficulty levels for simple axis-aligned repair, rotated primitive repair, clearance targeting, cavities and concavity, ambiguous repair, and multi-object repair.
+      - id: "15.21"
+        title: IntersectionEdit SFT and GRPO training plan
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: High
+        debugging_difficulty: High
+        recommendation: Build after supervised labels
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: >-
+          Add the staged training workflow from the full spec: SFT on constrained edit tasks
+          and counterfactual edit groups, then GRPO on candidate selection/ranking and
+          coordinate-output tasks with verifier rewards.
+      - id: "15.22"
+        title: IntersectionEdit failure-mode analysis
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build after evaluation metrics
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-full-spec.md
+        notes: Add analysis categories for correct direction but wrong distance, excessive movement, unresolved target clearance, centroid-distance/intersection conflicts, surface-vs-centroid confusion, cavity AABB failures, rotation errors, movable-object errors, non-minimal valid edits, and multi-fixed-object failures.
