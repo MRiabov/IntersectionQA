@@ -3,6 +3,7 @@ from intersectionqa.enums import TaskType
 from intersectionqa.export.jsonl import write_split_files
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.prompts.materialize import materialize_rows
+from scripts.prepare_intersectionedit_training_splits import prepare_intersectionedit_training_splits
 from intersectionqa.sources.synthetic import fixture_geometry_records
 from intersectionqa.splits.grouped import (
     INTERNAL_EVAL_SPLIT,
@@ -142,6 +143,45 @@ def test_intersectionedit_rows_expose_counterfactual_edit_variant_metadata():
         row.metadata["edit_counterfactual_variant"]["edit_family"]
         for row in counterfactual_rows
     } >= {"axis_aligned_intersection_repair", "axis_aligned_intersection_repair_vector", "centroid_distance_move"}
+
+
+def test_prepare_intersectionedit_training_splits_writes_group_safe_files(tmp_path):
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    rows = materialize_rows(
+        records,
+        splits,
+        [
+            TaskType.AXIS_ALIGNED_REPAIR,
+            TaskType.AXIS_ALIGNED_REPAIR_VECTOR,
+            TaskType.TARGET_CLEARANCE_REPAIR,
+            TaskType.TARGET_CLEARANCE_MOVE,
+            TaskType.CENTROID_DISTANCE_MOVE,
+            TaskType.EDIT_CANDIDATE_SELECTION,
+        ],
+    )
+    dataset_dir = tmp_path / "dataset"
+    output_dir = tmp_path / "edit_splits"
+    write_split_files(rows, dataset_dir)
+
+    report = prepare_intersectionedit_training_splits(
+        dataset_dir=dataset_dir,
+        output_dir=output_dir,
+        seed=config.seed,
+        eval_fraction=0.35,
+        source_splits=["train", "validation", "test_random", "test_object_pair_heldout", "test_near_boundary"],
+        mode="sft",
+    )
+
+    train_rows = (output_dir / "inner_train.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    eval_rows = (output_dir / "inner_eval.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert report["schema"] == "intersectionedit_training_splits_v1"
+    assert 0 < report["selected_rows"] <= len(rows)
+    assert report["selected_rows"] == len(train_rows) + len(eval_rows)
+    assert train_rows
+    assert eval_rows
+    assert (output_dir / "report.json").exists()
 
 
 def test_topology_heldout_split_uses_rare_topology_metadata():

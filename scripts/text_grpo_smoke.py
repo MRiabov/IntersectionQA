@@ -22,6 +22,8 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/intersectionqa_grpo_smoke"))
     parser.add_argument("--max-rows", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=1)
+    parser.add_argument("--max-completion-length", type=int, default=512)
+    parser.add_argument("--num-generations", type=int, default=2)
     args = parser.parse_args()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
@@ -34,7 +36,10 @@ def main() -> None:
                 "prompt": [
                     {
                         "role": "system",
-                        "content": "Answer the IntersectionQA prompt with only the canonical answer token.",
+                        "content": (
+                            "Solve the CAD spatial-reasoning task. Think briefly in <think>...</think>, "
+                            "then put only the canonical answer string inside <answer>...</answer>."
+                        ),
                     },
                     {"role": "user", "content": row["prompt"]},
                 ],
@@ -63,8 +68,8 @@ def main() -> None:
         max_steps=args.max_steps,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=1,
-        num_generations=2,
-        max_completion_length=16,
+        num_generations=args.num_generations,
+        max_completion_length=args.max_completion_length,
         logging_steps=1,
         save_strategy="no",
         report_to=[],
@@ -129,7 +134,15 @@ def _row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list
 
 def _load_rows(dataset_dir: Path, *, limit: int) -> list[dict]:
     rows: list[dict] = []
-    for split in ("train", "validation", "test_random", "test_object_pair_heldout", "test_near_boundary"):
+    for split in (
+        "inner_train",
+        "inner_eval",
+        "train",
+        "validation",
+        "test_random",
+        "test_object_pair_heldout",
+        "test_near_boundary",
+    ):
         path = dataset_dir / f"{split}.jsonl"
         if not path.exists():
             continue

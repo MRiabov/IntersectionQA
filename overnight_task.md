@@ -25,6 +25,11 @@ Also, GRPO isn't the best, there is also Dr. GRPO, there is also GSPO... I'm not
 
 Also, commit your changes every once in a while.
 
+### Other low-priority tasks:
+
+- I've seen we had a lot of for loops in the app. Not exactly bad but maybe use `polars` to iterate over it? 
+- if the tonights' run succeeds, mark more features in @epics-and-stories.yaml as "stable".
+
 ## Execution log
 
 <!--Add checklists here as To Do and Done so that you don't have to rescan what was done or not done... though you also have @epics-and-stories.yaml for that, but that's for broader features. -->
@@ -47,6 +52,22 @@ Vast instance pull the prepared image instead of installing dependencies on paid
 GPU time. Use this if a Dockerfile/image path is already close to working or can
 be made ready in under ~30 local minutes; it can save roughly 10-15% of the Vast
 budget. Do not let container work block the dataset/reward canary path.
+
+Autonomy rule: these instructions are the default plan, not a straitjacket. If
+there is a clearly better path, it may be tried, but only if the core constraints
+remain intact:
+
+- Total Vast.ai spend stays under roughly `$7`.
+- No training uses validation/test rows or leaks labels across internal splits.
+- Dataset/release validation is not skipped before publishing or serious
+  training.
+- At least one measurable GRPO/GSPO canary or pilot is preserved with logs.
+- Every meaningful deviation is documented here and in the experiment doc with
+  the reason, expected benefit, and stop/rollback condition.
+
+Prefer small, reversible deviations. Do not start a large new research branch
+unless the default path is blocked or the upside is obvious within the overnight
+budget.
 
 Primary success condition by morning:
 
@@ -228,8 +249,8 @@ loss_type = "dr_grpo"
 
 ## To Do
 
-- [ ] Run focused tests for changed reward/split/prompt/config code.
-- [ ] Fix any failing tests or obvious reward/parser bugs.
+- [x] Run focused tests for changed reward/split/prompt/config code.
+- [x] Fix any failing tests or obvious reward/parser bugs.
 - [ ] Commit the stabilized code baseline.
 - [ ] Decide whether to prebuild/push a training container locally.
 - [ ] Build and validate IntersectionEdit release candidate.
@@ -250,3 +271,10 @@ loss_type = "dr_grpo"
   one measurable Qwen3.5 4B GRPO/GSPO pilot.
 - [x] Deferred broad SFT/model-size/RL-algorithm comparisons unless the main
   path is blocked.
+- [x] Added reasoning-compatible reward parsing for
+  `<think>...</think><answer>...</answer>` completions while keeping canonical
+  answer-only evaluation support.
+- [x] Added `scripts/text_grpo_train_unsloth.py` with GSPO/Dr-GRPO flags,
+  periodic generation-quality eval, JSONL metric logging, and adapter saving.
+- [x] Local focused tests passed:
+  `rtk uv run python -m compileall -q intersectionqa scripts && rtk uv run pytest -q tests/test_rewards.py tests/test_splits.py tests/test_metrics.py tests/test_prompts.py tests/test_config.py`.

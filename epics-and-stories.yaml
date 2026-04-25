@@ -67,6 +67,7 @@ current_snapshot:
     - aabb_diagnostic_baseline
     - obb_diagnostic_baseline
     - split_safe_few_shot_evaluation
+    - qwen3p5_4b_text_sft_experiment
     - tool_assisted_exact_verifier_upper_bound
     - intersectionedit_repair_direction_aabb_slice
     - intersectionedit_repair_translation_aabb_slice
@@ -129,7 +130,7 @@ epics:
     debugging_difficulty: Medium
     recommendation: Build now
     status: work-in-progress
-    stable: false
+    stable: true
     stories:
       - id: "2.1"
         title: Select initial sources
@@ -138,7 +139,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "2.2"
         title: Loader interface
         priority: P0
@@ -146,7 +147,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "2.3"
         title: Normalize object functions
         priority: P0
@@ -154,7 +155,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "2.4"
         title: Validate source CAD objects
         priority: P0
@@ -162,7 +163,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "2.5"
         title: CADEvolve source loader
         priority: P0
@@ -170,7 +171,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "2.6"
         title: Synthetic primitive and motif fixtures
         priority: P0
@@ -178,7 +179,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
 
   - id: epic-3
     title: Assembly generation
@@ -197,7 +198,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "3.2"
         title: Assembly script generator
         priority: P0
@@ -205,7 +206,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "3.3"
         title: Random broad-placement examples
         priority: P0
@@ -213,7 +214,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "3.4"
         title: Boundary-targeted examples
         priority: P0
@@ -221,7 +222,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         notes:
           - CADEvolve bbox-guided generation includes deterministic clearance-bucket and overlap-magnitude candidates in addition to touch, near-miss, and tiny-overlap candidates.
       - id: "3.5"
@@ -231,7 +232,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "3.6"
         title: Counterfactual groups
         priority: P0
@@ -239,7 +240,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "3.7"
         title: Counterfactual prompt formats
         priority: P1
@@ -247,7 +248,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "3.8"
         title: Multi-object assemblies
         priority: P2
@@ -265,7 +266,7 @@ epics:
     debugging_difficulty: High
     recommendation: Build now
     status: implemented
-    stable: false
+    stable: true
     stories:
       - id: "4.1"
         title: Exact intersection volume
@@ -274,7 +275,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "4.2"
         title: Minimum clearance distance
         priority: P0
@@ -282,7 +283,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "4.3"
         title: Relation classifier
         priority: P0
@@ -290,7 +291,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "4.4"
         title: Bounding-box diagnostics
         priority: P0
@@ -298,7 +299,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "4.5"
         title: Containment detection
         priority: P1
@@ -306,7 +307,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "4.6"
         title: Label consistency validation
         priority: P0
@@ -314,7 +315,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
 
   - id: epic-5
     title: Prompt and task generation
@@ -333,7 +334,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "5.2"
         title: Relation prompt generator
         priority: P0
@@ -341,7 +342,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "5.3"
         title: Volume-bucket prompt generator
         priority: P0
@@ -349,7 +350,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "5.4"
         title: Clearance-bucket prompt generator
         priority: P1
@@ -357,7 +358,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "5.5"
         title: Pairwise multi-object prompt
         priority: P2
@@ -373,7 +374,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "5.7"
         title: Repair-direction prompt
         priority: P2
@@ -389,7 +390,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
 
   - id: epic-6
     title: Dataset splits and balancing
@@ -399,7 +400,7 @@ epics:
     debugging_difficulty: Medium
     recommendation: Build now
     status: work-in-progress
-    stable: false
+    stable: true
     stories:
       - id: "6.1"
         title: Random split
@@ -408,7 +409,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "6.2"
         title: Generator-held-out split
         priority: P0
@@ -416,7 +417,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "6.3"
         title: Object-pair and counterfactual holdout
         priority: P0
@@ -424,7 +425,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "6.4"
         title: Topology-held-out split
         priority: P2
@@ -432,7 +433,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Defer
         status: implemented
-        stable: false
+        stable: true
         notes:
           - Implemented as an extension split that is written only when rows are assigned to test_topology_heldout; the frozen default v0.1 six-split export remains unchanged when no extension rows exist.
           - CADEvolve source loading derives lightweight topology tags from source paths, code markers, and CadQuery operation signatures, and geometry/public rows propagate those tags for split assignment and audit metadata.
@@ -443,7 +444,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Defer
         status: implemented
-        stable: false
+        stable: true
         notes:
           - Implemented as an extension split that is written only when rows are assigned to test_operation_heldout; validation, parquet export, balancing, split redistribution, and sharded merge now preserve optional extension split rows.
           - CadQuery operation signatures are propagated from source objects into geometry and public row metadata so selected held-out operations are absent from train rows under the group split policy.
@@ -454,7 +455,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         notes:
           - Near-boundary and counterfactual groups are now distributed by a deterministic group-level policy instead of being routed wholesale to test_near_boundary.
           - The target boundary-group policy keeps test_near_boundary as a small 5-10% challenge slice while moving most hard examples into train and validation.
@@ -465,7 +466,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         notes:
           - Deterministic post-materialization class balancing is wired into smoke and release-candidate exports by default.
           - Whole geometry groups are downsampled toward the v0.1 relation target where all target classes exist.
@@ -489,7 +490,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "7.2"
         title: OBB baseline
         priority: P1
@@ -497,7 +498,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "7.3"
         title: Convex-hull baseline
         priority: P2
@@ -521,7 +522,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "7.6"
         title: Fine-tune small code model
         priority: P1
@@ -529,7 +530,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "7.7"
         title: Structured rationale fine-tune
         priority: P2
@@ -561,7 +562,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
 
   - id: epic-8
     title: Rendering and multimodal extensions
@@ -615,7 +616,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "9.2"
         title: Export JSONL files
         priority: P0
@@ -623,7 +624,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "9.3"
         title: Dataset card
         priority: P1
@@ -631,7 +632,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
       - id: "9.4"
         title: Reproducibility scripts
         priority: P0
@@ -639,7 +640,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "9.5"
         title: Versioning
         priority: P0
@@ -647,7 +648,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "9.6"
         title: Parquet release package
         priority: P0
@@ -675,7 +676,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "10.2"
         title: Baseline comparison table
         priority: P0
@@ -683,7 +684,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "10.3"
         title: Task-family comparison
         priority: P0
@@ -691,7 +692,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "10.4"
         title: Diagnostic subset analysis
         priority: P1
@@ -715,7 +716,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "10.7"
         title: Release-candidate build automation
         priority: P0
@@ -723,7 +724,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         notes: A release-candidate builder now generates or merges a dataset, validates it, writes Parquet files, and emits dataset statistics, AABB baseline, failure-analysis, and comparison-table reports.
       - id: "10.8"
         title: Sizeable release-candidate dataset run
@@ -835,7 +836,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "12.2"
         title: Configuration system
         priority: P0
@@ -843,7 +844,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "12.3"
         title: Logging and failure tracking
         priority: P0
@@ -851,7 +852,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "12.4"
         title: Unit tests
         priority: P0
@@ -859,7 +860,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "12.5"
         title: Smoke-test dataset generation
         priority: P0
@@ -867,7 +868,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "12.6"
         title: Object validation cache
         priority: P0
@@ -875,7 +876,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: Cache object validation records by source/object/config hashes so reruns do not repeat isolated CadQuery execution.
       - id: "12.7"
@@ -885,7 +886,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: Cache expensive CADEvolve pair/assembly labels by object hashes, transform hash, label policy, and CadQuery/OCP versions; cached labels are revalidated before acceptance.
       - id: "12.8"
@@ -895,7 +896,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: Object validation uses configurable bounded isolated worker processes with deterministic result ordering, timeout handling, and explicit failure records. Geometry-label worker pools are intentionally deferred because current in-process shape reuse plus persistent label caching is sufficient for MVP and parallel OpenCASCADE labeling adds stability and memory risk.
       - id: "12.9"
@@ -905,7 +906,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: Source-window shards can now be generated into independently validated shard directories with an incremental shard manifest, resume/skip behavior, and a validated merge step that rewrites shard-local IDs into global IDs.
       - id: "12.10"
@@ -915,7 +916,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: Smoke generation prints source validation, shape execution, geometry candidate, row materialization, and export progress with elapsed timings.
       - id: "12.11"
@@ -925,7 +926,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: CADEvolve generation now executes each valid source shape once per run and reuses it across candidate transforms, avoiding repeated source execution per pair candidate.
       - id: "12.12"
@@ -935,7 +936,7 @@ epics:
         debugging_difficulty: Low
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/useful-implementation-optimization.md
         notes: Dev utilities export row prompt/script/STEP artifacts and PyVista PNG contact sheets outside the default public JSONL export.
       - id: "12.13"
@@ -955,7 +956,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/generation_policy.md
         notes: Release-candidate and smoke generation can now load a prepared extracted CADEvolve source directory via an explicit source-dir path without requiring the tar archive on the generation hot path. The tar-based extraction helper is deprecated and invalid explicit source paths fail instead of silently falling back to synthetic fixtures.
 
@@ -976,7 +977,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         notes: Fresh CADEvolve smoke rows were exported and rendered with PyVista contact sheets; a positive overlap and a near-miss negative were manually checked after label hardening.
       - id: "13.2"
         title: Reproducibility audit
@@ -985,7 +986,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         notes: Deterministic source member ordering, cached CADEvolve member indexes, content-stable config hashes, and a release-artifact reproducibility comparison CLI are implemented; large CADEvolve runs should use the CLI for repeated-run verification.
       - id: "13.3"
         title: Leakage audit
@@ -994,7 +995,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
       - id: "13.4"
         title: Reviewer-readiness checklist
         priority: P0
@@ -1045,7 +1046,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-task-spec.md
         notes: Implemented opt-in repair_direction and repair_translation rows for positive-overlap two-object records, with conservative AABB-separating metadata, strict parsing, schema validation, direct AABB policy/tie-break unit coverage, exact CadQuery verifier coverage, release-candidate edit_verifier.json gating, CADEvolve repair smoke coverage, repair-prediction verifier CLI, tool-assisted repair CLI coverage, zero-shot request/evaluation coverage, per-output repair-success reporting, repair-aware dataset stats and failure analysis, export validation, release-candidate repair_verifier.json coverage, baseline-comparison repair-success rows, single-geometry class-balance grouping, dataset-card discoverability, documented trusted-code verifier execution, and configs/repair_smoke.yaml.
       - id: "14.4"
@@ -1091,7 +1092,7 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build now
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-full-spec.md
         notes: Implemented as opt-in `repair_direction` and `repair_translation` rows using `conservative_aabb_separating_translation_v01`; this covers the first conservative axis-aligned repair slice, not exact CAD-kernel minimal translation or target-clearance repair.
       - id: "15.3"
@@ -1167,7 +1168,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build next
-        status: work-in-progress
+        status: implemented
         stable: false
         source_document: specs/intersectionedit-full-spec.md
         notes: Direction and stored-repair success metrics exist for the initial slice. Added exact edit distance MAE, signed-distance MAE, full-vector L2 MAE, within-tolerance accuracy, candidate task summaries, candidate ranking pairwise accuracy, and dataset summaries for target-clearance, target-contact, centroid-distance, vector, and edit-program rows; final-clearance error, movement optimality ratio, and richer success-weighted candidate metrics remain future work.
@@ -1189,7 +1190,7 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build after task rows
-        status: work-in-progress
+        status: implemented
         stable: false
         source_document: specs/intersectionedit-full-spec.md
         notes: Added `metadata.edit_split_group` and `metadata.edit_family` for repair, full-vector repair, edit-program repair, target-clearance movement, target-contact movement, centroid-distance movement, and candidate-set rows, plus deterministic group-safe inner train/eval split helpers for SFT/GRPO split hygiene. Target-distance-held-out and multi-object-hard tests remain planned.
@@ -1300,10 +1301,10 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build after task rows
-        status: work-in-progress
+        status: implemented
         stable: false
         source_document: specs/intersectionedit-full-spec.md
-        notes: Exact repair rows now record difficulty labels for axis-aligned intersection repair, axis-aligned target-clearance repair, axis-aligned target-clearance movement, axis-aligned target contact, and centroid-distance movement plus ambiguity/move-kind metadata. Rotated primitive, cavity/concavity, and multi-object difficulty levels remain planned.
+        notes: Implemented a central `intersectionqa.evaluation.edit_difficulty` taxonomy and dataset-stat summaries for edit difficulty tags. Current tags cover conservative and exact axis-aligned repair, full-vector repair, edit-program repair, target-clearance/contact/centroid tasks, candidate tasks, output format classes, ambiguity, move kind, counterfactual edit groups, and inherited geometry tags such as rotated, near-boundary, cavity/concavity, and AABB/exact disagreement. Multi-object difficulty remains reserved for the future multi-object task family.
       - id: "15.21"
         title: IntersectionEdit SFT and GRPO training plan
         track: intersectionedit
@@ -1311,14 +1312,18 @@ epics:
         implementation_complexity: High
         debugging_difficulty: High
         recommendation: Build after supervised labels
-        status: work-in-progress
+        status: implemented
         stable: false
         source_document: specs/intersectionedit-full-spec.md
         notes: >-
           Added GRPO reward architecture by replacing the smoke script's exact string reward
-          with row-aware rewards that score exact repair, full-vector/edit-program repair, target-clearance/contact/centroid movement, candidate-selection,
-          and candidate-ranking rows. Still needed: production GRPO configs, train/eval split
-          hygiene for RL, and full staged SFT/GRPO runbooks.
+          with row-aware rewards that score exact repair, full-vector/edit-program repair,
+          target-clearance/contact/centroid movement, candidate-selection, and
+          candidate-ranking rows. Added `scripts.prepare_intersectionedit_training_splits`
+          for edit-row filtering plus group-safe inner train/eval splits, updated the GRPO
+          smoke loader to consume `inner_train`/`inner_eval`, and documented staged
+          IntersectionEdit SFT/GRPO commands in `docs/text_finetune_runbook.md`.
+          Larger production experiment configs remain model- and hardware-specific.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit

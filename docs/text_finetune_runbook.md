@@ -107,6 +107,10 @@ See `docs/dataset_split_framing.md` before interpreting evaluation numbers.
   per-task label precision, recall, F1, and confusion counts.
 - `scripts/text_sft_smoke.py`: tiny local/remote SFT smoke test.
 - `scripts/text_grpo_smoke.py`: tiny RL/GRPO smoke test.
+- `scripts/prepare_intersectionedit_training_splits.py`: filters opt-in
+  IntersectionEdit rows, applies `metadata.edit_counterfactual_group_id`-aware
+  inner train/eval splitting, and writes `inner_train.jsonl`, `inner_eval.jsonl`,
+  and `report.json` for SFT or GRPO staging.
 - `scripts/add_counterfactual_train_rows.py`: legacy deterministic in-place
   augmentation helper for moving leakage-safe counterfactual groups from
   `test_near_boundary` to `train`. Prefer
@@ -158,6 +162,53 @@ commands, and run observations in `docs/experiments/` instead of expanding this
 runbook.
 
 - [Qwen3.5 4B tuning experiment](experiments/qwen3p5-4b-tuning.md)
+
+## IntersectionEdit SFT/GRPO Staging
+
+Build an opt-in edit dataset first:
+
+```bash
+rtk uv run python -m scripts.build_release_candidate \
+  --config configs/repair_smoke.yaml \
+  --output-dir data/intersectionedit_repair_smoke
+```
+
+Prepare group-safe inner splits for supervised fine-tuning:
+
+```bash
+rtk uv run python -m scripts.prepare_intersectionedit_training_splits \
+  --dataset-dir data/intersectionedit_repair_smoke \
+  --output-dir data/intersectionedit_repair_smoke_sft \
+  --mode sft \
+  --eval-fraction 0.10
+```
+
+Prepare the same rows for reward-learning experiments:
+
+```bash
+rtk uv run python -m scripts.prepare_intersectionedit_training_splits \
+  --dataset-dir data/intersectionedit_repair_smoke \
+  --output-dir data/intersectionedit_repair_smoke_grpo \
+  --mode rl \
+  --eval-fraction 0.10
+```
+
+The split helper filters to IntersectionEdit task families and keeps edit
+counterfactual groups intact. `sft` mode honors `edit_diagnostics.sft_include`
+when present; `rl` mode honors `edit_diagnostics.rl_include`. The reward path is
+metadata-based through `intersectionqa.evaluation.rewards`, covering exact
+axis/distance repair, full-vector repair, edit-program repair, signed
+clearance/contact/centroid movement, candidate selection, and candidate ranking.
+
+Smoke GRPO on the prepared edit dataset:
+
+```bash
+rtk uv run python -m scripts.text_grpo_smoke \
+  --dataset-dir data/intersectionedit_repair_smoke_grpo \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
+  --max-rows 16 \
+  --max-steps 1
+```
 
 ## Remote Setup Template
 

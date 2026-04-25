@@ -124,7 +124,10 @@ candidate-answer, and ranking metric counts.
 
 IntersectionEdit rows also carry `metadata.edit_counterfactual_group_id` and
 `metadata.edit_counterfactual_variant` so SFT/GRPO splits can keep related source
-variants and target-family variants together.
+variants and target-family variants together. Use
+`scripts.prepare_intersectionedit_training_splits` to write group-safe
+`inner_train.jsonl` and `inner_eval.jsonl` files for SFT or reward-learning
+experiments.
 
 `intersectionqa.evaluation.rewards` provides row-aware reward helpers for GRPO
 and rejection-sampling experiments. The rewards preserve strict parser checks,

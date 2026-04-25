@@ -31,6 +31,25 @@ def test_axis_repair_reward_gives_partial_numeric_credit():
     assert invalid.failure_reason == "invalid_output"
 
 
+def test_rewards_accept_reasoning_answer_tags():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                geometry_limit=3,
+                task_types=[TaskType.AXIS_ALIGNED_REPAIR],
+            )
+        )
+    )
+    row = rows[0]
+    result = reward_prediction(row, f"<think>Use the constrained edit policy.</think><answer>{row.answer}</answer>")
+
+    assert result.reward == 1.0
+    assert result.parsed_output == row.answer
+    assert result.components["answer_tag"] == 1.0
+    assert result.components["reasoning_format"] == 1.0
+
+
 def test_axis_repair_vector_and_program_rewards_use_vector_error():
     rows, _ = build_smoke_rows(
         DatasetConfig(
