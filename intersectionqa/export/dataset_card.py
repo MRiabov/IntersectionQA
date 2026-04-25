@@ -41,6 +41,10 @@ TASK_DESCRIPTIONS = {
         "IntersectionEdit first-slice task: choose the signed world-axis direction "
         "for moving `object_b` under a conservative AABB-separating repair policy."
     ),
+    "repair_translation": (
+        "IntersectionEdit task: choose the signed world-axis direction and six-decimal "
+        "movement magnitude for moving `object_b` under the conservative AABB-separating repair policy."
+    ),
 }
 
 FIELD_DESCRIPTIONS = [
@@ -139,6 +143,7 @@ def build_dataset_card(dataset_dir: Path) -> str:
         f"- {item}" for item in metadata.known_limitations
     ] or ["- No known limitations recorded in `metadata.json`."]
     has_repair_direction = "repair_direction" in metadata.task_types
+    has_repair_translation = "repair_translation" in metadata.task_types
     yaml_lines = [
         "---",
         f"license: {metadata.license}",
@@ -164,8 +169,9 @@ def build_dataset_card(dataset_dir: Path) -> str:
             [
                 "- intersectionedit",
                 "- repair-direction",
+                "- repair-translation",
             ]
-            if has_repair_direction
+            if has_repair_direction or has_repair_translation
             else []
         ),
         f"pretty_name: {release_name}",
@@ -238,6 +244,13 @@ def build_dataset_card(dataset_dir: Path) -> str:
                     "- `repair_direction` is an opt-in IntersectionEdit task. It asks for the signed world-axis direction to move `object_b`; the first policy is conservative AABB-separating, not exact minimal CAD repair.",
                 ]
                 if has_repair_direction
+                else []
+            ),
+            *(
+                [
+                    "- `repair_translation` is an opt-in IntersectionEdit task. It asks for the signed world-axis direction and six-decimal conservative movement magnitude for `object_b`.",
+                ]
+                if has_repair_translation
                 else []
             ),
             "",

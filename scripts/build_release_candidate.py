@@ -17,7 +17,7 @@ from intersectionqa.evaluation.comparison import (
     comparison_rows_to_markdown,
 )
 from intersectionqa.evaluation.obb import evaluate_obb_binary
-from intersectionqa.evaluation.repair import verify_repair_predictions
+from intersectionqa.evaluation.repair import verify_repair_predictions, verify_repair_rows_exact
 from intersectionqa.evaluation.tool_assisted import run_tool_assisted_upper_bound
 from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import dataset_stats, manifest_stats
@@ -50,6 +50,12 @@ def main() -> None:
     parser.add_argument("--source-shard-size", type=int, default=None)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--balance-classes", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--require-edit-verifier",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="fail the release build if any stored IntersectionEdit repair row does not exact-verify",
+    )
     args = parser.parse_args()
 
     configure_logging()
@@ -103,6 +109,23 @@ def main() -> None:
     _write_json(obb.__dict__, reports_dir / "obb_baseline.json")
     tool_assisted = run_tool_assisted_upper_bound(rows)
     _write_json(tool_assisted.report, reports_dir / "tool_assisted_upper_bound.json")
+    edit_validation = verify_repair_rows_exact(rows)
+    edit_validation_report = None
+    if edit_validation.report["row_count"]:
+        edit_validation_report = edit_validation.report
+        _write_json(
+            {
+                "report": edit_validation_report,
+                "results": [asdict(result) for result in edit_validation.results],
+            },
+            reports_dir / "edit_verifier.json",
+        )
+        if args.require_edit_verifier and edit_validation_report["repair_success_rate"] < 1.0:
+            raise RuntimeError(
+                "IntersectionEdit verifier gate failed: "
+                f"{edit_validation_report['repaired_count']}/{edit_validation_report['row_count']} "
+                "stored repair rows exact-verified"
+            )
     repair_verifier = verify_repair_predictions(
         rows,
         [prediction.as_prediction() for prediction in tool_assisted.predictions],
@@ -150,6 +173,7 @@ def main() -> None:
         "validated_rows": len(rows),
         "parquet_dir": str(dataset_dir / "parquet"),
         "repair_verifier": repair_verifier_report,
+        "edit_verifier": edit_validation_report,
     }
     _write_json(release_report, reports_dir / "release_candidate_report.json")
     print(json.dumps(release_report, indent=2, sort_keys=True))

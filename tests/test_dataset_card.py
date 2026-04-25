@@ -59,6 +59,7 @@ def test_dataset_card_describes_opt_in_repair_direction(tmp_path):
                 task_types=[
                     TaskType.BINARY_INTERFERENCE,
                     TaskType.REPAIR_DIRECTION,
+                    TaskType.REPAIR_TRANSLATION,
                 ],
             ),
         )
@@ -68,5 +69,7 @@ def test_dataset_card_describes_opt_in_repair_direction(tmp_path):
 
     assert "- intersectionedit" in text
     assert "- repair-direction" in text
+    assert "- repair-translation" in text
     assert "`repair_direction` is an opt-in IntersectionEdit task" in text
+    assert "`repair_translation` is an opt-in IntersectionEdit task" in text
     assert "conservative AABB-separating" in text
