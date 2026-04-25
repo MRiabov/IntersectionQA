@@ -189,6 +189,7 @@ clearance_bucket
 pairwise_interference
 ranking_normalized_intersection
 repair_direction
+repair_translation
 tolerance_fit
 ```
 
@@ -532,18 +533,19 @@ Normal public task rows should include only `diagnostics.label_status == "ok"` e
 - `relation_classification`: `answer` equals `labels.relation`.
 - `volume_bucket`: `answer` is one of `0`, `(0, 0.01]`, `(0.01, 0.05]`, `(0.05, 0.20]`, `(0.20, 0.50]`, `>0.50`, derived from `labels.intersection_volume`, `labels.normalized_intersection`, and `label_policy`.
 - `repair_direction`: rows are emitted only when `labels.relation` is `intersecting` or `contained`; `answer` is one of `+x`, `-x`, `+y`, `-y`, `+z`, or `-z`, and must equal `metadata.selected_direction`.
+- `repair_translation`: rows are emitted only when `labels.relation` is `intersecting` or `contained`; `answer` is `<selected_direction> <selected_magnitude_mm>` with exactly six decimal places, for example `+x 0.500100`.
 
-### `repair_direction` Metadata
+### IntersectionEdit Repair Metadata
 
-The first IntersectionEdit slice uses policy
+The implemented IntersectionEdit repair slices use policy
 `conservative_aabb_separating_translation_v01`. It is an opt-in task and is not
 part of the frozen IntersectionQA v0.1 default task set. The policy computes
 single-axis translations for `object_b` from stored world-space `bbox_a` and
-`bbox_b` values on the source `GeometryRecord`, then selects the smallest
-absolute movement. Ties are resolved in this deterministic order: `+x`, `-x`,
-`+y`, `-y`, `+z`, `-z`.
+`bbox_b` values, then selects the smallest absolute movement. Ties are resolved
+in this deterministic order: `+x`, `-x`, `+y`, `-y`, `+z`, `-z`.
 
-Required task-specific `metadata` fields for `repair_direction` rows:
+Required task-specific `metadata` fields for `repair_direction` and
+`repair_translation` rows:
 
 | Field | Type | Required | Nullable | Meaning |
 | --- | --- | --- | --- | --- |
@@ -553,6 +555,11 @@ Required task-specific `metadata` fields for `repair_direction` rows:
 | `fixed_object` | string | yes | no | Must be `object_a`. |
 | `candidate_direction_labels` | array of strings | yes | no | Must be `["+x", "-x", "+y", "-y", "+z", "-z"]`; this also documents tie-break order. |
 | `selected_direction` | string | yes | no | The chosen signed axis direction and public row `answer`. |
+| `selected_magnitude_mm` | number | yes | no | The chosen single-axis movement magnitude in millimetres. |
+| `selected_translation_vector_mm` | array of numbers | yes | no | The chosen 3-vector translation for `object_b`. |
+| `candidate_moves` | array of objects | yes | no | All six candidate direction/magnitude/vector moves. |
+| `bbox_a` | object | yes | no | Stored world-space bounding box for `object_a`; validators recompute candidate moves from this field. |
+| `bbox_b` | object | yes | no | Stored world-space bounding box for `object_b`; validators recompute candidate moves from this field. |
 | `selected_magnitude_mm` | number | yes | no | Absolute movement in millimetres for the selected candidate. |
 | `selected_translation_vector_mm` | array of 3 numbers | yes | no | Translation vector to apply to `object_b`; nonzero only on the selected direction axis. |
 | `candidate_moves` | array of objects | yes | no | Six candidate move records, one for each allowed signed axis direction. |

@@ -29,7 +29,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-25"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, and optional topology/operation held-out split routing from stored metadata. A fresh CADEvolve smoke sample has been rendered and manually checked. The first IntersectionEdit vertical slice is implemented as opt-in `repair_direction` rows using a conservative AABB-separating translation policy.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction` and `repair_translation` rows using a conservative AABB-separating translation policy.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -68,6 +68,8 @@ current_snapshot:
     - split_safe_few_shot_evaluation
     - tool_assisted_exact_verifier_upper_bound
     - intersectionedit_repair_direction_aabb_slice
+    - intersectionedit_repair_translation_aabb_slice
+    - intersectionedit_release_gated_exact_repair_verifier
     - intersectionedit_repair_prediction_verifier_cli
     - intersectionedit_repair_smoke_config
     - intersectionedit_repair_reporting
@@ -1044,7 +1046,7 @@ epics:
         status: implemented
         stable: false
         source_document: specs/intersectionedit-task-spec.md
-        notes: Implemented opt-in repair_direction rows for positive-overlap two-object records, with conservative AABB-separating metadata, strict parsing, schema validation, direct AABB policy/tie-break unit coverage, exact CadQuery verifier coverage, repair-prediction verifier CLI, tool-assisted repair CLI coverage, zero-shot request/evaluation coverage, per-output repair-success reporting, repair-aware dataset stats and failure analysis, export validation, release-candidate repair_verifier.json coverage, baseline-comparison repair-success rows, single-geometry class-balance grouping, dataset-card discoverability, and configs/repair_smoke.yaml.
+        notes: Implemented opt-in repair_direction and repair_translation rows for positive-overlap two-object records, with conservative AABB-separating metadata, strict parsing, schema validation, direct AABB policy/tie-break unit coverage, exact CadQuery verifier coverage, release-candidate edit_verifier.json gating, CADEvolve repair smoke coverage, repair-prediction verifier CLI, tool-assisted repair CLI coverage, zero-shot request/evaluation coverage, per-output repair-success reporting, repair-aware dataset stats and failure analysis, export validation, release-candidate repair_verifier.json coverage, baseline-comparison repair-success rows, single-geometry class-balance grouping, dataset-card discoverability, documented trusted-code verifier execution, and configs/repair_smoke.yaml.
       - id: "14.4"
         title: Package and layout rename decision
         track: shared_core

@@ -1,9 +1,9 @@
 # IntersectionEdit Task Specification Draft
 
 This is a draft seed specification for the IntersectionEdit task family. The
-first implemented vertical slice is `repair_direction`; it is intentionally
-conservative and is not part of the frozen IntersectionQA v0.1 release
-contract.
+first implemented slices are `repair_direction` and `repair_translation`; they
+are intentionally conservative and are not part of the frozen IntersectionQA
+v0.1 release contract.
 
 ## Purpose
 
@@ -58,13 +58,19 @@ groups, assembly groups, and counterfactual groups must remain intact across
 splits. Edit rows derived from a QA geometry record must not leak a held-out
 geometry family through another task family.
 
-## Implemented First Slice: `repair_direction`
+## Implemented Repair Slices
 
-The initial implemented slice materializes `repair_direction` rows only from
-two-object geometry records whose stored relation is `intersecting` or
-`contained`. `object_a` is fixed and `object_b` is the movable object. The model
-must answer with exactly one signed world-axis direction: `+x`, `-x`, `+y`,
-`-y`, `+z`, or `-z`.
+The initial implemented slices materialize repair rows only from two-object
+geometry records whose stored relation is `intersecting` or `contained`.
+`object_a` is fixed and `object_b` is the movable object.
+
+`repair_direction` asks for exactly one signed world-axis direction: `+x`,
+`-x`, `+y`, `-y`, `+z`, or `-z`.
+
+`repair_translation` asks for the signed world-axis direction plus movement
+magnitude under the same policy. The answer format is exactly
+`<direction> <magnitude_mm>` with six digits after the decimal point, for
+example `+x 0.500100`.
 
 The current label policy is
 `conservative_aabb_separating_translation_v01`. It uses stored world-space
@@ -82,10 +88,13 @@ volumes, diagnostics, selected answer, or candidate magnitudes.
 This policy is a conservative AABB-separating first slice, not a claim of exact
 minimal CAD repair. Verification can apply the selected translation to
 `object_b` and remeasure exact geometry with the existing CadQuery path.
+Release-candidate builds must fail if stored edit rows do not pass the exact
+repair verifier. Verifier execution is trusted-code only because CadQuery row
+reconstruction executes the row script.
 
 ## Future Implementation Targets
 
-Future slices may add exact minimal translation repair, clearance restoration,
-multi-object edit constraints, or `no_valid_move` semantics where the verifier
-has a concrete reason to emit that label. Avoid package or repository renaming
-until these slices prove the shared-core boundary.
+Future slices may add exact minimal CAD-kernel translation repair, clearance
+restoration, multi-object edit constraints, or `no_valid_move` semantics where
+the verifier has a concrete reason to emit that label. Avoid package or
+repository renaming until these slices prove the shared-core boundary.

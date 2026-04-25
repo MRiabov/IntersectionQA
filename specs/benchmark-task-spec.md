@@ -552,7 +552,39 @@ assemblies are excluded from the first slice.
 `selected_translation_vector_mm`, `candidate_moves`, and usual geometry
 labels/diagnostics.
 
-### 5.5 `tolerance_fit`
+### 5.5 `repair_translation`
+
+**Task purpose:** Predict the signed axis direction and conservative movement
+magnitude for a specified movable object.
+
+**Input shown to model:** Two-object assembly, movable object name, fixed
+object name, allowed directions, and the required answer format.
+
+**Allowed answers:** A signed direction followed by a non-negative magnitude in
+millimetres with exactly six digits after the decimal point, for example
+`+x 0.500100`.
+
+**Exact answer format:** Exactly `<direction> <magnitude_mm>`, where
+`direction` is one of `+x`, `-x`, `+y`, `-y`, `+z`, `-z`.
+
+**Label derivation:** Uses the same
+`conservative_aabb_separating_translation_v01` policy as `repair_direction`.
+Rows are emitted only for positive-overlap records. The answer combines the
+selected direction and selected movement magnitude.
+
+**Evaluation metric:** Exact string accuracy, invalid output rate, per-direction
+accuracy, and exact repair verifier success.
+
+**Edge cases:** Six-decimal formatting, zero or near-zero magnitudes under
+future policies, ties, containment, and cases where conservative AABB movement
+is larger than an exact minimal CAD movement.
+
+**Example prompt skeleton:** Show code/transforms, state object B is movable,
+ask for direction and magnitude, and require exactly two tokens.
+
+**Example task row fields:** Same repair metadata as `repair_direction`.
+
+### 5.6 `tolerance_fit`
 
 **Task purpose:** Decide whether an assembly satisfies a stated minimum clearance requirement.
 
@@ -653,4 +685,8 @@ Implementation should start with:
 - Minimal synthetic fixtures only for golden tests, smoke/debug examples, and local fallback
 - Closed-book code-only prompts
 
-The MVP should not implement multi-object prompts, ranking prompts, repair-direction tasks, tolerance-fit tasks, rendering, or tool-assisted model execution as first-class benchmark tasks. Those are later extensions after the two-object geometry labels, prompts, parsers, metrics, and schema fields are stable.
+The MVP should not include multi-object prompts, ranking prompts, repair-direction
+tasks, repair-translation tasks, tolerance-fit tasks, rendering, or tool-assisted
+model execution as first-class frozen benchmark tasks. Some of these may exist
+as opt-in extension rows after the two-object geometry labels, prompts, parsers,
+metrics, and schema fields are stable.
