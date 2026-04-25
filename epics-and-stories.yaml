@@ -1,13 +1,19 @@
 schema_version: 1
-project: IntersectionQA
+project: CADIntersectionBench
+tracks:
+  - shared_core
+  - intersectionqa
+  - intersectionedit
 source_documents:
   - epics-and-stories.md
   - implementation-complexity-priority-matrix.md
+  - specs/benchmark-family.md
   - specs/benchmark-task-spec.md
   - specs/label_rules.md
   - specs/schema.md
   - specs/generation_policy.md
   - specs/paper-spec.md
+  - specs/intersectionedit-task-spec.md
   - specs/using-cadevolve-dataset-export.md
 status_values:
   - planned
@@ -983,3 +989,59 @@ epics:
         recommendation: Build now
         status: implemented
         stable: false
+
+  - id: epic-14
+    title: Shared benchmark family transition
+    scope: Prepare the repository to support IntersectionQA and future IntersectionEdit tasks without renaming packages or moving large file trees yet.
+    track: shared_core
+    priority: P1
+    implementation_complexity: Low
+    debugging_difficulty: Low
+    recommendation: Build later
+    status: planned
+    stable: false
+    stories:
+      - id: "14.1"
+        title: Shared core documentation boundary
+        track: shared_core
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+        source_document: specs/benchmark-family.md
+        notes: Document which concepts remain shared across QA and Edit, including geometry, CadQuery execution, transforms, grouping, splitting, leakage audits, export, evaluation, and verifier/reward logic.
+      - id: "14.2"
+        title: IntersectionEdit task specification
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build now
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-task-spec.md
+        notes: Keep the initial Edit spec draft compact and avoid implying that IntersectionEdit is implemented in v0.1.
+      - id: "14.3"
+        title: First IntersectionEdit vertical slice
+        track: intersectionedit
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build later
+        status: planned
+        stable: false
+        source_document: specs/intersectionedit-task-spec.md
+        notes: Implement one verifier-backed task slice, likely minimal translation repair or repair direction, using existing two-object geometry records and group-safe splits.
+      - id: "14.4"
+        title: Package and layout rename decision
+        track: shared_core
+        priority: P2
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Defer
+        status: planned
+        stable: false
+        source_document: specs/benchmark-family.md
+        notes: Revisit repository, package, and directory naming only after an IntersectionEdit vertical slice demonstrates the shared-core boundary.
