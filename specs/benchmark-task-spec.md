@@ -524,19 +524,33 @@ These task families are non-MVP. Their names, answers, and core semantics are re
 
 **Input shown to model:** Two-object assembly, movable object name, fixed object name, and allowed directions.
 
-**Allowed answers:** `+x`, `-x`, `+y`, `-y`, `+z`, `-z`, `none`.
+**Allowed answers:** `+x`, `-x`, `+y`, `-y`, `+z`, `-z`.
 
 **Exact answer format:** Exactly one allowed direction string.
 
-**Label derivation:** Use a stored separating-direction or minimum-translation heuristic. `none` means no repair is needed or no unique valid direction is available under the task policy.
+**Label derivation:** The first implemented slice uses
+`conservative_aabb_separating_translation_v01`. It emits rows only for
+positive-overlap records (`intersecting` or `contained`) and computes the
+single-axis translation needed to separate stored world-space AABBs for each
+signed axis direction with `label_policy.epsilon_distance_mm` clearance. The
+answer is the direction with the smallest absolute movement. Ties are resolved
+deterministically in this order: `+x`, `-x`, `+y`, `-y`, `+z`, `-z`.
+`no_valid_move` is reserved for a future policy with concrete verifier-backed
+semantics and is not valid for this slice.
 
 **Evaluation metric:** Accuracy over direction labels, invalid output rate, per-label accuracy, and per-difficulty/subset accuracy.
 
-**Edge cases:** Multiple equally valid directions, containment, already non-interfering assemblies, repairs requiring rotation or diagonal movement, and cases where every axis direction remains colliding.
+**Edge cases:** Multiple equally valid directions, containment, repairs
+requiring rotation or diagonal movement, and cases where every axis direction
+remains colliding under future exact policies. Already non-interfering
+assemblies are excluded from the first slice.
 
 **Example prompt skeleton:** Show code/transforms, state object B is movable, define the six directions, ask which direction should move B to remove positive-volume interference.
 
-**Example task row fields:** `movable_object`, `fixed_object`, `answer`, `repair_policy`, `candidate_direction_labels`, and usual geometry labels/diagnostics.
+**Example task row fields:** `movable_object`, `fixed_object`, `answer`,
+`repair_policy`, `candidate_direction_labels`, `selected_magnitude_mm`,
+`selected_translation_vector_mm`, `candidate_moves`, and usual geometry
+labels/diagnostics.
 
 ### 5.5 `tolerance_fit`
 

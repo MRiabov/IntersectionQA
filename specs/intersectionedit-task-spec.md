@@ -1,8 +1,9 @@
 # IntersectionEdit Task Specification Draft
 
-This is a draft seed specification for a future IntersectionEdit task family.
-It is not implemented in IntersectionQA v0.1 and should not be treated as a
-release contract.
+This is a draft seed specification for the IntersectionEdit task family. The
+first implemented vertical slice is `repair_direction`; it is intentionally
+conservative and is not part of the frozen IntersectionQA v0.1 release
+contract.
 
 ## Purpose
 
@@ -57,10 +58,34 @@ groups, assembly groups, and counterfactual groups must remain intact across
 splits. Edit rows derived from a QA geometry record must not leak a held-out
 geometry family through another task family.
 
-## Initial Implementation Target
+## Implemented First Slice: `repair_direction`
 
-Start with one vertical slice, probably `minimal_translation_repair` or
-`repair_direction`, using existing two-object geometry records and exact
-verifier checks. Avoid package or repository renaming until this slice proves the
-shared-core boundary.
+The initial implemented slice materializes `repair_direction` rows only from
+two-object geometry records whose stored relation is `intersecting` or
+`contained`. `object_a` is fixed and `object_b` is the movable object. The model
+must answer with exactly one signed world-axis direction: `+x`, `-x`, `+y`,
+`-y`, `+z`, or `-z`.
 
+The current label policy is
+`conservative_aabb_separating_translation_v01`. It uses stored world-space
+`bbox_a` and `bbox_b` metadata, computes the single-axis translation needed to
+make the AABBs disjoint with `label_policy.epsilon_distance_mm` clearance for
+each of the six signed directions, and selects the smallest absolute movement.
+Ties are resolved deterministically in this order: `+x`, `-x`, `+y`, `-y`,
+`+z`, `-z`.
+
+Public row metadata stores the selected direction, movement magnitude,
+translation vector, policy name, tie-break order, and all candidate moves. The
+prompt shows object code and transforms but must not reveal labels, exact
+volumes, diagnostics, selected answer, or candidate magnitudes.
+
+This policy is a conservative AABB-separating first slice, not a claim of exact
+minimal CAD repair. Verification can apply the selected translation to
+`object_b` and remeasure exact geometry with the existing CadQuery path.
+
+## Future Implementation Targets
+
+Future slices may add exact minimal translation repair, clearance restoration,
+multi-object edit constraints, or `no_valid_move` semantics where the verifier
+has a concrete reason to emit that label. Avoid package or repository renaming
+until these slices prove the shared-core boundary.

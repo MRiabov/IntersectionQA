@@ -7,13 +7,13 @@ small synthetic fixtures used only for golden tests, smoke/debug cases, and
 local fallback.
 
 This repository is currently IntersectionQA-first, but is evolving into shared
-benchmark tooling for IntersectionQA and a future IntersectionEdit task family.
+benchmark tooling for IntersectionQA and IntersectionEdit task families.
 IntersectionQA covers diagnostic and question-answering tasks over CAD
-intersections. IntersectionEdit is reserved for edit, repair, and action tasks
-over the same geometry and verifier infrastructure. The shared core is expected
-to own geometry, CadQuery execution, transforms, grouping, splitting, leakage
-audits, export, evaluation, and verifier/reward logic. IntersectionEdit is not
-implemented yet.
+intersections. IntersectionEdit covers edit, repair, and action tasks over the
+same geometry and verifier infrastructure; the first implemented slice is a
+conservative `repair_direction` task. The shared core is expected to own
+geometry, CadQuery execution, transforms, grouping, splitting, leakage audits,
+export, evaluation, and verifier/reward logic.
 
 ## Canonical Specification Map
 
@@ -26,7 +26,7 @@ Use these documents in `specs/` as the source of truth:
 | `specs/label_rules.md` | Official geometry-label precedence, thresholds, bucket boundaries, failure reasons, and golden cases. |
 | `specs/schema.md` | Canonical internal records, public JSONL row schema, metadata files, manifests, hashes, IDs, and validation requirements. |
 | `specs/generation_policy.md` | Candidate generation, CADEvolve source policy, sampling, balancing, split grouping, diagnostics, and anti-patterns. |
-| `specs/intersectionedit-task-spec.md` | Draft seed specification for future IntersectionEdit edit/repair/action tasks; not an implemented v0.1 contract. |
+| `specs/intersectionedit-task-spec.md` | Draft specification for IntersectionEdit edit/repair/action tasks and the first conservative `repair_direction` slice; not part of the frozen v0.1 contract. |
 | `specs/using-cadevolve-dataset-export.md` | Practical CADEvolve archive usage notes and source-layout details. |
 | `specs/useful-implementation-optimization.md` | Implementation and scaling guidance; informative unless it conflicts with the canonical specs above. |
 | `specs/reviewer-readiness-checklist.md` | Operational checklist for validating a dataset build before review or release. |
@@ -59,9 +59,9 @@ The first implementation target is intentionally narrow:
 - Precomputed labels and diagnostics in JSONL rows; no CadQuery execution needed
   to load answers or evaluate model outputs.
 
-The schema reserves later task types such as `clearance_bucket`,
+The schema supports later task types such as `clearance_bucket`,
 `pairwise_interference`, `ranking_normalized_intersection`, `repair_direction`,
-and `tolerance_fit`, but those are not first-class v0.1 MVP tasks.
+and `tolerance_fit`, but those are not first-class frozen v0.1 MVP tasks.
 
 ## Release-Candidate Builds
 
@@ -88,6 +88,25 @@ rtk uv run python -m scripts.build_release_candidate \
   --output-dir data/intersectionqa_rc_sharded \
   --shard-count 10 \
   --source-shard-size 250
+```
+
+For the opt-in first IntersectionEdit repair slice, use the separate smoke
+config. This keeps the frozen IntersectionQA v0.1 defaults unchanged while
+exercising `repair_direction` export, validation, and verifier reports:
+
+```bash
+rtk uv run python -m scripts.build_release_candidate \
+  --config configs/repair_smoke.yaml \
+  --output-dir data/intersectionedit_repair_smoke
+```
+
+Repair predictions can also be verifier-checked by applying the predicted move
+to `object_b` and remeasuring exact geometry:
+
+```bash
+rtk uv run python -m scripts.evaluate_repair_predictions \
+  data/intersectionedit_repair_smoke \
+  predictions.jsonl
 ```
 
 ## CADEvolve Source Directory

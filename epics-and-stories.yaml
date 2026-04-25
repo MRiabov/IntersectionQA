@@ -28,8 +28,8 @@ ordering:
   source: implementation-complexity-priority-matrix.md
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
-  date: "2026-04-24"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, and label-consistency rejection for impossible overlap/touching states. A fresh CADEvolve smoke sample has been rendered and manually checked.
+  date: "2026-04-25"
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, and label-consistency rejection for impossible overlap/touching states. A fresh CADEvolve smoke sample has been rendered and manually checked. The first IntersectionEdit vertical slice is implemented as opt-in `repair_direction` rows using a conservative AABB-separating translation policy.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -66,6 +66,9 @@ current_snapshot:
     - obb_diagnostic_baseline
     - split_safe_few_shot_evaluation
     - tool_assisted_exact_verifier_upper_bound
+    - intersectionedit_repair_direction_aabb_slice
+    - intersectionedit_repair_prediction_verifier_cli
+    - intersectionedit_repair_smoke_config
     - dataset_card_generation
     - smoke_dataset_generation
 
@@ -998,7 +1001,7 @@ epics:
     implementation_complexity: Low
     debugging_difficulty: Low
     recommendation: Build later
-    status: planned
+    status: work-in-progress
     stable: false
     stories:
       - id: "14.1"
@@ -1008,10 +1011,10 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Low
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
         source_document: specs/benchmark-family.md
-        notes: Document which concepts remain shared across QA and Edit, including geometry, CadQuery execution, transforms, grouping, splitting, leakage audits, export, evaluation, and verifier/reward logic.
+        notes: Implemented in specs/benchmark-family.md and reflected in README; shared concepts include geometry, CadQuery execution, transforms, grouping, splitting, leakage audits, export, evaluation, and verifier/reward logic.
       - id: "14.2"
         title: IntersectionEdit task specification
         track: intersectionedit
@@ -1019,10 +1022,10 @@ epics:
         implementation_complexity: Low
         debugging_difficulty: Low
         recommendation: Build now
-        status: planned
+        status: implemented
         stable: false
         source_document: specs/intersectionedit-task-spec.md
-        notes: Keep the initial Edit spec draft compact and avoid implying that IntersectionEdit is implemented in v0.1.
+        notes: Implemented in specs/intersectionedit-task-spec.md, including the first conservative repair_direction slice while preserving the frozen IntersectionQA v0.1 contract.
       - id: "14.3"
         title: First IntersectionEdit vertical slice
         track: intersectionedit
@@ -1030,10 +1033,10 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Build later
-        status: planned
+        status: implemented
         stable: false
         source_document: specs/intersectionedit-task-spec.md
-        notes: Implement one verifier-backed task slice, likely minimal translation repair or repair direction, using existing two-object geometry records and group-safe splits.
+        notes: Implemented opt-in repair_direction rows for positive-overlap two-object records, with conservative AABB-separating metadata, strict parsing, schema validation, exact CadQuery verifier coverage, repair-prediction verifier CLI, per-output repair-success reporting, export validation, release-candidate repair_verifier.json coverage, baseline-comparison repair-success rows, single-geometry class-balance grouping, dataset-card discoverability, and configs/repair_smoke.yaml.
       - id: "14.4"
         title: Package and layout rename decision
         track: shared_core
