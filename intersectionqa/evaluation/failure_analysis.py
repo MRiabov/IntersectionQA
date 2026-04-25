@@ -7,6 +7,7 @@ from typing import Iterable
 
 from intersectionqa.evaluation.metrics import Prediction
 from intersectionqa.evaluation.parsing import parse_answer
+from intersectionqa.evaluation.repair import verify_repair_predictions
 from intersectionqa.schema import FailureRecord, ObjectValidationRecord, PublicTaskRow
 
 
@@ -32,7 +33,30 @@ def failure_case_analysis(
         "generation_failures": _generation_failures(failures),
     }
     if predictions is not None:
-        report["prediction_failures"] = _prediction_failures(rows, list(predictions), max_examples=max_examples)
+        prediction_list = list(predictions)
+        report["prediction_failures"] = _prediction_failures(
+            rows,
+            prediction_list,
+            max_examples=max_examples,
+        )
+        repair_verifier = verify_repair_predictions(rows, prediction_list)
+        if repair_verifier.report["row_count"]:
+            report["repair_prediction_verifier"] = {
+                **repair_verifier.report,
+                "failed_examples": [
+                    {
+                        "id": result.row_id,
+                        "output": result.output,
+                        "parsed_output": result.parsed_output,
+                        "valid_output": result.valid_output,
+                        "repaired": result.repaired,
+                        "relation_after_move": result.relation_after_move,
+                        "failure_reason": result.failure_reason,
+                    }
+                    for result in repair_verifier.results
+                    if not result.repaired
+                ][: max(0, max_examples)],
+            }
     return report
 
 

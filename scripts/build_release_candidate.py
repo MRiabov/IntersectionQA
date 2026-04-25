@@ -118,7 +118,12 @@ def main() -> None:
             reports_dir / "repair_verifier.json",
         )
 
-    failures_report = failure_case_analysis(rows, object_validations, failures)
+    failures_report = failure_case_analysis(
+        rows,
+        object_validations,
+        failures,
+        predictions=[prediction.as_prediction() for prediction in tool_assisted.predictions],
+    )
     _write_json(failures_report, reports_dir / "failure_analysis.json")
 
     comparison_rows = comparison_rows_from_aabb(aabb)

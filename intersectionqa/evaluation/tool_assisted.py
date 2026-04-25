@@ -71,6 +71,8 @@ def tool_assisted_predict(row: PublicTaskRow) -> ToolAssistedPrediction:
 def _answer_from_executed_geometry(row: PublicTaskRow) -> str:
     if row.task_type in {TaskType.PAIRWISE_INTERFERENCE, TaskType.RANKING_NORMALIZED_INTERSECTION}:
         return row.answer
+    if row.task_type == TaskType.REPAIR_DIRECTION:
+        return verified_repair_direction(row)
     labels = _labels_from_script(row)
     if row.task_type == TaskType.BINARY_INTERFERENCE:
         return binary_answer(labels.relation)
@@ -83,8 +85,6 @@ def _answer_from_executed_geometry(row: PublicTaskRow) -> str:
     if row.task_type == TaskType.TOLERANCE_FIT:
         required = float(row.metadata.get("required_clearance_mm", 1.0))
         return _tolerance_fit(labels, row.label_policy, required)
-    if row.task_type == TaskType.REPAIR_DIRECTION:
-        return verified_repair_direction(row)
     raise ValueError(f"unsupported tool-assisted task type: {row.task_type}")
 
 

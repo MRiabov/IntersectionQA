@@ -68,6 +68,7 @@ def dataset_stats(rows: Iterable[PublicTaskRow]) -> dict[str, object]:
         },
         "by_source": _counts(row.source for row in rows),
         "by_difficulty_tag": _counts(tag for row in rows for tag in row.difficulty_tags),
+        "repair_direction": _repair_direction_stats(rows),
     }
 
 
@@ -112,3 +113,22 @@ def _metrics_for_task(task_type: TaskType, items: list[tuple[PublicTaskRow, str 
 def _counts(values: Iterable[str]) -> dict[str, int]:
     counts: Counter[str] = Counter(values)
     return dict(sorted(counts.items()))
+
+
+def _repair_direction_stats(rows: list[PublicTaskRow]) -> dict[str, object]:
+    repair_rows = [row for row in rows if row.task_type == TaskType.REPAIR_DIRECTION]
+    magnitudes = [
+        float(row.metadata["selected_magnitude_mm"])
+        for row in repair_rows
+        if isinstance(row.metadata.get("selected_magnitude_mm"), int | float)
+    ]
+    return {
+        "row_count": len(repair_rows),
+        "by_policy": _counts(row.metadata.get("repair_policy", "unknown") for row in repair_rows),
+        "by_selected_direction": _counts(row.answer for row in repair_rows),
+        "selected_magnitude_mm": {
+            "min": min(magnitudes) if magnitudes else None,
+            "mean": sum(magnitudes) / len(magnitudes) if magnitudes else None,
+            "max": max(magnitudes) if magnitudes else None,
+        },
+    }

@@ -22,12 +22,14 @@ FEW_SHOT_EVAL_VERSION = "few_shot_eval_v01"
 FEW_SHOT_PROMPT_VERSION = "closed_book_few_shot_v01"
 PARSER_POLICY_VERSION = "strict_exact_answer_v01"
 ZERO_SHOT_SYSTEM_PROMPT = (
-    "You are evaluating IntersectionQA closed-book CAD-code spatial reasoning prompts. "
+    "You are evaluating code-only CAD spatial reasoning prompts from the "
+    "IntersectionQA/IntersectionEdit benchmark family. "
     "Do not execute code, call tools, or ask for clarification. Return only the exact final "
     "answer token requested by the user prompt."
 )
 FEW_SHOT_SYSTEM_PROMPT = (
-    "You are evaluating IntersectionQA closed-book CAD-code spatial reasoning prompts. "
+    "You are evaluating code-only CAD spatial reasoning prompts from the "
+    "IntersectionQA/IntersectionEdit benchmark family. "
     "Study the provided solved examples, then answer the final target prompt. Do not execute "
     "code, call tools, or ask for clarification. Return only the exact final answer token "
     "requested by the target prompt."
