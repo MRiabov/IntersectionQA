@@ -3,6 +3,8 @@ from collections import Counter
 import pytest
 
 from intersectionqa.config import DatasetConfig, SmokeConfig
+from intersectionqa.enums import Relation
+from intersectionqa.export.balance import DEFAULT_RELATION_TARGETS, proportional_cap_counts
 from intersectionqa.export.jsonl import (
     read_jsonl,
     read_metadata,
@@ -38,6 +40,7 @@ def test_smoke_export_writes_manifests(tmp_path):
     assert (tmp_path / "object_validation_manifest.jsonl").exists()
     assert (tmp_path / "split_manifest.json").exists()
     assert (tmp_path / "parquet_manifest.json").exists()
+    assert (tmp_path / "class_balance_report.json").exists()
     assert (tmp_path / "DATASET_CARD.md").exists()
     assert (tmp_path / "parquet" / "train.parquet").exists()
     assert report.source_manifest_hash.startswith("sha256:")
@@ -87,3 +90,14 @@ def test_public_row_limit_fails_when_underproduced(tmp_path):
 
     with pytest.raises(ValueError, match="public_row_limit=100"):
         write_smoke_dataset(config)
+
+
+def test_proportional_cap_counts_is_idempotent_for_balanced_counts():
+    available = {
+        Relation.INTERSECTING: 1749,
+        Relation.DISJOINT: 1312,
+        Relation.NEAR_MISS: 656,
+        Relation.TOUCHING: 656,
+    }
+
+    assert proportional_cap_counts(available, DEFAULT_RELATION_TARGETS) == available

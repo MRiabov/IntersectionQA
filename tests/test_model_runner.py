@@ -81,7 +81,7 @@ def test_few_shot_examples_are_train_split_and_group_safe():
     target = next(
         row
         for row in rows
-        if row.task_type == TaskType.BINARY_INTERFERENCE and row.split == Split.TEST_NEAR_BOUNDARY
+        if row.task_type == TaskType.BINARY_INTERFERENCE and row.split != Split.TRAIN
     )
 
     examples = select_few_shot_examples(rows, target, shot_count=3)
@@ -94,7 +94,11 @@ def test_few_shot_examples_are_train_split_and_group_safe():
 
 def test_few_shot_request_records_include_examples_and_runner_reports_policy():
     rows, _ = build_smoke_rows(DatasetConfig())
-    target = next(row for row in rows if row.task_type == TaskType.BINARY_INTERFERENCE)
+    target = next(
+        row
+        for row in rows
+        if row.task_type == TaskType.BINARY_INTERFERENCE and row.split != Split.TRAIN
+    )
     examples = select_few_shot_examples(rows, target, shot_count=1)
     spec = ModelSpec(provider="openai-chat", model="frontier-test", api_key_env="OPENAI_API_KEY")
     settings = DecodingSettings(temperature=0.0, max_tokens=8, top_p=1.0)

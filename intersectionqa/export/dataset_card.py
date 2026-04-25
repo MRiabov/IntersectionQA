@@ -192,12 +192,11 @@ def build_dataset_card(dataset_dir: Path) -> str:
             "closed-book geometric grounding from code; tool-assisted CAD agents can be evaluated "
             "separately as an upper-bound setting.",
             "",
-            "This is a benchmark-first release rather than a conventional train-heavy supervised "
-            "dataset. Interpret `train`, `validation`, and `test_random` as the simple "
-            "train/dev/test path. The other `test_*` splits are named diagnostic challenge suites. "
-            "In particular, `test_near_boundary` is intentionally large because it is the main "
-            "stress set for touching, near-miss, tiny-overlap, and counterfactual cases; it should "
-            "be reported separately from the primary random test score.",
+            "Interpret `train`, `validation`, and `test_random` as the simple train/dev/test "
+            "path. The other `test_*` splits are named diagnostic challenge suites. In particular, "
+            "`test_near_boundary` is a small stress set for touching, near-miss, tiny-overlap, and "
+            "counterfactual cases; it should be reported separately from the primary random test "
+            "score.",
             "",
             sibling_note,
             "",
@@ -260,12 +259,11 @@ def build_dataset_card(dataset_dir: Path) -> str:
             "`test_generator_heldout` is reserved for generator-family holdout and may be empty when "
             "the current source window does not provide a reliable generator-family split.",
             "",
-            "Because this release deliberately oversamples hard boundary cases, `test_near_boundary` "
-            "can be larger than `train`. Treat it as a diagnostic benchmark pool, not as a small "
-            "held-out test split from an IID training distribution.",
-            "",
             "Rows from the same object-pair, assembly, and counterfactual groups are kept split-safe "
-            "according to the exported group metadata.",
+            "according to the exported group metadata. Boundary and counterfactual groups are "
+            "distributed across `train`, `validation`, and held-out splits by the same deterministic "
+            "group-level policy; `test_near_boundary` should remain a small challenge slice rather "
+            "than absorbing all hard examples.",
             "",
             "## Data Fields",
             *field_rows,

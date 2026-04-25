@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
+from itertools import combinations
 from typing import Iterable
 
-from intersectionqa.enums import AuditStatus, TaskType
+from intersectionqa.enums import AuditStatus, Split, TaskType
 from intersectionqa.schema import (
     GeometryRecord,
     GroupHoldoutRule,
@@ -27,12 +28,20 @@ DEFAULT_SPLITS = [
     "test_near_boundary",
 ]
 
+BOUNDARY_SPLIT_BUCKETS = (
+    (75, "train"),
+    (85, "validation"),
+    (90, "test_random"),
+    (93, "test_object_pair_heldout"),
+    (100, "test_near_boundary"),
+)
+
 
 def split_group(record: GeometryRecord | PublicTaskRow) -> str:
     return (
-        record.counterfactual_group_id
-        or record.assembly_group_id
+        record.assembly_group_id
         or record.base_object_pair_id
+        or record.counterfactual_group_id
         or record.geometry_ids[0]  # type: ignore[attr-defined]
     )
 
@@ -49,6 +58,59 @@ def assign_geometry_splits(records: list[GeometryRecord], seed: int) -> dict[str
         for record in group_records:
             assignments[record.geometry_id] = split
     return assignments
+
+
+def reassign_public_row_splits(
+    rows: list[PublicTaskRow],
+    seed: int,
+) -> tuple[list[PublicTaskRow], dict[str, object]]:
+    groups: dict[str, list[PublicTaskRow]] = defaultdict(list)
+    for row in rows:
+        groups[split_group(row)].append(row)
+
+    reassigned: list[PublicTaskRow] = []
+    group_reports: dict[str, dict[str, object]] = {}
+    for group_id, group_rows in sorted(groups.items()):
+        split = _public_group_split(group_id, group_rows, seed)
+        for row in group_rows:
+            metadata = dict(row.metadata)
+            metadata["split_group"] = group_id
+            reassigned.append(row.model_copy(update={"split": Split(split), "metadata": metadata}))
+        group_reports[group_id] = {
+            "old_splits": _counts(str(row.split) for row in group_rows),
+            "new_split": split,
+            "row_count": len(group_rows),
+            "near_boundary_group": is_near_boundary_group(group_rows),
+        }
+
+    return sorted(reassigned, key=lambda row: row.id), {
+        "schema": "intersectionqa_split_redistribution_report_v1",
+        "seed": seed,
+        "old_split_counts": _counts(str(row.split) for row in rows),
+        "new_split_counts": _counts(str(row.split) for row in reassigned),
+        "old_group_counts": _counts(str(group_rows[0].split) for group_rows in groups.values()),
+        "new_group_counts": _counts(report["new_split"] for report in group_reports.values()),
+        "boundary_split_buckets": [
+            {"upper_bound": upper_bound, "split": split}
+            for upper_bound, split in BOUNDARY_SPLIT_BUCKETS
+        ],
+        "groups": group_reports,
+    }
+
+
+def _public_group_split(group_id: str, rows: list[PublicTaskRow], seed: int) -> str:
+    if any(row.split == Split.TEST_GENERATOR_HELDOUT for row in rows):
+        return "test_generator_heldout"
+    if is_near_boundary_group(rows):
+        return _boundary_group_split(group_id, seed)
+    bucket = _stable_bucket(group_id, seed, 100)
+    if bucket < 70:
+        return "train"
+    if bucket < 80:
+        return "validation"
+    if bucket < 90:
+        return "test_object_pair_heldout"
+    return "test_random"
 
 
 def _heldout_generators(
@@ -78,10 +140,6 @@ def _group_split(
     seed: int,
     heldout_generators: set[str],
 ) -> str:
-    tags = set().union(*(set(record.difficulty_tags) for record in records))
-    relations = {record.labels.relation for record in records}
-    if "near_boundary" in tags or relations & {"touching", "near_miss"}:
-        return "test_near_boundary"
     if any(record.source == "synthetic" for record in records):
         # Keep fixture smoke rows represented across non-heldout splits without splitting groups.
         bucket = _stable_bucket(group_id, seed, 3)
@@ -93,6 +151,8 @@ def _group_split(
     }
     if group_generators & heldout_generators:
         return "test_generator_heldout"
+    if is_near_boundary_group(records):
+        return _boundary_group_split(group_id, seed)
     bucket = _stable_bucket(group_id, seed, 100)
     if bucket < 70:
         return "train"
@@ -101,6 +161,29 @@ def _group_split(
     if bucket < 90:
         return "test_object_pair_heldout"
     return "test_random"
+
+
+def is_near_boundary_group(records: Iterable[GeometryRecord | PublicTaskRow]) -> bool:
+    for record in records:
+        tags = set(record.difficulty_tags)
+        if "near_boundary" in tags:
+            return True
+        if str(record.labels.relation) in {"touching", "near_miss"}:
+            return True
+        if getattr(record, "task_type", None) in {
+            TaskType.PAIRWISE_INTERFERENCE,
+            TaskType.RANKING_NORMALIZED_INTERSECTION,
+        }:
+            return True
+    return False
+
+
+def _boundary_group_split(group_id: str, seed: int) -> str:
+    bucket = _stable_bucket(f"boundary:{group_id}", seed, 100)
+    for upper_bound, split in BOUNDARY_SPLIT_BUCKETS:
+        if bucket < upper_bound:
+            return split
+    raise AssertionError("unreachable boundary split bucket")
 
 
 def _stable_bucket(value: str, seed: int, modulo: int) -> int:
@@ -112,14 +195,7 @@ def audit_group_leakage(
     rows: Iterable[PublicTaskRow],
     forbidden_pairs: list[tuple[str, str]] | None = None,
 ) -> LeakageAudit:
-    forbidden_pairs = forbidden_pairs or [
-        ("train", "validation"),
-        ("train", "test_random"),
-        ("train", "test_generator_heldout"),
-        ("train", "test_object_pair_heldout"),
-        ("train", "test_near_boundary"),
-        ("validation", "test_object_pair_heldout"),
-    ]
+    forbidden_pairs = forbidden_pairs or list(combinations(DEFAULT_SPLITS, 2))
     fields = ["generator_id", "base_object_pair_id", "assembly_group_id", "counterfactual_group_id"]
     split_values: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     for row in rows:
@@ -145,10 +221,7 @@ def audit_group_leakage(
 
 
 def _fields_for_pair(left: str, right: str) -> list[str]:
-    if "test_near_boundary" in {left, right}:
-        fields = ["counterfactual_group_id"]
-    else:
-        fields = ["base_object_pair_id", "assembly_group_id", "counterfactual_group_id"]
+    fields = ["base_object_pair_id", "assembly_group_id", "counterfactual_group_id"]
     if "test_generator_heldout" in {left, right}:
         fields.append("generator_id")
     return fields
@@ -188,21 +261,14 @@ def split_manifest(rows: list[PublicTaskRow]) -> SplitManifest:
                 rule_id="counterfactual_inseparable",
                 description="Rows sharing counterfactual_group_id must not cross splits.",
                 group_fields=["counterfactual_group_id"],
-                forbidden_cross_split_pairs=[
-                    ["train", "validation"],
-                    ["train", "test_random"],
-                    ["train", "test_near_boundary"],
-                ],
+                forbidden_cross_split_pairs=[list(pair) for pair in combinations(DEFAULT_SPLITS, 2)],
                 status=audit.status,
             ),
             GroupHoldoutRule(
                 rule_id="object_pair_holdout",
-                description="Rows sharing object-pair or assembly IDs must not cross object-pair tests.",
+                description="Rows sharing object-pair or assembly IDs must not cross splits.",
                 group_fields=["base_object_pair_id", "assembly_group_id"],
-                forbidden_cross_split_pairs=[
-                    ["train", "test_object_pair_heldout"],
-                    ["validation", "test_object_pair_heldout"],
-                ],
+                forbidden_cross_split_pairs=[list(pair) for pair in combinations(DEFAULT_SPLITS, 2)],
                 status=audit.status,
             ),
         ],
