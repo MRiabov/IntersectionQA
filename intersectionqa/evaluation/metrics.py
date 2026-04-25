@@ -8,6 +8,7 @@ import re
 from typing import Iterable
 
 from intersectionqa.enums import TaskType
+from intersectionqa.evaluation.edit_difficulty import edit_difficulty_tags
 from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.schema import FailureRecord, ObjectValidationRecord, PublicTaskRow
 
@@ -72,6 +73,7 @@ def dataset_stats(rows: Iterable[PublicTaskRow]) -> dict[str, object]:
         },
         "by_source": _counts(row.source for row in rows),
         "by_difficulty_tag": _counts(tag for row in rows for tag in row.difficulty_tags),
+        "by_edit_difficulty_tag": _counts(tag for row in rows for tag in edit_difficulty_tags(row)),
         "repair_direction": _repair_direction_stats(rows),
         "repair_translation": _repair_translation_stats(rows),
         "axis_aligned_repair": _axis_aligned_edit_stats(rows, TaskType.AXIS_ALIGNED_REPAIR),

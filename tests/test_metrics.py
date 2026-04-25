@@ -104,6 +104,9 @@ def test_epic15_metrics_report_numeric_and_candidate_scores():
     assert stats["axis_aligned_repair"]["row_count"] > 0
     assert stats["axis_aligned_repair_vector"]["row_count"] > 0
     assert stats["axis_aligned_repair_program"]["row_count"] > 0
+    assert stats["by_edit_difficulty_tag"]["axis_aligned_intersection_repair_vector"] > 0
+    assert stats["by_edit_difficulty_tag"]["output_edit_program"] > 0
+    assert stats["by_edit_difficulty_tag"]["centroid_distance_move"] > 0
     assert stats["target_clearance_repair"]["row_count"] > 0
     assert stats["target_clearance_move"]["row_count"] > 0
     assert stats["target_contact_move"]["row_count"] > 0
