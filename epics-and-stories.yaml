@@ -29,7 +29,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-25"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, and label-consistency rejection for impossible overlap/touching states. A fresh CADEvolve smoke sample has been rendered and manually checked. The first IntersectionEdit vertical slice is implemented as opt-in `repair_direction` rows using a conservative AABB-separating translation policy.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, and optional topology/operation held-out split routing from stored metadata. A fresh CADEvolve smoke sample has been rendered and manually checked. The first IntersectionEdit vertical slice is implemented as opt-in `repair_direction` rows using a conservative AABB-separating translation policy.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -62,6 +62,7 @@ current_snapshot:
     - mvp_prompt_generation
     - jsonl_export_and_validation
     - group_safe_splits
+    - topology_and_operation_extension_splits
     - aabb_diagnostic_baseline
     - obb_diagnostic_baseline
     - split_safe_few_shot_evaluation
@@ -427,16 +428,22 @@ epics:
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Defer
-        status: planned
+        status: implemented
         stable: false
+        notes:
+          - Implemented as an extension split that is written only when rows are assigned to test_topology_heldout; the frozen default v0.1 six-split export remains unchanged when no extension rows exist.
+          - CADEvolve source loading derives lightweight topology tags from source paths, code markers, and CadQuery operation signatures, and geometry/public rows propagate those tags for split assignment and audit metadata.
       - id: "6.5"
         title: Operation-held-out split
         priority: P2
         implementation_complexity: Medium
         debugging_difficulty: Medium
         recommendation: Defer
-        status: planned
+        status: implemented
         stable: false
+        notes:
+          - Implemented as an extension split that is written only when rows are assigned to test_operation_heldout; validation, parquet export, balancing, split redistribution, and sharded merge now preserve optional extension split rows.
+          - CadQuery operation signatures are propagated from source objects into geometry and public row metadata so selected held-out operations are absent from train rows under the group split policy.
       - id: "6.6"
         title: Near-boundary hard split
         priority: P0
