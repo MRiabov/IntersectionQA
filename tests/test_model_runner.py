@@ -1,6 +1,6 @@
 import json
 
-from intersectionqa.config import DatasetConfig
+from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.enums import Split, TaskType
 from intersectionqa.evaluation.model_runner import (
     DecodingSettings,
@@ -73,6 +73,30 @@ def test_zero_shot_runner_reports_invalid_outputs():
     }
     assert result.metrics[0].invalid_outputs == 1
     assert result.metrics[0].invalid_output_rate == 0.5
+    assert client.messages[0][0][0]["role"] == "system"
+    assert "IntersectionQA/IntersectionEdit" in client.messages[0][0][0]["content"]
+
+
+def test_zero_shot_runner_supports_repair_direction_rows():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[TaskType.REPAIR_DIRECTION],
+            )
+        )
+    )
+    selected = select_rows(rows, task_types={TaskType.REPAIR_DIRECTION}, limit=2)
+    client = RecordingClient([selected[0].answer, "no_valid_move"])
+    spec = ModelSpec(provider="openai-chat", model="frontier-test", api_key_env="OPENAI_API_KEY")
+    settings = DecodingSettings(temperature=0.0, max_tokens=8, top_p=1.0)
+
+    result = run_zero_shot_evaluation(selected, client, spec, settings)
+
+    assert len(result.predictions) == 2
+    assert result.metrics[0].task_type == TaskType.REPAIR_DIRECTION
+    assert result.metrics[0].invalid_outputs == 1
+    assert result.metrics[0].correct == 1
     assert client.messages[0][0][0]["role"] == "system"
 
 

@@ -1,3 +1,5 @@
+import pytest
+
 from intersectionqa.config import DatasetConfig
 from intersectionqa.enums import Relation, TaskType
 from intersectionqa.geometry.cadquery_exec import measure_source_pair
@@ -14,6 +16,7 @@ from intersectionqa.prompts.common import strict_parse
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.prompts.repair import ALLOWED_ANSWERS as REPAIR_ALLOWED
 from intersectionqa.prompts.repair import make_repair_direction_prompt
+from intersectionqa.prompts.repair import repair_candidates, repair_metadata, repair_plan
 from intersectionqa.prompts.relation import ALLOWED_ANSWERS as RELATION_ALLOWED
 from intersectionqa.schema import Transform
 from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
@@ -141,6 +144,46 @@ def test_repair_direction_rows_use_positive_overlap_records_only():
     assert all(len(row.metadata["candidate_moves"]) == 6 for row in rows)
 
 
+def test_repair_direction_policy_chooses_smallest_aabb_separating_move():
+    config = DatasetConfig()
+    base = fixture_geometry_records(config.label_policy, config.config_hash)[2]
+    record = _record_with_bboxes(
+        base,
+        bbox_a={"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]},
+        bbox_b={"min": [0.5, -0.2, -0.2], "max": [2.5, 0.2, 0.2]},
+    )
+
+    candidates = {move.direction: move for move in repair_candidates(record)}
+    plan = repair_plan(record)
+    metadata = repair_metadata(record)
+
+    assert plan.direction == "+x"
+    assert plan.magnitude_mm == pytest.approx(0.5001)
+    assert plan.translation_vector_mm == pytest.approx((0.5001, 0.0, 0.0))
+    assert candidates["+x"].translation_vector_mm == pytest.approx((0.5001, 0.0, 0.0))
+    assert candidates["-x"].translation_vector_mm == pytest.approx((-3.5001, 0.0, 0.0))
+    assert metadata["selected_direction"] == "+x"
+    assert metadata["selected_translation_vector_mm"] == pytest.approx([0.5001, 0.0, 0.0])
+    assert _aabb_disjoint_after_move(record.metadata["bbox_a"], record.metadata["bbox_b"], plan.translation_vector_mm)
+
+
+def test_repair_direction_policy_uses_documented_tie_break_order():
+    config = DatasetConfig()
+    base = fixture_geometry_records(config.label_policy, config.config_hash)[2]
+    record = _record_with_bboxes(
+        base,
+        bbox_a={"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]},
+        bbox_b={"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]},
+    )
+
+    plan = repair_plan(record)
+    metadata = repair_metadata(record)
+
+    assert plan.direction == "+x"
+    assert plan.magnitude_mm == pytest.approx(2.0001)
+    assert metadata["candidate_direction_labels"] == ["+x", "-x", "+y", "-y", "+z", "-z"]
+
+
 def test_repair_direction_move_removes_exact_synthetic_overlap():
     config = DatasetConfig()
     records = fixture_geometry_records(config.label_policy, config.config_hash)
@@ -168,3 +211,31 @@ def test_repair_direction_move_removes_exact_synthetic_overlap():
         labels, _ = derive_labels(raw_geometry, record.label_policy)
 
         assert labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}
+
+
+def _record_with_bboxes(record, *, bbox_a: dict[str, list[float]], bbox_b: dict[str, list[float]]):
+    return record.model_copy(
+        update={
+            "metadata": {
+                **record.metadata,
+                "bbox_a": bbox_a,
+                "bbox_b": bbox_b,
+            }
+        }
+    )
+
+
+def _aabb_disjoint_after_move(
+    bbox_a: dict[str, list[float]],
+    bbox_b: dict[str, list[float]],
+    vector: tuple[float, float, float],
+) -> bool:
+    moved_b = {
+        "min": [bbox_b["min"][index] + vector[index] for index in range(3)],
+        "max": [bbox_b["max"][index] + vector[index] for index in range(3)],
+    }
+    return any(
+        moved_b["min"][index] > bbox_a["max"][index]
+        or moved_b["max"][index] < bbox_a["min"][index]
+        for index in range(3)
+    )

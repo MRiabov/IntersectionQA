@@ -1,3 +1,7 @@
+import json
+import subprocess
+import sys
+
 from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.enums import TaskType
 from intersectionqa.evaluation.metrics import Prediction
@@ -8,6 +12,7 @@ from intersectionqa.evaluation.tool_assisted import (
     tool_assisted_predict,
 )
 from intersectionqa.pipeline import build_smoke_rows
+from intersectionqa.pipeline import write_smoke_dataset
 
 
 def test_tool_assisted_upper_bound_executes_rows_and_reports_failures():
@@ -78,3 +83,35 @@ def test_repair_verifier_distinguishes_repair_success_from_exact_answer():
     assert result.report["exact_answer_accuracy"] < result.report["repair_success_rate"]
     assert result.report["by_output"]["+y"]["total"] == len(rows)
     assert result.report["by_output"]["+y"]["repaired"] == len(rows)
+
+
+def test_evaluate_tool_assisted_script_handles_repair_direction_rows(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    write_smoke_dataset(
+        DatasetConfig(
+            output_dir=dataset_dir,
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[
+                    TaskType.BINARY_INTERFERENCE,
+                    TaskType.REPAIR_DIRECTION,
+                ],
+            ),
+        )
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.evaluate_tool_assisted",
+            str(dataset_dir),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    report = json.loads(completed.stdout)
+
+    assert report["tool_failure_count"] == 0
+    assert any(metric["task_type"] == "repair_direction" for metric in report["metrics"])

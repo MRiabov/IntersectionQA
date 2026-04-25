@@ -1,4 +1,5 @@
 from intersectionqa.config import DatasetConfig, SmokeConfig
+from intersectionqa.enums import TaskType
 from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import Prediction, dataset_stats, evaluate_predictions, manifest_stats
 from intersectionqa.evaluation.parsing import parse_answer
@@ -42,6 +43,29 @@ def test_dataset_stats_counts_rows():
     assert stats["by_candidate_strategy"]["golden_box_fixture"] > 0
     assert stats["by_source_subtree"]["unknown"] == len(rows)
     assert sum(sum(counts.values()) for counts in stats["by_split_relation"].values()) == len(rows)
+    assert stats["repair_direction"]["row_count"] == 0
+
+
+def test_dataset_stats_summarizes_repair_direction_rows():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[TaskType.REPAIR_DIRECTION],
+            )
+        )
+    )
+
+    stats = dataset_stats(rows)
+    repair_stats = stats["repair_direction"]
+
+    assert repair_stats["row_count"] == len(rows)
+    assert repair_stats["by_policy"] == {
+        "conservative_aabb_separating_translation_v01": len(rows)
+    }
+    assert sum(repair_stats["by_selected_direction"].values()) == len(rows)
+    assert repair_stats["selected_magnitude_mm"]["min"] is not None
+    assert repair_stats["selected_magnitude_mm"]["max"] >= repair_stats["selected_magnitude_mm"]["min"]
 
 
 def test_manifest_stats_counts_validation_records():
@@ -63,3 +87,23 @@ def test_failure_case_analysis_counts_prediction_failures():
     assert prediction_failures["incorrect_count"] > 0
     assert prediction_failures["invalid_output_count"] > 0
     assert len(prediction_failures["examples"]) == 3
+
+
+def test_failure_case_analysis_summarizes_repair_verifier_failures():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[TaskType.REPAIR_DIRECTION],
+            )
+        )
+    )
+    predictions = [Prediction(row_id=row.id, output="no_valid_move") for row in rows]
+
+    report = failure_case_analysis(rows, [], [], predictions=predictions, max_examples=2)
+
+    verifier = report["repair_prediction_verifier"]
+    assert verifier["row_count"] == len(rows)
+    assert verifier["invalid_output_count"] == len(rows)
+    assert verifier["repair_success_rate"] == 0.0
+    assert len(verifier["failed_examples"]) == 2
