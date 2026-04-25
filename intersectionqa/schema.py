@@ -315,6 +315,11 @@ class PublicTaskRow(StrictModel):
                 raise ValueError("repair_direction rows require positive-overlap relation")
             if self.answer != _expected_repair_direction(self.metadata):
                 raise ValueError("repair_direction answer does not match repair metadata")
+        if self.task_type == TaskType.REPAIR_TRANSLATION:
+            if self.labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+                raise ValueError("repair_translation rows require positive-overlap relation")
+            if self.answer != _expected_repair_translation(self.metadata):
+                raise ValueError("repair_translation answer does not match repair metadata")
         if self.hashes.prompt_hash is None:
             raise ValueError("public task rows require prompt_hash")
         required = [
@@ -466,6 +471,12 @@ def _expected_repair_direction(metadata: dict[str, Any]) -> str:
     if selected_vector != expected_vector:
         raise ValueError("repair_direction selected vector must match selected candidate")
     return selected
+
+
+def _expected_repair_translation(metadata: dict[str, Any]) -> str:
+    direction = _expected_repair_direction(metadata)
+    magnitude = _finite_nonnegative_metadata_float(metadata, "selected_magnitude_mm")
+    return f"{direction} {magnitude:.6f}"
 
 
 def _finite_nonnegative_metadata_float(metadata: dict[str, Any], key: str) -> float:

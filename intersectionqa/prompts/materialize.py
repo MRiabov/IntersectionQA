@@ -11,7 +11,7 @@ from intersectionqa.prompts.buckets import materialize_clearance_bucket_row, mat
 from intersectionqa.prompts.counterfactual import materialize_pairwise_rows
 from intersectionqa.prompts.fit import materialize_tolerance_fit_row
 from intersectionqa.prompts.ranking import materialize_ranking_rows
-from intersectionqa.prompts.repair import materialize_repair_direction_row
+from intersectionqa.prompts.repair import materialize_repair_direction_row, materialize_repair_translation_row
 from intersectionqa.prompts.relation import materialize_relation_row
 from intersectionqa.schema import GeometryRecord, PublicTaskRow
 
@@ -21,6 +21,7 @@ SINGLE_RECORD_MATERIALIZERS = {
     TaskType.VOLUME_BUCKET: materialize_volume_bucket_row,
     TaskType.CLEARANCE_BUCKET: materialize_clearance_bucket_row,
     TaskType.REPAIR_DIRECTION: materialize_repair_direction_row,
+    TaskType.REPAIR_TRANSLATION: materialize_repair_translation_row,
     TaskType.TOLERANCE_FIT: materialize_tolerance_fit_row,
 }
 

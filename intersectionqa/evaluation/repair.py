@@ -12,10 +12,15 @@ from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.geometry.cadquery_exec import apply_transform, measure_shape_pair, object_to_shape
 from intersectionqa.geometry.labels import derive_labels
 from intersectionqa.geometry.transforms import IDENTITY_TRANSFORM
-from intersectionqa.schema import PublicTaskRow, Transform
+from intersectionqa.schema import BoundingBox, PublicTaskRow, Transform
 
 REPAIR_TIE_BREAK_ORDER = ["+x", "-x", "+y", "-y", "+z", "-z"]
 REPAIR_POLICY_NAME = "conservative_aabb_separating_translation_v01"
+REPAIR_TASK_TYPES = {TaskType.REPAIR_DIRECTION, TaskType.REPAIR_TRANSLATION}
+TRUSTED_SCRIPT_EXECUTION_MODEL = (
+    "trusted_dataset_rows_only: repair verification executes row.script with Python exec "
+    "because CadQuery reconstruction requires code execution. Do not run it on untrusted rows."
+)
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,68 @@ class RepairVerificationResult:
 class RepairVerificationRunResult:
     report: dict[str, Any]
     results: list[RepairVerificationResult]
+
+
+def validate_repair_row_metadata(row: PublicTaskRow) -> None:
+    """Recompute conservative AABB repair metadata from stored row bboxes."""
+    if row.task_type not in REPAIR_TASK_TYPES:
+        return
+    if row.labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+        raise ValueError(f"{row.task_type} rows require positive-overlap relation")
+    if row.metadata.get("repair_policy") != REPAIR_POLICY_NAME:
+        raise ValueError("unsupported repair policy")
+
+    expected = _expected_candidates_from_bboxes(row)
+    actual = {str(candidate["direction"]): candidate for candidate in _candidate_moves(row)}
+    if set(actual) != set(expected):
+        raise ValueError("repair metadata candidate directions do not match recomputed policy")
+    for direction, expected_candidate in expected.items():
+        actual_candidate = actual[direction]
+        if not math.isclose(
+            float(actual_candidate["magnitude_mm"]),
+            float(expected_candidate["magnitude_mm"]),
+            abs_tol=1e-9,
+        ):
+            raise ValueError("repair metadata candidate magnitude does not match stored bboxes")
+        if _candidate_vector(actual_candidate) != tuple(expected_candidate["translation_vector_mm"]):
+            raise ValueError("repair metadata candidate vector does not match stored bboxes")
+
+    selected_direction = _selected_direction_from_metadata(row)
+    expected_selected = min(
+        expected.values(),
+        key=lambda candidate: (
+            float(candidate["magnitude_mm"]),
+            REPAIR_TIE_BREAK_ORDER.index(str(candidate["direction"])),
+        ),
+    )
+    if selected_direction != expected_selected["direction"]:
+        raise ValueError("repair selected direction does not match recomputed AABB policy")
+    if row.task_type == TaskType.REPAIR_TRANSLATION:
+        expected_answer = f"{selected_direction} {float(expected_selected['magnitude_mm']):.6f}"
+        if row.answer != expected_answer:
+            raise ValueError("repair_translation answer does not match recomputed AABB policy")
+
+
+def verify_repair_rows_exact(rows: Iterable[PublicTaskRow]) -> RepairVerificationRunResult:
+    """Verify stored edit answers with exact CadQuery geometry execution."""
+    repair_rows = [row for row in rows if row.task_type in REPAIR_TASK_TYPES]
+    results = [_verify_stored_repair_answer(row) for row in repair_rows]
+    invalid = [result for result in results if not result.valid_output]
+    repaired = [result for result in results if result.repaired]
+    failures = [result for result in results if result.failure_reason]
+    report = {
+        "system": "intersectionedit_exact_repair_row_validator",
+        "execution_model": TRUSTED_SCRIPT_EXECUTION_MODEL,
+        "row_count": len(repair_rows),
+        "valid_output_count": len(results) - len(invalid),
+        "invalid_output_count": len(invalid),
+        "repaired_count": len(repaired),
+        "valid_output_rate": (len(results) - len(invalid)) / len(results) if results else 0.0,
+        "repair_success_rate": len(repaired) / len(results) if results else 0.0,
+        "failure_reasons": _counts(result.failure_reason for result in failures),
+        "by_output": _output_breakdown(repair_rows, results),
+    }
+    return RepairVerificationRunResult(report=report, results=results)
 
 
 def verified_repair_direction(row: PublicTaskRow) -> str:
@@ -89,6 +156,44 @@ def verify_repair_direction_output(row: PublicTaskRow, output: str) -> RepairVer
     return RepairVerificationResult(
         row_id=row.id,
         output=output,
+        parsed_output=parsed,
+        valid_output=True,
+        repaired=repaired,
+        relation_after_move=str(relation_after_move),
+    )
+
+
+def _verify_stored_repair_answer(row: PublicTaskRow) -> RepairVerificationResult:
+    _require_repair_row(row)
+    parsed = parse_answer(row.task_type, row.answer)
+    if parsed is None:
+        return RepairVerificationResult(
+            row_id=row.id,
+            output=row.answer,
+            parsed_output=None,
+            valid_output=False,
+            repaired=False,
+            relation_after_move=None,
+            failure_reason="invalid_stored_answer",
+        )
+    direction = parsed.split(" ", 1)[0] if row.task_type == TaskType.REPAIR_TRANSLATION else parsed
+    try:
+        validate_repair_row_metadata(row)
+        relation_after_move = _relation_after_direction(row, direction)
+    except Exception as exc:
+        return RepairVerificationResult(
+            row_id=row.id,
+            output=row.answer,
+            parsed_output=parsed,
+            valid_output=True,
+            repaired=False,
+            relation_after_move=None,
+            failure_reason=type(exc).__name__,
+        )
+    repaired = relation_after_move not in {Relation.INTERSECTING, Relation.CONTAINED}
+    return RepairVerificationResult(
+        row_id=row.id,
+        output=row.answer,
         parsed_output=parsed,
         valid_output=True,
         repaired=repaired,
@@ -156,6 +261,7 @@ def _relation_after_direction(row: PublicTaskRow, direction: str) -> Relation:
 
 
 def _placed_shapes(row: PublicTaskRow) -> tuple[Any, Any]:
+    """Execute trusted dataset row code to reconstruct placed CadQuery shapes."""
     import cadquery as cq
 
     namespace: dict[str, Any] = {"cq": cq, "cadquery": cq, "__builtins__": __builtins__}
@@ -210,8 +316,53 @@ def _candidate_vector(candidate: dict[str, Any]) -> tuple[float, float, float]:
 
 
 def _require_repair_row(row: PublicTaskRow) -> None:
-    if row.task_type != TaskType.REPAIR_DIRECTION:
-        raise ValueError("repair verifier requires a repair_direction row")
+    if row.task_type not in REPAIR_TASK_TYPES:
+        raise ValueError("repair verifier requires an IntersectionEdit repair row")
+
+
+def _expected_candidates_from_bboxes(row: PublicTaskRow) -> dict[str, dict[str, Any]]:
+    bbox_a = _bbox_from_metadata(row, "bbox_a")
+    bbox_b = _bbox_from_metadata(row, "bbox_b")
+    clearance = float(row.label_policy.epsilon_distance_mm)
+    expected: dict[str, dict[str, Any]] = {}
+    for axis_index, axis_name in enumerate(("x", "y", "z")):
+        positive_delta = bbox_a.max[axis_index] - bbox_b.min[axis_index] + clearance
+        negative_delta = bbox_a.min[axis_index] - bbox_b.max[axis_index] - clearance
+        expected[f"+{axis_name}"] = _candidate_metadata(
+            f"+{axis_name}",
+            axis_index,
+            max(0.0, positive_delta),
+        )
+        expected[f"-{axis_name}"] = _candidate_metadata(
+            f"-{axis_name}",
+            axis_index,
+            min(0.0, negative_delta),
+        )
+    return expected
+
+
+def _candidate_metadata(direction: str, axis_index: int, delta: float) -> dict[str, Any]:
+    vector = [0.0, 0.0, 0.0]
+    vector[axis_index] = float(delta)
+    return {
+        "direction": direction,
+        "magnitude_mm": abs(float(delta)),
+        "translation_vector_mm": tuple(vector),
+    }
+
+
+def _bbox_from_metadata(row: PublicTaskRow, key: str) -> BoundingBox:
+    value = row.metadata.get(key)
+    if value is None:
+        raise ValueError(f"repair row requires {key} metadata")
+    return BoundingBox.model_validate(value)
+
+
+def _selected_direction_from_metadata(row: PublicTaskRow) -> str:
+    selected = row.metadata.get("selected_direction")
+    if selected not in REPAIR_TIE_BREAK_ORDER:
+        raise ValueError("repair row has invalid selected_direction")
+    return str(selected)
 
 
 def _validate_direction_vector(direction: str, vector: tuple[float, float, float]) -> None:

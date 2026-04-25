@@ -10,6 +10,7 @@ from intersectionqa.prompts.common import object_code_from_script, public_row, t
 from intersectionqa.schema import BoundingBox, GeometryRecord, PublicTaskRow
 
 TEMPLATE_VERSION = "repair_direction_v01"
+TRANSLATION_TEMPLATE_VERSION = "repair_translation_v01"
 REPAIR_POLICY_NAME = "conservative_aabb_separating_translation_v01"
 ALLOWED_ANSWERS = {"+x", "-x", "+y", "-y", "+z", "-z"}
 
@@ -33,6 +34,14 @@ class RepairMove:
 
 def repair_direction_answer(record: GeometryRecord) -> str:
     return repair_plan(record).direction
+
+
+def repair_translation_answer(record: GeometryRecord) -> str:
+    return repair_translation_answer_from_move(repair_plan(record))
+
+
+def repair_translation_answer_from_move(move: RepairMove) -> str:
+    return f"{move.direction} {move.magnitude_mm:.6f}"
 
 
 def repair_plan(record: GeometryRecord) -> RepairMove:
@@ -105,6 +114,34 @@ Question: Which signed axis direction should object_b move?
 Answer with exactly one token: +x, -x, +y, -y, +z, or -z"""
 
 
+def make_repair_translation_prompt(record: GeometryRecord) -> str:
+    return f"""You are given two CadQuery object-construction functions and assembly transforms.
+
+Assume:
+- Units are millimetres.
+- Euler rotations are XYZ order, in degrees.
+- object_a is fixed.
+- object_b is movable by translation only.
+- Choose the signed world-axis direction and movement magnitude for object_b
+  that repairs positive-volume interference with the smallest conservative
+  single-axis move.
+- The policy is conservative: separate the stored world-space AABBs by the
+  label-policy contact tolerance.
+- Do not execute code.
+
+Object code:
+```python
+{object_code_from_script(record.assembly_script).strip()}
+```
+
+Transforms:
+{transforms_text(record)}
+
+Question: What signed axis direction and magnitude should object_b move?
+
+Answer with exactly two tokens: one of +x, -x, +y, -y, +z, -z followed by a non-negative decimal magnitude in millimetres with six digits after the decimal point."""
+
+
 def materialize_repair_direction_row(
     record: GeometryRecord,
     row_number: int,
@@ -121,6 +158,26 @@ def materialize_repair_direction_row(
         row_number=row_number,
         split=Split(split),
         template_version=TEMPLATE_VERSION,
+        extras=repair_metadata(record),
+    )
+
+
+def materialize_repair_translation_row(
+    record: GeometryRecord,
+    row_number: int,
+    split: str,
+) -> PublicTaskRow | None:
+    if record.labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+        return None
+    plan = repair_plan(record)
+    return public_row(
+        record=record,
+        task_type=TaskType.REPAIR_TRANSLATION,
+        answer=repair_translation_answer_from_move(plan),
+        prompt=make_repair_translation_prompt(record),
+        row_number=row_number,
+        split=Split(split),
+        template_version=TRANSLATION_TEMPLATE_VERSION,
         extras=repair_metadata(record),
     )
 

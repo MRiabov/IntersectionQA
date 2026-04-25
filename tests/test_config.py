@@ -62,6 +62,7 @@ def test_repair_smoke_config_is_opt_in_and_keeps_dataset_name():
     assert config.smoke.task_types == [
         TaskType.BINARY_INTERFERENCE,
         TaskType.REPAIR_DIRECTION,
+        TaskType.REPAIR_TRANSLATION,
     ]
     assert DatasetConfig().smoke.task_types == [
         TaskType.BINARY_INTERFERENCE,

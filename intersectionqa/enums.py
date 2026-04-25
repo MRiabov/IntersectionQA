@@ -41,6 +41,7 @@ class TaskType(StrEnum):
     PAIRWISE_INTERFERENCE = "pairwise_interference"
     RANKING_NORMALIZED_INTERSECTION = "ranking_normalized_intersection"
     REPAIR_DIRECTION = "repair_direction"
+    REPAIR_TRANSLATION = "repair_translation"
     TOLERANCE_FIT = "tolerance_fit"
 
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import math
+import re
+
 from intersectionqa.geometry.labels import VOLUME_BUCKETS
 from intersectionqa.enums import TaskType
 from intersectionqa.prompts.buckets import CLEARANCE_BUCKETS
@@ -50,6 +53,7 @@ RANKING_ANSWERS = {
     )
 }
 REPAIR_DIRECTION_ANSWERS = {"+x", "-x", "+y", "-y", "+z", "-z"}
+REPAIR_TRANSLATION_RE = re.compile(r"^(\+x|-x|\+y|-y|\+z|-z) ([0-9]+)\.([0-9]{6})$")
 
 ALLOWED_BY_TASK = {
     TaskType.BINARY_INTERFERENCE: BINARY_ANSWERS,
@@ -64,8 +68,14 @@ ALLOWED_BY_TASK = {
 
 
 def parse_answer(task_type: TaskType, output: str) -> str | None:
+    stripped = output.strip(" \t\r\n")
+    if task_type == TaskType.REPAIR_TRANSLATION:
+        match = REPAIR_TRANSLATION_RE.match(stripped)
+        if match is None:
+            return None
+        magnitude = float(f"{match.group(2)}.{match.group(3)}")
+        return stripped if math.isfinite(magnitude) else None
     allowed = ALLOWED_BY_TASK.get(task_type)
     if allowed is None:
         raise ValueError(f"unsupported task type for strict parsing: {task_type}")
-    stripped = output.strip(" \t\r\n")
     return stripped if stripped in allowed else None

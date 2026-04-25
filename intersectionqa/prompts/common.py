@@ -16,6 +16,7 @@ TASK_PREFIX = {
     TaskType.PAIRWISE_INTERFERENCE: "intersectionqa_pairwise",
     TaskType.RANKING_NORMALIZED_INTERSECTION: "intersectionqa_ranking",
     TaskType.REPAIR_DIRECTION: "intersectionedit_repair_direction",
+    TaskType.REPAIR_TRANSLATION: "intersectionedit_repair_translation",
     TaskType.TOLERANCE_FIT: "intersectionqa_tolerance_fit",
 }
 
@@ -106,6 +107,8 @@ def public_row(
         "generator_ids": record.metadata.get("generator_ids", [record.metadata.get("generator_id")]),
         "cadquery_ops": record.metadata.get("cadquery_ops", []),
         "topology_tags": record.metadata.get("topology_tags", []),
+        "bbox_a": record.metadata.get("bbox_a"),
+        "bbox_b": record.metadata.get("bbox_b"),
         "artifact_ids": record.metadata.get("artifact_ids", {}),
     }
     if extras:
@@ -160,6 +163,8 @@ def public_group_row(
         "generator_ids": representative.metadata.get("generator_ids", [representative.metadata.get("generator_id")]),
         "cadquery_ops": representative.metadata.get("cadquery_ops", []),
         "topology_tags": representative.metadata.get("topology_tags", []),
+        "bbox_a": representative.metadata.get("bbox_a"),
+        "bbox_b": representative.metadata.get("bbox_b"),
         "artifact_ids": representative.metadata.get("artifact_ids", {}),
         "source_geometry_ids": [record.geometry_id for record in records],
         "source_variant_ids": [record.variant_id for record in records],

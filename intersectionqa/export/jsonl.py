@@ -12,6 +12,7 @@ from typing import Iterable
 from pydantic import BaseModel
 
 from intersectionqa.enums import TaskType
+from intersectionqa.evaluation.repair import validate_repair_row_metadata
 from intersectionqa.hashing import sha256_json
 from intersectionqa.geometry.labels import validate_label_consistency
 from intersectionqa.schema import (
@@ -108,6 +109,7 @@ def validate_rows(rows: Iterable[PublicTaskRow]) -> None:
         seen.add(row.id)
         PublicTaskRow.model_validate(row)
         validate_label_consistency(row.labels, row.diagnostics, row.label_policy)
+        validate_repair_row_metadata(row)
 
 
 def write_failure_manifest(failures: Iterable[FailureRecord], path: Path) -> int:
@@ -214,6 +216,11 @@ def _known_limitations(rows: list[PublicTaskRow]) -> list[str]:
         limitations.append(
             "repair_direction is an opt-in IntersectionEdit first slice using a "
             "conservative AABB-separating policy, not exact minimal CAD repair."
+        )
+    if any(row.task_type == TaskType.REPAIR_TRANSLATION for row in rows):
+        limitations.append(
+            "repair_translation is an opt-in IntersectionEdit slice using a "
+            "conservative AABB-separating magnitude, not exact minimal CAD repair."
         )
     return limitations
 

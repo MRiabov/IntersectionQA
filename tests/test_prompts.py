@@ -15,7 +15,7 @@ from intersectionqa.prompts.ranking import ranking_answer, ranking_records
 from intersectionqa.prompts.common import strict_parse
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.prompts.repair import ALLOWED_ANSWERS as REPAIR_ALLOWED
-from intersectionqa.prompts.repair import make_repair_direction_prompt
+from intersectionqa.prompts.repair import make_repair_direction_prompt, make_repair_translation_prompt
 from intersectionqa.prompts.repair import repair_candidates, repair_metadata, repair_plan
 from intersectionqa.prompts.relation import ALLOWED_ANSWERS as RELATION_ALLOWED
 from intersectionqa.schema import Transform
@@ -38,6 +38,9 @@ def test_strict_parsers_reject_prose_and_case_changes():
     assert strict_parse("+x", REPAIR_ALLOWED) == "+x"
     assert parse_answer(TaskType.REPAIR_DIRECTION, "-z") == "-z"
     assert parse_answer(TaskType.REPAIR_DIRECTION, "no_valid_move") is None
+    assert parse_answer(TaskType.REPAIR_TRANSLATION, "+x 1.250000") == "+x 1.250000"
+    assert parse_answer(TaskType.REPAIR_TRANSLATION, "+x 1.25") is None
+    assert parse_answer(TaskType.REPAIR_TRANSLATION, "+x -1.250000") is None
 
 
 def test_prompts_do_not_leak_stored_labels_or_diagnostics():
@@ -54,6 +57,11 @@ def test_prompts_do_not_leak_stored_labels_or_diagnostics():
     assert record.labels.relation not in repair_prompt
     assert "aabb_overlap" not in repair_prompt
     assert "selected_direction" not in repair_prompt
+
+    repair_translation_prompt = make_repair_translation_prompt(record)
+    assert str(record.labels.intersection_volume) not in repair_translation_prompt
+    assert record.labels.relation not in repair_translation_prompt
+    assert "selected_magnitude_mm" not in repair_translation_prompt
 
 
 def test_materialized_rows_validate_answers():
@@ -142,6 +150,22 @@ def test_repair_direction_rows_use_positive_overlap_records_only():
         for row in rows
     )
     assert all(len(row.metadata["candidate_moves"]) == 6 for row in rows)
+
+
+def test_repair_translation_rows_use_canonical_six_decimal_answer():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+
+    rows = materialize_rows(records, splits, [TaskType.REPAIR_TRANSLATION])
+
+    assert rows
+    assert all(row.task_type == TaskType.REPAIR_TRANSLATION for row in rows)
+    for row in rows:
+        direction, magnitude = row.answer.split(" ")
+        assert direction == row.metadata["selected_direction"]
+        assert magnitude == f"{float(row.metadata['selected_magnitude_mm']):.6f}"
+        assert parse_answer(TaskType.REPAIR_TRANSLATION, row.answer) == row.answer
 
 
 def test_repair_direction_policy_chooses_smallest_aabb_separating_move():

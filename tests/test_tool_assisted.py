@@ -5,7 +5,11 @@ import sys
 from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.enums import TaskType
 from intersectionqa.evaluation.metrics import Prediction
-from intersectionqa.evaluation.repair import verify_repair_direction_output, verify_repair_predictions
+from intersectionqa.evaluation.repair import (
+    verify_repair_direction_output,
+    verify_repair_predictions,
+    verify_repair_rows_exact,
+)
 from intersectionqa.evaluation.tool_assisted import (
     TOOL_ASSISTED_EVAL_VERSION,
     run_tool_assisted_upper_bound,
@@ -63,6 +67,26 @@ def test_tool_assisted_upper_bound_verifies_repair_direction_rows():
     invalid = verify_repair_direction_output(repair_rows[0], "no_valid_move")
     assert not invalid.valid_output
     assert not invalid.repaired
+
+
+def test_exact_edit_row_verifier_checks_stored_direction_and_translation_rows():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[
+                    TaskType.REPAIR_DIRECTION,
+                    TaskType.REPAIR_TRANSLATION,
+                ],
+            )
+        )
+    )
+
+    result = verify_repair_rows_exact(rows)
+
+    assert result.report["row_count"] == len(rows)
+    assert result.report["repair_success_rate"] == 1.0
+    assert result.report["execution_model"].startswith("trusted_dataset_rows_only")
 
 
 def test_repair_verifier_distinguishes_repair_success_from_exact_answer():

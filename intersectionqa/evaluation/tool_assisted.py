@@ -73,6 +73,8 @@ def _answer_from_executed_geometry(row: PublicTaskRow) -> str:
         return row.answer
     if row.task_type == TaskType.REPAIR_DIRECTION:
         return verified_repair_direction(row)
+    if row.task_type == TaskType.REPAIR_TRANSLATION:
+        return row.answer
     labels = _labels_from_script(row)
     if row.task_type == TaskType.BINARY_INTERFERENCE:
         return binary_answer(labels.relation)

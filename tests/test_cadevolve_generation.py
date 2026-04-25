@@ -1,11 +1,14 @@
 from intersectionqa.config import DatasetConfig
-from intersectionqa.enums import Relation
+from intersectionqa.enums import Relation, TaskType
+from intersectionqa.evaluation.repair import verify_repair_rows_exact
 from intersectionqa.generation.cadevolve_assemblies import generate_cadevolve_geometry_records
 from intersectionqa.generation.geometry_cache import GeometryLabelCache
 from intersectionqa.hashing import sha256_json, sha256_text
+from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.schema import Hashes, SourceObjectRecord
 from intersectionqa.sources.synthetic import synthetic_source_object
 from intersectionqa.sources.validation import validate_source_object
+from intersectionqa.splits.grouped import assign_geometry_splits
 
 
 def _cadevolve_box(object_id: str, source_path: str, dimensions: tuple[float, float, float]):
@@ -180,6 +183,44 @@ def test_cadevolve_candidate_generation_includes_broad_placement_examples():
 
     assert any(record.metadata["candidate_strategy"] == "broad_random_disjoint" for record in generated.records)
     assert any("broad_placement" in record.difficulty_tags for record in generated.records)
+
+
+def test_cadevolve_repair_rows_exact_verify_for_generated_overlap_examples():
+    config = DatasetConfig()
+    source_a = _cadevolve_box("obj_ca", "CADEvolve-P/test/a.py", (10.0, 10.0, 10.0))
+    source_b = _cadevolve_box("obj_cb", "CADEvolve-C/test/b.py", (8.0, 8.0, 8.0))
+    validations = [
+        validate_source_object(
+            source,
+            config_hash=config.config_hash,
+            validated_at_version="test",
+            isolated=False,
+        )
+        for source in (source_a, source_b)
+    ]
+    generated = generate_cadevolve_geometry_records(
+        [source_a, source_b],
+        {validation.object_id: validation for validation in validations},
+        policy=config.label_policy,
+        config_hash=config.config_hash,
+        max_records=4,
+    )
+    splits = assign_geometry_splits(generated.records, config.seed)
+    rows = materialize_rows(
+        generated.records,
+        splits,
+        [TaskType.REPAIR_DIRECTION, TaskType.REPAIR_TRANSLATION],
+    )
+
+    result = verify_repair_rows_exact(rows)
+
+    assert rows
+    assert any(row.source == "cadevolve" for row in rows)
+    assert {TaskType.REPAIR_DIRECTION, TaskType.REPAIR_TRANSLATION} <= {
+        row.task_type for row in rows
+    }
+    assert result.report["row_count"] == len(rows)
+    assert result.report["repair_success_rate"] == 1.0
 
 
 def test_cadevolve_candidate_generation_includes_cavity_targeted_examples():
