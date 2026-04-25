@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ from intersectionqa.export.jsonl import (
     write_source_manifest,
     write_split_files,
 )
+from intersectionqa.export.dataset_card import write_dataset_card
+from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.hashing import sha256_json
 from intersectionqa.pipeline import validate_dataset_dir, write_smoke_dataset
 from intersectionqa.prompts.common import TASK_PREFIX
@@ -111,6 +114,17 @@ def generate_source_shards(
         shard_count=shard_count,
         source_shard_size=source_shard_size,
     )
+    return generate_source_shards_from_specs(config, output_dir, specs, force=force)
+
+
+def generate_source_shards_from_specs(
+    config: DatasetConfig,
+    output_dir: Path,
+    specs: list[SourceShardSpec],
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
+    output_dir.mkdir(parents=True, exist_ok=True)
     results: list[SourceShardResult] = []
     for spec in specs:
         existing = _validated_existing_shard(spec)
@@ -124,6 +138,34 @@ def generate_source_shards(
     manifest = _manifest(output_dir, specs, results)
     _write_shard_manifest(output_dir, specs, results)
     return manifest
+
+
+def seed_existing_dataset_shard(
+    output_dir: Path,
+    spec: SourceShardSpec,
+    dataset_dir: Path,
+    *,
+    force: bool = False,
+) -> SourceShardResult:
+    rows = validate_dataset_dir(dataset_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if spec.output_dir.exists():
+        existing = _validated_existing_shard(spec)
+        if existing is not None and not force:
+            return existing.model_copy(update={"status": "skipped_seed_existing_valid"})
+        if force:
+            shutil.rmtree(spec.output_dir)
+        else:
+            raise ValueError(f"seed shard output exists but is not valid: {spec.output_dir}")
+    shutil.copytree(dataset_dir, spec.output_dir)
+    return SourceShardResult(
+        shard_id=spec.shard_id,
+        output_dir=spec.output_dir,
+        status="seeded_existing_valid",
+        source_offset=spec.source_offset,
+        source_limit=spec.source_limit,
+        validated_rows=len(rows),
+    )
 
 
 def merge_validated_source_shards(
@@ -185,6 +227,12 @@ def merge_validated_source_shards(
             license=config.license,
         ),
         output_dir / "metadata.json",
+    )
+    write_dataset_card(output_dir)
+    parquet_counts = write_parquet_files(rows, output_dir / "parquet")
+    (output_dir / "parquet_manifest.json").write_text(
+        json.dumps({"files": parquet_counts, "compression": "zstd"}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     validate_dataset_dir(output_dir)
     result = {

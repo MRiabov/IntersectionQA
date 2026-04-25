@@ -2,10 +2,13 @@ import json
 
 from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.sharding import (
+    SourceShardSpec,
     build_source_shard_specs,
     config_for_source_shard,
+    generate_source_shards_from_specs,
     generate_source_shards,
     merge_validated_source_shards,
+    seed_existing_dataset_shard,
 )
 
 
@@ -90,3 +93,47 @@ def test_merge_validated_source_shards_rewrites_colliding_ids(tmp_path):
     assert len(ids) == len(set(ids))
     assert all(geometry_id.startswith("shard_") for geometry_id in geometry_ids)
     assert (merged_dir / "merge_manifest.json").exists()
+    assert (merged_dir / "DATASET_CARD.md").exists()
+    assert (merged_dir / "parquet_manifest.json").exists()
+
+
+def test_generate_source_shards_from_custom_specs_resumes_seeded_dataset(tmp_path):
+    seed_dir = tmp_path / "seed"
+    shard_root = tmp_path / "job"
+    config = DatasetConfig(
+        output_dir=seed_dir,
+        smoke=SmokeConfig(
+            use_synthetic_fixtures=True,
+            include_cadevolve_if_available=False,
+            geometry_limit=2,
+        ),
+    )
+    from intersectionqa.pipeline import write_smoke_dataset
+
+    write_smoke_dataset(config)
+    specs = [
+        SourceShardSpec(
+            shard_id="shard_0000",
+            index=0,
+            source_offset=0,
+            source_limit=3,
+            output_dir=shard_root / "shards" / "shard_0000",
+        ),
+        SourceShardSpec(
+            shard_id="shard_0001",
+            index=1,
+            source_offset=3,
+            source_limit=5,
+            output_dir=shard_root / "shards" / "shard_0001",
+        ),
+    ]
+
+    seed_result = seed_existing_dataset_shard(shard_root, specs[0], seed_dir)
+    manifest = generate_source_shards_from_specs(config, shard_root, specs)
+
+    assert seed_result.status == "seeded_existing_valid"
+    assert [shard["status"] for shard in manifest["shards"]] == [
+        "skipped_existing_valid",
+        "generated_valid",
+    ]
+    assert manifest["pending_shards"] == []
