@@ -1,7 +1,10 @@
 from intersectionqa.config import DatasetConfig
+from intersectionqa.enums import TaskType
+from intersectionqa.export.jsonl import write_split_files
+from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.prompts.materialize import materialize_rows
 from intersectionqa.sources.synthetic import fixture_geometry_records
-from intersectionqa.splits.grouped import assign_geometry_splits, audit_group_leakage
+from intersectionqa.splits.grouped import assign_geometry_splits, audit_group_leakage, split_manifest
 
 
 def test_group_split_is_deterministic_and_leak_free():
@@ -48,3 +51,112 @@ def test_synthetic_counterfactual_group_has_label_diversity():
     assert len(group_records) >= 2
     assert len({record.labels.relation for record in group_records}) >= 2
     assert {record.changed_parameter for record in group_records} == {"transform_b.translation[0]"}
+
+
+def test_topology_heldout_split_uses_rare_topology_metadata():
+    config = DatasetConfig()
+    records = _cadevolve_like_records(
+        [
+            ("ring", ["ring"], ["circle", "revolve"]),
+            ("box_a", ["box"], ["box"]),
+            ("box_b", ["box"], ["box"]),
+            ("box_c", ["box"], ["box"]),
+            ("box_d", ["box"], ["box"]),
+        ],
+        config,
+    )
+
+    splits = assign_geometry_splits(records, config.seed)
+
+    ring_record = next(record for record in records if record.metadata["topology_tags"] == ["ring"])
+    assert splits[ring_record.geometry_id] == "test_topology_heldout"
+    train_topologies = {
+        tag
+        for record in records
+        if splits[record.geometry_id] == "train"
+        for tag in record.metadata["topology_tags"]
+    }
+    assert "ring" not in train_topologies
+
+
+def test_operation_heldout_split_uses_rare_cadquery_operation_metadata():
+    config = DatasetConfig()
+    records = _cadevolve_like_records(
+        [
+            ("filleted", ["box"], ["box", "fillet"]),
+            ("box_a", ["box"], ["box"]),
+            ("box_b", ["box"], ["box"]),
+            ("box_c", ["box"], ["box"]),
+            ("box_d", ["box"], ["box"]),
+        ],
+        config,
+    )
+
+    splits = assign_geometry_splits(records, config.seed)
+
+    fillet_record = next(record for record in records if "fillet" in record.metadata["cadquery_ops"])
+    assert splits[fillet_record.geometry_id] == "test_operation_heldout"
+    train_ops = {
+        op
+        for record in records
+        if splits[record.geometry_id] == "train"
+        for op in record.metadata["cadquery_ops"]
+    }
+    assert "fillet" not in train_ops
+
+
+def test_extension_split_exports_are_written_only_when_rows_use_them(tmp_path):
+    config = DatasetConfig()
+    records = _cadevolve_like_records(
+        [
+            ("ring", ["ring"], ["circle", "revolve"]),
+            ("box_a", ["box"], ["box"]),
+            ("box_b", ["box"], ["box"]),
+            ("box_c", ["box"], ["box"]),
+            ("box_d", ["box"], ["box"]),
+        ],
+        config,
+    )
+    splits = assign_geometry_splits(records, config.seed)
+    rows = materialize_rows(records, splits, [TaskType.BINARY_INTERFERENCE])
+
+    split_summary = write_split_files(rows, tmp_path)
+    parquet_counts = write_parquet_files(rows, tmp_path / "parquet")
+    manifest = split_manifest(rows)
+
+    assert "test_topology_heldout" in split_summary
+    assert (tmp_path / "test_topology_heldout.jsonl").exists()
+    assert parquet_counts["test_topology_heldout.parquet"] > 0
+    assert "test_topology_heldout" in manifest.split_names
+    assert any(rule.rule_id == "topology_holdout" for rule in manifest.group_holdout_rules)
+    assert not (tmp_path / "test_operation_heldout.jsonl").exists()
+
+
+def _cadevolve_like_records(
+    specs: list[tuple[str, list[str], list[str]]],
+    config: DatasetConfig,
+):
+    fixtures = fixture_geometry_records(config.label_policy, config.config_hash)
+    records = []
+    for index, (name, topology_tags, cadquery_ops) in enumerate(specs, start=1):
+        fixture = fixtures[(index - 1) % len(fixtures)]
+        records.append(
+            fixture.model_copy(
+                update={
+                    "geometry_id": f"geom_cadevolve_meta_{index:06d}",
+                    "source": "cadevolve",
+                    "base_object_pair_id": f"pair_meta_{index:06d}",
+                    "assembly_group_id": f"asmgrp_meta_{index:06d}",
+                    "counterfactual_group_id": None,
+                    "variant_id": None,
+                    "metadata": {
+                        **fixture.metadata,
+                        "fixture_name": name,
+                        "generator_ids": ["gen_meta_shared"],
+                        "topology_tags": topology_tags,
+                        "cadquery_ops": cadquery_ops,
+                    },
+                }
+            )
+        )
+    return records

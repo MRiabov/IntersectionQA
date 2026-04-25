@@ -10,7 +10,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from intersectionqa.schema import PublicTaskRow
-from intersectionqa.splits.grouped import DEFAULT_SPLITS
+from intersectionqa.splits.grouped import split_names_for_rows
 
 
 def write_parquet_files(rows: list[PublicTaskRow], output_dir: Path) -> dict[str, int]:
@@ -22,7 +22,7 @@ def write_parquet_files(rows: list[PublicTaskRow], output_dir: Path) -> dict[str
         by_split[row.split].append(row)
 
     counts: dict[str, int] = {}
-    for split in DEFAULT_SPLITS:
+    for split in split_names_for_rows(rows):
         split_rows = sorted(by_split.get(split, []), key=lambda row: row.id)
         path = output_dir / f"{split}.parquet"
         table = public_rows_to_table(split_rows)

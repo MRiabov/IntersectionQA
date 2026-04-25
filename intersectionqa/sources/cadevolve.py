@@ -356,6 +356,7 @@ def _source_object_record(
             "normalized_code": normalized_code,
         }
     )
+    cadquery_ops = sorted(set(OP_RE.findall(code)))
     return SourceObjectRecord(
         object_id=f"obj_cadevolve_{index:06d}",
         source="cadevolve",
@@ -366,8 +367,8 @@ def _source_object_record(
         object_name=Path(source_path).stem,
         normalized_code=normalized_code,
         object_function_name="object_source",
-        cadquery_ops=sorted(set(OP_RE.findall(code))),
-        topology_tags=[],
+        cadquery_ops=cadquery_ops,
+        topology_tags=_topology_tags(source_path, code, cadquery_ops),
         metadata={
             "source_tree": source_path.split("/", 1)[0],
             "source_subset": _source_subset(source_path),
@@ -383,6 +384,34 @@ def _source_object_record(
             prompt_hash=None,
         ),
     )
+
+
+def _topology_tags(source_path: str, code: str, cadquery_ops: list[str]) -> list[str]:
+    text = f"{source_path} {code}".lower()
+    tags: set[str] = set()
+    marker_tags = {
+        "ring": ("ring", "torus", "annulus"),
+        "bracket": ("bracket", "mount"),
+        "clamp": ("clamp",),
+        "hollow": ("hollow", "shell", "void", "cavity"),
+        "shaft": ("shaft", "axle", "rod"),
+        "housing": ("housing", "case", "enclosure"),
+        "flange": ("flange",),
+        "plate_with_holes": ("plate_with_holes", "plate-with-holes", "hole_plate"),
+    }
+    for tag, markers in marker_tags.items():
+        if any(marker in text for marker in markers):
+            tags.add(tag)
+    ops = set(cadquery_ops)
+    if {"circle", "cylinder"} & ops or ".circle(" in code or ".cylinder(" in code:
+        tags.add("cylinder")
+    if "box" in ops:
+        tags.add("box")
+    if {"hole", "cut", "cutThruAll", "shell"} & ops:
+        tags.add("hollow")
+    if "revolve" in ops and not tags:
+        tags.add("ring")
+    return sorted(tags)
 
 
 def _extracted_member_path(cache_root: Path, source_path: str) -> Path:

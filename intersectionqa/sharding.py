@@ -37,7 +37,7 @@ from intersectionqa.schema import (
     SourceManifest,
     SourceManifestEntry,
 )
-from intersectionqa.splits.grouped import DEFAULT_SPLITS, split_manifest
+from intersectionqa.splits.grouped import ALL_SPLITS, split_manifest
 
 
 class SourceShardSpec(BaseModel):
@@ -275,8 +275,11 @@ def _read_and_rewrite_shard_rows(
     task_counters: dict[str, int],
 ) -> list[PublicTaskRow]:
     rows: list[PublicTaskRow] = []
-    for split in DEFAULT_SPLITS:
-        for row in read_jsonl(shard_dir / f"{split}.jsonl"):
+    for split in ALL_SPLITS:
+        path = shard_dir / f"{split}.jsonl"
+        if not path.exists():
+            continue
+        for row in read_jsonl(path):
             task_counters[row.task_type] += 1
             rows.append(_rewrite_row(row, shard_id, task_counters[row.task_type]))
     return rows

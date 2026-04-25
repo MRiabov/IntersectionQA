@@ -24,7 +24,7 @@ from intersectionqa.schema import (
     SourceManifest,
     SplitFileSummary,
 )
-from intersectionqa.splits.grouped import DEFAULT_SPLITS
+from intersectionqa.splits.grouped import split_names_for_rows
 
 
 def write_jsonl(rows: Iterable[PublicTaskRow], path: Path) -> int:
@@ -86,7 +86,7 @@ def write_split_files(rows: list[PublicTaskRow], output_dir: Path) -> dict[str, 
         by_split[row.split].append(row)
 
     summary: dict[str, SplitFileSummary] = {}
-    for split in DEFAULT_SPLITS:
+    for split in split_names_for_rows(rows):
         split_rows = by_split.get(split, [])
         split_rows = sorted(split_rows, key=lambda row: row.id)
         path = output_dir / f"{split}.jsonl"

@@ -534,6 +534,16 @@ def _measure_candidate(
                 object_b.metadata.get("source_subset") or object_b.metadata.get("source_tree"),
             ],
             "generator_ids": [object_a.generator_id, object_b.generator_id],
+            "cadquery_ops": sorted(set(object_a.cadquery_ops) | set(object_b.cadquery_ops)),
+            "topology_tags": sorted(set(object_a.topology_tags) | set(object_b.topology_tags)),
+            "object_cadquery_ops": {
+                object_a.object_id: object_a.cadquery_ops,
+                object_b.object_id: object_b.cadquery_ops,
+            },
+            "object_topology_tags": {
+                object_a.object_id: object_a.topology_tags,
+                object_b.object_id: object_b.topology_tags,
+            },
             "artifact_ids": ArtifactIds().model_dump(mode="json"),
             "bbox_a": world_a.to_schema().model_dump(mode="json"),
             "bbox_b": world_b.to_schema().model_dump(mode="json"),

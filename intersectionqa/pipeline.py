@@ -51,7 +51,7 @@ from intersectionqa.sources.validation_cache import (
     object_validation_cache_key,
 )
 from intersectionqa.splits.grouped import (
-    DEFAULT_SPLITS,
+    ALL_SPLITS,
     assign_geometry_splits,
     audit_group_leakage,
     split_manifest,
@@ -543,7 +543,7 @@ def _object_validation_failures(
 
 def validate_dataset_dir(path: Path) -> list[PublicTaskRow]:
     rows: list[PublicTaskRow] = []
-    split_files = {f"{split}.jsonl" for split in DEFAULT_SPLITS}
+    split_files = {f"{split}.jsonl" for split in ALL_SPLITS}
     for file_path in sorted(path.glob("*.jsonl")):
         if file_path.name not in split_files:
             continue

@@ -212,6 +212,20 @@ def fixture_geometry_records(policy: LabelPolicy, config_hash: str) -> list[Geom
                 metadata={
                     **fixture.metadata,
                     "generator_ids": [GENERATOR_ID],
+                    "cadquery_ops": sorted(
+                        set(fixture.object_a.cadquery_ops) | set(fixture.object_b.cadquery_ops)
+                    ),
+                    "topology_tags": sorted(
+                        set(fixture.object_a.topology_tags) | set(fixture.object_b.topology_tags)
+                    ),
+                    "object_cadquery_ops": {
+                        fixture.object_a.object_id: fixture.object_a.cadquery_ops,
+                        fixture.object_b.object_id: fixture.object_b.cadquery_ops,
+                    },
+                    "object_topology_tags": {
+                        fixture.object_a.object_id: fixture.object_a.topology_tags,
+                        fixture.object_b.object_id: fixture.object_b.topology_tags,
+                    },
                     "artifact_ids": ArtifactIds().model_dump(mode="json"),
                     "bbox_a": fixture.bbox_a.to_schema().model_dump(mode="json"),
                     "bbox_b": fixture.bbox_b.to_schema().model_dump(mode="json"),

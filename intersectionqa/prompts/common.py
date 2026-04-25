@@ -104,6 +104,8 @@ def public_row(
         "candidate_strategy": record.metadata.get("candidate_strategy"),
         "source_subtrees": record.metadata.get("source_subtrees"),
         "generator_ids": record.metadata.get("generator_ids", [record.metadata.get("generator_id")]),
+        "cadquery_ops": record.metadata.get("cadquery_ops", []),
+        "topology_tags": record.metadata.get("topology_tags", []),
         "artifact_ids": record.metadata.get("artifact_ids", {}),
     }
     if extras:
@@ -156,6 +158,8 @@ def public_group_row(
         "candidate_strategy": "counterfactual_derived_prompt",
         "source_subtrees": representative.metadata.get("source_subtrees"),
         "generator_ids": representative.metadata.get("generator_ids", [representative.metadata.get("generator_id")]),
+        "cadquery_ops": representative.metadata.get("cadquery_ops", []),
+        "topology_tags": representative.metadata.get("topology_tags", []),
         "artifact_ids": representative.metadata.get("artifact_ids", {}),
         "source_geometry_ids": [record.geometry_id for record in records],
         "source_variant_ids": [record.variant_id for record in records],
