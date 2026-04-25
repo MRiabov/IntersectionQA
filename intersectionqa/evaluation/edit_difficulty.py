@@ -23,6 +23,7 @@ EDIT_DIFFICULTY_TAGS = {
     "axis_aligned_intersection_repair",
     "axis_aligned_intersection_repair_vector",
     "axis_aligned_intersection_repair_program",
+    "conservative_axis_aligned_repair",
     "axis_aligned_target_clearance_repair",
     "axis_aligned_target_clearance_move",
     "axis_aligned_target_contact_move",
@@ -66,6 +67,9 @@ def edit_difficulty_tags(row: PublicTaskRow) -> list[str]:
             tags.add(f"move_{move_kind}")
         if diagnostics.get("ambiguous") is True:
             tags.add("ambiguous_direction")
+    edit_family = metadata.get("edit_family")
+    if isinstance(edit_family, str) and edit_family in EDIT_DIFFICULTY_TAGS:
+        tags.add(edit_family)
 
     tags.add(_output_tag(row.task_type))
     if metadata.get("edit_counterfactual_group_id"):
