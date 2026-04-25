@@ -5,6 +5,103 @@ out of the general text fine-tuning runbook.
 
 ## Summary
 
+### April 25, 2026 GRPO/GSPO Pilot
+
+- Dataset: `data/intersectionedit_grpo_pilot_inner_all`
+- Source release candidate: `data/intersectionedit_grpo_pilot`
+- Model: `unsloth/Qwen3.5-4B`
+- Method: Unsloth/TRL GRPO with sequence-level importance sampling
+  (`--importance-sampling-level sequence`, GSPO-style) and DAPO loss
+- Training split hygiene: public `train` only, then group-safe
+  `inner_train`/`inner_eval`
+- Internal rows: 1,627 train, 200 eval
+- Public release-candidate rows: 2,565 total from 500 CADEvolve-backed geometry
+  records
+- Public validation: `scripts.validate_dataset` passed and leakage audit status
+  is `pass`
+- Status: ready for Vast A100 canary; local execution is blocked by the CPU-only
+  laptop and missing training stack dependencies in the local project venv
+
+The initial `configs/repair_smoke.yaml` path was confirmed to be a tiny smoke
+configuration (`geometry_limit: 100`). Exact `axis_aligned_repair` and candidate
+tasks were too slow on raw CADEvolve rows for the overnight budget, so the pilot
+uses fast mixed QA+Edit task families:
+
+- `binary_interference`
+- `relation_classification`
+- `volume_bucket`
+- `clearance_bucket`
+- `tolerance_fit`
+- `repair_direction`
+- `repair_translation`
+- `target_clearance_move`
+- `target_contact_move`
+- `centroid_distance_move`
+
+Prepared split report:
+
+```json
+{
+  "input_rows": 1827,
+  "selected_rows": 1827,
+  "inner_train_rows": 1627,
+  "inner_eval_rows": 200,
+  "scope": "all"
+}
+```
+
+Vast launch target:
+
+```bash
+cd /root/IntersectionQA
+nohup python scripts/text_grpo_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_grpo_pilot_inner_all \
+  --model unsloth/Qwen3.5-4B \
+  --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_canary \
+  --train-splits inner_train \
+  --eval-splits inner_eval \
+  --max-train-rows 128 \
+  --max-eval-rows 64 \
+  --max-steps 20 \
+  --max-prompt-length 2048 \
+  --max-completion-length 512 \
+  --num-generations 4 \
+  --eval-steps 10 \
+  --save-steps 10 \
+  --quality-eval-steps 10 \
+  --quality-eval-max-rows 32 \
+  --importance-sampling-level sequence \
+  --loss-type dapo \
+  > /root/grpo_qwen3p5_4b_intersectionqa_edit_canary.log 2>&1 &
+```
+
+If the canary has non-degenerate rewards and valid formatted completions, extend
+to the 300-step pilot:
+
+```bash
+cd /root/IntersectionQA
+nohup python scripts/text_grpo_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_grpo_pilot_inner_all \
+  --model unsloth/Qwen3.5-4B \
+  --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_pilot \
+  --train-splits inner_train \
+  --eval-splits inner_eval \
+  --max-steps 300 \
+  --max-prompt-length 2048 \
+  --max-completion-length 1024 \
+  --num-generations 4 \
+  --eval-steps 50 \
+  --save-steps 50 \
+  --quality-eval-steps 50 \
+  --quality-eval-max-rows 64 \
+  --importance-sampling-level sequence \
+  --loss-type dapo \
+  --resume \
+  > /root/grpo_qwen3p5_4b_intersectionqa_edit_pilot.log 2>&1 &
+```
+
+### Earlier April 25, 2026 SFT Run
+
 - Date: April 25, 2026
 - Dataset: `data/IntersectionQA-90K`
 - Model: `unsloth/Qwen3.5-4B`

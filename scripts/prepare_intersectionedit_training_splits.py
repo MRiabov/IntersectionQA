@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--eval-fraction", type=float, default=0.10)
     parser.add_argument("--source-splits", nargs="+", default=["train"])
     parser.add_argument("--mode", choices=["sft", "rl"], default="sft")
+    parser.add_argument("--scope", choices=["edit", "all"], default="edit")
     args = parser.parse_args()
 
     report = prepare_intersectionedit_training_splits(
@@ -30,6 +31,7 @@ def main() -> None:
         eval_fraction=args.eval_fraction,
         source_splits=args.source_splits,
         mode=args.mode,
+        scope=args.scope,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
 
@@ -42,12 +44,13 @@ def prepare_intersectionedit_training_splits(
     eval_fraction: float,
     source_splits: list[str],
     mode: str,
+    scope: str,
 ) -> dict[str, object]:
     rows = _load_source_rows(dataset_dir, source_splits)
     edit_rows = [
         row
         for row in rows
-        if row.task_type in EDIT_TASK_TYPES and _include_for_mode(row, mode)
+        if (scope == "all" or row.task_type in EDIT_TASK_TYPES) and _include_for_mode(row, mode)
     ]
     train_rows, eval_rows, split_report = partition_internal_train_eval_rows(
         edit_rows,
@@ -60,6 +63,7 @@ def prepare_intersectionedit_training_splits(
     report = {
         "schema": "intersectionedit_training_splits_v1",
         "mode": mode,
+        "scope": scope,
         "source_splits": source_splits,
         "input_rows": len(rows),
         "selected_rows": len(edit_rows),

@@ -25,10 +25,16 @@ Also, GRPO isn't the best, there is also Dr. GRPO, there is also GSPO... I'm not
 
 Also, commit your changes every once in a while.
 
+Budget note: we've started with 9.57$ in vast ai balance in the evening.
+
 ### Other low-priority tasks:
 
 - I've seen we had a lot of for loops in the app. Not exactly bad but maybe use `polars` to iterate over it? 
 - if the tonights' run succeeds, mark more features in @epics-and-stories.yaml as "stable".
+
+--- 
+
+Warn: this laptop has no GPU, you'll need to rent on Vast.
 
 ## Execution log
 
@@ -251,13 +257,13 @@ loss_type = "dr_grpo"
 
 - [x] Run focused tests for changed reward/split/prompt/config code.
 - [x] Fix any failing tests or obvious reward/parser bugs.
-- [ ] Commit the stabilized code baseline.
-- [ ] Decide whether to prebuild/push a training container locally.
-- [ ] Build and validate IntersectionEdit release candidate.
-- [ ] Inspect split/task/answer balance reports.
-- [ ] Add or confirm internal SFT/RL train/eval split usage in training code.
-- [ ] Add production GRPO/Unsloth runner if missing.
-- [ ] Run local GRPO smoke.
+- [x] Commit the stabilized code baseline.
+- [x] Decide whether to prebuild/push a training container locally.
+- [x] Build and validate IntersectionEdit release candidate.
+- [x] Inspect split/task/answer balance reports.
+- [x] Add or confirm internal SFT/RL train/eval split usage in training code.
+- [x] Add production GRPO/Unsloth runner if missing.
+- [x] Run local GRPO smoke.
 - [ ] Launch GPU GRPO canary.
 - [ ] Launch 300-step pilot if canary is healthy.
 - [ ] Run held-out/internal eval and compare with SFT baseline.
@@ -278,3 +284,32 @@ loss_type = "dr_grpo"
   periodic generation-quality eval, JSONL metric logging, and adapter saving.
 - [x] Local focused tests passed:
   `rtk uv run python -m compileall -q intersectionqa scripts && rtk uv run pytest -q tests/test_rewards.py tests/test_splits.py tests/test_metrics.py tests/test_prompts.py tests/test_config.py`.
+- [x] Committed stabilized GRPO prep baseline as
+  `Add IntersectionEdit GRPO training prep`.
+- [x] Skipped local container prebuild because the repo does not have a ready
+  CUDA training image and dependency churn would likely cost more time than the
+  paid install path on a Vast A100.
+- [x] Confirmed `configs/repair_smoke.yaml` was only a tiny smoke path:
+  `geometry_limit: 100`. Exact `axis_aligned_repair` materialization on raw
+  CADEvolve rows was too slow for the overnight budget, so the training pilot
+  uses the fast mixed QA+Edit subset instead of the exact repair/candidate
+  family.
+- [x] Built `data/intersectionedit_grpo_pilot` from
+  `configs/intersectionedit_grpo_pilot.yaml`: 500 geometries, 2,565 public task
+  rows, leakage audit pass, and successful dataset validation.
+- [x] Prepared mixed QA+Edit RL internal splits in
+  `data/intersectionedit_grpo_pilot_inner_all` using only public `train` rows:
+  1,627 `inner_train` rows, 200 `inner_eval` rows, 238 group-safe internal
+  groups, and task coverage across binary/relation/volume/clearance/tolerance
+  plus repair direction/translation and target clearance/contact/centroid
+  movement.
+- [x] Added `--scope all` to
+  `scripts.prepare_intersectionedit_training_splits` so GRPO can train on mixed
+  IntersectionQA + IntersectionEdit rows while preserving edit counterfactual
+  groups and QA split groups.
+- [x] Re-ran focused validation after the mixed-scope split change:
+  `rtk uv run python -m compileall -q intersectionqa scripts && rtk uv run pytest -q tests/test_rewards.py tests/test_splits.py tests/test_metrics.py tests/test_prompts.py tests/test_config.py`
+  passed with 43 tests.
+- [x] Local GRPO execution smoke is intentionally deferred to the GPU canary:
+  this laptop has no GPU and the local project environment does not install
+  `torch`, `transformers`, `datasets`, `trl`, or `unsloth`.

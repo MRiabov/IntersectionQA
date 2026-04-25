@@ -172,6 +172,7 @@ def test_prepare_intersectionedit_training_splits_writes_group_safe_files(tmp_pa
         eval_fraction=0.35,
         source_splits=["train", "validation", "test_random", "test_object_pair_heldout", "test_near_boundary"],
         mode="sft",
+        scope="edit",
     )
 
     train_rows = (output_dir / "inner_train.jsonl").read_text(encoding="utf-8").strip().splitlines()
@@ -182,6 +183,18 @@ def test_prepare_intersectionedit_training_splits_writes_group_safe_files(tmp_pa
     assert train_rows
     assert eval_rows
     assert (output_dir / "report.json").exists()
+
+    all_scope_report = prepare_intersectionedit_training_splits(
+        dataset_dir=dataset_dir,
+        output_dir=tmp_path / "all_scope_splits",
+        seed=config.seed,
+        eval_fraction=0.35,
+        source_splits=["train", "validation", "test_random", "test_object_pair_heldout", "test_near_boundary"],
+        mode="rl",
+        scope="all",
+    )
+    assert all_scope_report["selected_rows"] == len(rows)
+    assert all_scope_report["scope"] == "all"
 
 
 def test_topology_heldout_split_uses_rare_topology_metadata():

@@ -190,13 +190,16 @@ rtk uv run python -m scripts.prepare_intersectionedit_training_splits \
   --dataset-dir data/intersectionedit_repair_smoke \
   --output-dir data/intersectionedit_repair_smoke_grpo \
   --mode rl \
+  --scope all \
   --eval-fraction 0.10
 ```
 
-The split helper filters to IntersectionEdit task families and keeps edit
-counterfactual groups intact. `sft` mode honors `edit_diagnostics.sft_include`
-when present; `rl` mode honors `edit_diagnostics.rl_include`. The reward path is
-metadata-based through `intersectionqa.evaluation.rewards`, covering exact
+The split helper defaults to IntersectionEdit task families; pass `--scope all`
+for mixed IntersectionQA + IntersectionEdit GRPO. It keeps edit counterfactual
+groups intact and falls back to normal split groups for QA rows. `sft` mode
+honors `edit_diagnostics.sft_include` when present; `rl` mode honors
+`edit_diagnostics.rl_include`. The reward path is metadata-based through
+`intersectionqa.evaluation.rewards`, covering exact
 axis/distance repair, full-vector repair, edit-program repair, signed
 clearance/contact/centroid movement, candidate selection, and candidate ranking.
 

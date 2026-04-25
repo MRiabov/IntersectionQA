@@ -1,0 +1,27 @@
+dataset_version: v0.1
+seed: 1234
+output_dir: data/intersectionedit_repair_tiny
+cadevolve_archive: data/cadevolve.tar
+smoke:
+  use_synthetic_fixtures: true
+  include_cadevolve_if_available: true
+  geometry_limit: 20
+  object_validation_limit: 10
+  object_validation_timeout_seconds: 5.0
+  source_member_index_cache_dir: data/cache/source_indexes
+  extracted_source_cache_dir: data/cadevolve_sources
+  object_validation_cache_dir: data/cache/objects
+  geometry_label_cache_dir: data/cache/labels
+  task_types:
+    - binary_interference
+    - repair_direction
+    - repair_translation
+    - axis_aligned_repair
+    - axis_aligned_repair_vector
+    - axis_aligned_repair_program
+    - target_clearance_repair
+    - target_clearance_move
+    - target_contact_move
+    - centroid_distance_move
+    - edit_candidate_selection
+    - edit_candidate_ranking

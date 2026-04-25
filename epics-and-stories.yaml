@@ -30,7 +30,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-25"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction` and `repair_translation` rows using a conservative AABB-separating translation policy.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented but remain too slow for the overnight CADEvolve training build.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -75,6 +75,9 @@ current_snapshot:
     - intersectionedit_repair_prediction_verifier_cli
     - intersectionedit_repair_smoke_config
     - intersectionedit_repair_reporting
+    - intersectionedit_fast_grpo_pilot_release_candidate
+    - intersectionedit_group_safe_mixed_grpo_splits
+    - intersectionedit_reasoning_grpo_reward_runner
     - dataset_card_generation
     - smoke_dataset_generation
 
@@ -1125,9 +1128,9 @@ epics:
         debugging_difficulty: High
         recommendation: Build next
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Implemented opt-in `target_clearance_move` rows for already non-intersecting AABB-separated records. Rows specify a world-axis direction, use signed one-decimal `distance_mm` answers where negative moves closer and positive moves farther, exact-verify final clearance against a 1.0 mm target, and store signed-distance metadata/rewards.
+        notes: Implemented opt-in `target_clearance_move` rows for already non-intersecting AABB-separated records. Rows specify a world-axis direction, use signed one-decimal `distance_mm` answers where negative moves closer and positive moves farther, exact-verify final clearance against a 1.0 mm target, and store signed-distance metadata/rewards. This task family is included in the validated `intersectionedit_grpo_pilot` release candidate and the mixed QA+Edit GRPO internal split.
       - id: "15.6"
         title: Candidate edit selection
         track: intersectionedit
@@ -1180,9 +1183,9 @@ epics:
         debugging_difficulty: High
         recommendation: Build after supervised labels
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Implemented reusable metadata-based reward helpers in `intersectionqa.evaluation.rewards` for exact-answer tasks, axis-aligned repair direction/distance tolerance, full-vector/edit-program vector error, signed target-clearance/contact/centroid movement, movement/overshoot penalty, target score, candidate-selection soft scores, and candidate-ranking pairwise accuracy. CadQuery-executing rewards remain intentionally separate in verifier code.
+        notes: Implemented reusable metadata-based reward helpers in `intersectionqa.evaluation.rewards` for exact-answer tasks, axis-aligned repair direction/distance tolerance, full-vector/edit-program vector error, signed target-clearance/contact/centroid movement, movement/overshoot penalty, target score, candidate-selection soft scores, and candidate-ranking pairwise accuracy. Rewards now parse reasoning completions with `<think>...</think><answer>...</answer>` while preserving canonical answer-only support. CadQuery-executing rewards remain intentionally separate in verifier code.
       - id: "15.11"
         title: Edit-specific split groups
         track: intersectionedit
@@ -1191,9 +1194,9 @@ epics:
         debugging_difficulty: Medium
         recommendation: Build after task rows
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Added `metadata.edit_split_group` and `metadata.edit_family` for repair, full-vector repair, edit-program repair, target-clearance movement, target-contact movement, centroid-distance movement, and candidate-set rows, plus deterministic group-safe inner train/eval split helpers for SFT/GRPO split hygiene. Target-distance-held-out and multi-object-hard tests remain planned.
+        notes: Added `metadata.edit_split_group` and `metadata.edit_family` for repair, full-vector repair, edit-program repair, target-clearance movement, target-contact movement, centroid-distance movement, and candidate-set rows, plus deterministic group-safe inner train/eval split helpers for SFT/GRPO split hygiene. The split helper supports edit-only and mixed QA+Edit scopes; the validated GRPO pilot uses public `train` only, with 1,627 `inner_train` rows and 200 `inner_eval` rows. Target-distance-held-out and multi-object-hard tests remain planned.
       - id: "15.12"
         title: Centroid-distance and target-contact edit tasks
         track: intersectionedit
@@ -1202,9 +1205,9 @@ epics:
         debugging_difficulty: High
         recommendation: Build later
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Implemented opt-in `target_contact_move` rows for already non-intersecting AABB-separated records, with signed one-decimal distance labels, exact final touching verification, prompt/parser/schema/reward/stat support, and split metadata. Implemented opt-in `centroid_distance_move` rows that translate non-intersecting records along the centroid-to-centroid direction to a verified target centroid distance while preserving non-intersection.
+        notes: Implemented opt-in `target_contact_move` rows for already non-intersecting AABB-separated records, with signed one-decimal distance labels, exact final touching verification, prompt/parser/schema/reward/stat support, and split metadata. Implemented opt-in `centroid_distance_move` rows that translate non-intersecting records along the centroid-to-centroid direction to a verified target centroid distance while preserving non-intersection. Both task families are included in the validated fast GRPO pilot release candidate.
       - id: "15.13"
         title: Counterfactual edit groups
         track: intersectionedit
@@ -1313,7 +1316,7 @@ epics:
         debugging_difficulty: High
         recommendation: Build after supervised labels
         status: implemented
-        stable: false
+        stable: true
         source_document: specs/intersectionedit-full-spec.md
         notes: >-
           Added GRPO reward architecture by replacing the smoke script's exact string reward
@@ -1322,8 +1325,11 @@ epics:
           candidate-ranking rows. Added `scripts.prepare_intersectionedit_training_splits`
           for edit-row filtering plus group-safe inner train/eval splits, updated the GRPO
           smoke loader to consume `inner_train`/`inner_eval`, and documented staged
-          IntersectionEdit SFT/GRPO commands in `docs/text_finetune_runbook.md`.
-          Larger production experiment configs remain model- and hardware-specific.
+          IntersectionEdit SFT/GRPO commands in `docs/text_finetune_runbook.md`. Added
+          `scripts/text_grpo_train_unsloth.py` for the production Qwen3.5 4B run, with
+          GSPO-style sequence importance sampling, Dr. GRPO/DAPO loss selection, periodic
+          generation-quality eval, JSONL metrics, and adapter saving. The first validated
+          pilot uses `data/intersectionedit_grpo_pilot_inner_all` for mixed QA+Edit RL.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit
