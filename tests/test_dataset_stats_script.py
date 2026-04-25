@@ -14,7 +14,7 @@ def test_dataset_stats_script_reports_repair_direction_summary(tmp_path):
             output_dir=dataset_dir,
             smoke=SmokeConfig(
                 include_cadevolve_if_available=False,
-                task_types=[TaskType.REPAIR_DIRECTION],
+                task_types=[TaskType.REPAIR_DIRECTION, TaskType.REPAIR_TRANSLATION],
             ),
         )
     )
@@ -33,8 +33,12 @@ def test_dataset_stats_script_reports_repair_direction_summary(tmp_path):
     )
     stats = json.loads(completed.stdout)
 
-    assert stats["repair_direction"]["row_count"] == len(rows)
+    direction_rows = [row for row in rows if row.task_type == TaskType.REPAIR_DIRECTION]
+    translation_rows = [row for row in rows if row.task_type == TaskType.REPAIR_TRANSLATION]
+    assert stats["repair_direction"]["row_count"] == len(direction_rows)
     assert stats["repair_direction"]["by_policy"] == {
-        "conservative_aabb_separating_translation_v01": len(rows)
+        "conservative_aabb_separating_translation_v01": len(direction_rows)
     }
     assert stats["repair_direction"]["selected_magnitude_mm"]["min"] is not None
+    assert stats["repair_translation"]["row_count"] == len(translation_rows)
+    assert stats["repair_translation"]["selected_magnitude_mm"]["min"] is not None
