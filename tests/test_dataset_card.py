@@ -1,7 +1,8 @@
 import subprocess
 import sys
 
-from intersectionqa.config import DatasetConfig
+from intersectionqa.config import DatasetConfig, SmokeConfig
+from intersectionqa.enums import TaskType
 from intersectionqa.export.dataset_card import build_dataset_card
 from intersectionqa.pipeline import write_smoke_dataset
 
@@ -47,3 +48,25 @@ def test_dataset_card_cli_writes_custom_path(tmp_path):
 
     assert output.exists()
     assert build_dataset_card(tmp_path / "dataset") == output.read_text(encoding="utf-8")
+
+
+def test_dataset_card_describes_opt_in_repair_direction(tmp_path):
+    write_smoke_dataset(
+        DatasetConfig(
+            output_dir=tmp_path,
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[
+                    TaskType.BINARY_INTERFERENCE,
+                    TaskType.REPAIR_DIRECTION,
+                ],
+            ),
+        )
+    )
+
+    text = build_dataset_card(tmp_path)
+
+    assert "- intersectionedit" in text
+    assert "- repair-direction" in text
+    assert "`repair_direction` is an opt-in IntersectionEdit task" in text
+    assert "conservative AABB-separating" in text

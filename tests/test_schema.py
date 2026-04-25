@@ -1,7 +1,12 @@
 import pytest
 
+from intersectionqa.config import DatasetConfig
+from intersectionqa.enums import TaskType
+from intersectionqa.prompts.materialize import materialize_rows
+from intersectionqa.schema import PublicTaskRow
 from intersectionqa.schema import Hashes, LabelPolicy, Transform
 from intersectionqa.sources.synthetic import fixture_geometry_records
+from intersectionqa.splits.grouped import assign_geometry_splits
 
 
 def test_transform_requires_xyz_rotation_order():
@@ -35,3 +40,54 @@ def test_synthetic_geometry_records_match_schema():
         "contained",
     }
     assert all(record.diagnostics.label_status == "ok" for record in records)
+
+
+def test_public_repair_direction_row_validates_answer_against_metadata():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    row = materialize_rows(records, splits, [TaskType.REPAIR_DIRECTION])[0]
+    data = row.model_dump(mode="json")
+    data["answer"] = "-z" if row.answer != "-z" else "+x"
+
+    with pytest.raises(ValueError, match="repair_direction answer"):
+        PublicTaskRow.model_validate(data)
+
+
+def test_public_repair_direction_row_validates_vector_direction():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    row = materialize_rows(records, splits, [TaskType.REPAIR_DIRECTION])[0]
+    data = row.model_dump(mode="json")
+    selected_direction = data["metadata"]["selected_direction"]
+    data["metadata"]["selected_translation_vector_mm"] = [0.0, 0.0, 0.0]
+    data["metadata"]["selected_translation_vector_mm"][0 if selected_direction != "+x" else 1] = 1.0
+    data["metadata"]["selected_magnitude_mm"] = 1.0
+
+    with pytest.raises(ValueError, match="repair_direction vector"):
+        PublicTaskRow.model_validate(data)
+
+
+def test_public_repair_direction_row_requires_selected_vector_to_match_candidate():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    row = materialize_rows(records, splits, [TaskType.REPAIR_DIRECTION])[0]
+    data = row.model_dump(mode="json")
+    direction = data["metadata"]["selected_direction"]
+    candidate = next(
+        item
+        for item in data["metadata"]["candidate_moves"]
+        if item["direction"] == direction
+    )
+    axis = {"+x": 0, "-x": 0, "+y": 1, "-y": 1, "+z": 2, "-z": 2}[direction]
+    sign = 1.0 if direction.startswith("+") else -1.0
+    data["metadata"]["selected_translation_vector_mm"] = [0.0, 0.0, 0.0]
+    data["metadata"]["selected_translation_vector_mm"][axis] = sign * (
+        candidate["magnitude_mm"] + 1.0
+    )
+    data["metadata"]["selected_magnitude_mm"] = candidate["magnitude_mm"] + 1.0
+
+    with pytest.raises(ValueError, match="selected vector"):
+        PublicTaskRow.model_validate(data)

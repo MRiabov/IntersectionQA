@@ -8,6 +8,7 @@ from typing import Iterable
 from intersectionqa.enums import TaskType
 from intersectionqa.evaluation.aabb import BaselineResult
 from intersectionqa.evaluation.metrics import TaskMetrics
+from intersectionqa.evaluation.repair import RepairVerificationRunResult
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,26 @@ def comparison_rows_from_metrics(
             invalid_output_rate=metric.invalid_output_rate,
         )
         for metric in metrics
+    ]
+
+
+def comparison_rows_from_repair_verifier(
+    result: RepairVerificationRunResult,
+    *,
+    system: str = "repair_verifier",
+) -> list[ComparisonRow]:
+    row_count = int(result.report["row_count"])
+    if row_count == 0:
+        return []
+    return [
+        ComparisonRow(
+            system=system,
+            task_type=TaskType.REPAIR_DIRECTION.value,
+            total=row_count,
+            correct=int(result.report["repaired_count"]),
+            accuracy=float(result.report["repair_success_rate"]),
+            invalid_output_rate=1.0 - float(result.report["valid_output_rate"]),
+        )
     ]
 
 

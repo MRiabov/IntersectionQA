@@ -10,11 +10,13 @@ from intersectionqa.evaluation.aabb import evaluate_aabb_binary
 from intersectionqa.evaluation.comparison import (
     comparison_rows_from_aabb,
     comparison_rows_from_metrics,
+    comparison_rows_from_repair_verifier,
     comparison_rows_to_markdown,
     sort_comparison_rows,
 )
 from intersectionqa.evaluation.metrics import evaluate_predictions
 from intersectionqa.evaluation.obb import evaluate_obb_binary
+from intersectionqa.evaluation.repair import verify_repair_predictions
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
 from scripts.evaluate_predictions import _read_predictions
@@ -41,8 +43,15 @@ def main() -> None:
         comparison_rows_from_aabb(evaluate_obb_binary(rows), system="obb_overlap")
     )
     for system, path in [_parse_named_path(item) for item in args.prediction]:
-        metrics = evaluate_predictions(rows, _read_predictions(path))
+        predictions = _read_predictions(path)
+        metrics = evaluate_predictions(rows, predictions)
         comparison_rows.extend(comparison_rows_from_metrics(metrics, system=system))
+        comparison_rows.extend(
+            comparison_rows_from_repair_verifier(
+                verify_repair_predictions(rows, predictions),
+                system=f"{system}_repair_verifier",
+            )
+        )
 
     comparison_rows = sort_comparison_rows(comparison_rows)
     payload = [row.as_dict() for row in comparison_rows]

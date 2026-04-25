@@ -11,6 +11,7 @@ from typing import Iterable
 
 from pydantic import BaseModel
 
+from intersectionqa.enums import TaskType
 from intersectionqa.hashing import sha256_json
 from intersectionqa.geometry.labels import validate_label_consistency
 from intersectionqa.schema import (
@@ -172,11 +173,7 @@ def build_metadata(
         cadquery_version=None,
         ocp_version=None,
         license=license,
-        known_limitations=[
-            "Smoke generation uses synthetic primitive fixtures when CADEvolve is unavailable.",
-            "CADEvolve smoke geometry uses a bounded bbox-guided transform slice, not full corpus sharding.",
-            "AABB baseline is diagnostic and not an official label source.",
-        ],
+        known_limitations=_known_limitations(rows),
     )
 
 
@@ -205,6 +202,20 @@ def _holdout_rule(split: str) -> str:
     if split == "validation":
         return "group_safe_validation"
     return split
+
+
+def _known_limitations(rows: list[PublicTaskRow]) -> list[str]:
+    limitations = [
+        "Smoke generation uses synthetic primitive fixtures when CADEvolve is unavailable.",
+        "CADEvolve smoke geometry uses a bounded bbox-guided transform slice, not full corpus sharding.",
+        "AABB baseline is diagnostic and not an official label source.",
+    ]
+    if any(row.task_type == TaskType.REPAIR_DIRECTION for row in rows):
+        limitations.append(
+            "repair_direction is an opt-in IntersectionEdit first slice using a "
+            "conservative AABB-separating policy, not exact minimal CAD repair."
+        )
+    return limitations
 
 
 def _git_commit() -> str:

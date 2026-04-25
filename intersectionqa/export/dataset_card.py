@@ -38,8 +38,8 @@ TASK_DESCRIPTIONS = {
         "normalized intersection volume."
     ),
     "repair_direction": (
-        "Reserved task family for predicting a simple transform direction that would "
-        "remove or reduce interference."
+        "IntersectionEdit first-slice task: choose the signed world-axis direction "
+        "for moving `object_b` under a conservative AABB-separating repair policy."
     ),
 }
 
@@ -138,6 +138,7 @@ def build_dataset_card(dataset_dir: Path) -> str:
     limitation_lines = [
         f"- {item}" for item in metadata.known_limitations
     ] or ["- No known limitations recorded in `metadata.json`."]
+    has_repair_direction = "repair_direction" in metadata.task_types
     yaml_lines = [
         "---",
         f"license: {metadata.license}",
@@ -159,6 +160,14 @@ def build_dataset_card(dataset_dir: Path) -> str:
         "- spatial-reasoning",
         "- code",
         "- benchmark",
+        *(
+            [
+                "- intersectionedit",
+                "- repair-direction",
+            ]
+            if has_repair_direction
+            else []
+        ),
         f"pretty_name: {release_name}",
         "configs:",
         "- config_name: default",
@@ -224,6 +233,13 @@ def build_dataset_card(dataset_dir: Path) -> str:
             "- `clearance_bucket` uses exact minimum distance with buckets `touching`, `(0, 0.1]`, `(0.1, 1]`, `(1, 5]`, `>5`, plus `intersecting` for positive-overlap rows.",
             "- `tolerance_fit` is `yes` only when the stored exact clearance satisfies the row's required threshold.",
             "- Counterfactual pairwise and ranking rows derive their answers from exact geometry metadata for the compared variants.",
+            *(
+                [
+                    "- `repair_direction` is an opt-in IntersectionEdit task. It asks for the signed world-axis direction to move `object_b`; the first policy is conservative AABB-separating, not exact minimal CAD repair.",
+                ]
+                if has_repair_direction
+                else []
+            ),
             "",
             "## Relation Distribution",
             *relation_rows,

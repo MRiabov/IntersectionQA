@@ -3,7 +3,7 @@ from collections import Counter
 import pytest
 
 from intersectionqa.config import DatasetConfig, SmokeConfig
-from intersectionqa.enums import Relation
+from intersectionqa.enums import Relation, TaskType
 from intersectionqa.export.balance import DEFAULT_RELATION_TARGETS, proportional_cap_counts
 from intersectionqa.export.jsonl import (
     read_jsonl,
@@ -58,6 +58,57 @@ def test_smoke_export_writes_manifests(tmp_path):
     parquet_rows = read_parquet_rows(tmp_path / "parquet" / "train.parquet")
     assert parquet_rows
     assert {"id", "prompt", "answer", "labels_json"} <= set(parquet_rows[0])
+
+
+def test_smoke_export_can_opt_into_repair_direction(tmp_path):
+    config = DatasetConfig(
+        output_dir=tmp_path,
+        smoke=SmokeConfig(
+            include_cadevolve_if_available=False,
+            task_types=[
+                TaskType.BINARY_INTERFERENCE,
+                TaskType.REPAIR_DIRECTION,
+            ],
+        ),
+    )
+
+    report = write_smoke_dataset(config)
+    rows = validate_dataset_dir(tmp_path)
+    repair_rows = [row for row in rows if row.task_type == TaskType.REPAIR_DIRECTION]
+    metadata = read_metadata(tmp_path / "metadata.json")
+
+    assert repair_rows
+    assert report.task_counts["repair_direction"] == len(repair_rows)
+    assert metadata is not None
+    assert "repair_direction" in metadata.task_types
+    assert metadata.counts.by_task["repair_direction"] == len(repair_rows)
+    assert any("conservative AABB-separating" in item for item in metadata.known_limitations)
+    assert all(row.id.startswith("intersectionedit_repair_direction_") for row in repair_rows)
+    assert all(
+        row.metadata["repair_policy"] == "conservative_aabb_separating_translation_v01"
+        for row in repair_rows
+    )
+
+
+def test_class_balance_groups_repair_direction_with_single_geometry_tasks():
+    config = DatasetConfig(
+        smoke=SmokeConfig(
+            include_cadevolve_if_available=False,
+            task_types=[
+                TaskType.BINARY_INTERFERENCE,
+                TaskType.REPAIR_DIRECTION,
+            ],
+        ),
+    )
+
+    rows, _ = build_smoke_rows(config)
+    by_geometry: dict[str, set[TaskType]] = {}
+    for row in rows:
+        by_geometry.setdefault(row.geometry_ids[0], set()).add(row.task_type)
+
+    for row in rows:
+        if row.task_type == TaskType.REPAIR_DIRECTION:
+            assert TaskType.BINARY_INTERFERENCE in by_geometry[row.geometry_ids[0]]
 
 
 def test_public_row_limit_caps_exported_rows(tmp_path):

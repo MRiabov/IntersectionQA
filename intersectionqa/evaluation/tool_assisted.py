@@ -7,6 +7,7 @@ from typing import Any, Iterable
 
 from intersectionqa.enums import Relation, TaskType
 from intersectionqa.evaluation.metrics import Prediction, TaskMetrics, evaluate_predictions
+from intersectionqa.evaluation.repair import verified_repair_direction
 from intersectionqa.geometry.cadquery_exec import measure_shape_pair, object_to_shape
 from intersectionqa.geometry.labels import binary_answer, derive_labels, volume_bucket
 from intersectionqa.geometry.transforms import IDENTITY_TRANSFORM
@@ -82,6 +83,8 @@ def _answer_from_executed_geometry(row: PublicTaskRow) -> str:
     if row.task_type == TaskType.TOLERANCE_FIT:
         required = float(row.metadata.get("required_clearance_mm", 1.0))
         return _tolerance_fit(labels, row.label_policy, required)
+    if row.task_type == TaskType.REPAIR_DIRECTION:
+        return verified_repair_direction(row)
     raise ValueError(f"unsupported tool-assisted task type: {row.task_type}")
 
 

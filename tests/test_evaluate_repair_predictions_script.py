@@ -5,22 +5,9 @@ import sys
 from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.enums import TaskType
 from intersectionqa.pipeline import validate_dataset_dir, write_smoke_dataset
-from scripts.evaluate_predictions import _read_predictions
 
 
-def test_read_predictions_jsonl(tmp_path):
-    path = tmp_path / "predictions.jsonl"
-    path.write_text(
-        json.dumps({"id": "intersectionqa_binary_000001", "output": "yes"}) + "\n",
-        encoding="utf-8",
-    )
-    predictions = _read_predictions(path)
-    assert len(predictions) == 1
-    assert predictions[0].row_id == "intersectionqa_binary_000001"
-    assert predictions[0].output == "yes"
-
-
-def test_evaluate_predictions_script_handles_repair_direction_rows(tmp_path):
+def test_evaluate_repair_predictions_script_reports_exact_repair_success(tmp_path):
     dataset_dir = tmp_path / "dataset"
     write_smoke_dataset(
         DatasetConfig(
@@ -35,11 +22,12 @@ def test_evaluate_predictions_script_handles_repair_direction_rows(tmp_path):
         )
     )
     rows = validate_dataset_dir(dataset_dir)
+    repair_rows = [row for row in rows if row.task_type == TaskType.REPAIR_DIRECTION]
     predictions_path = tmp_path / "predictions.jsonl"
     predictions_path.write_text(
         "".join(
             json.dumps({"id": row.id, "output": row.answer}) + "\n"
-            for row in rows
+            for row in repair_rows
         ),
         encoding="utf-8",
     )
@@ -48,7 +36,7 @@ def test_evaluate_predictions_script_handles_repair_direction_rows(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.evaluate_predictions",
+            "scripts.evaluate_repair_predictions",
             str(dataset_dir),
             str(predictions_path),
         ],
@@ -56,8 +44,11 @@ def test_evaluate_predictions_script_handles_repair_direction_rows(tmp_path):
         capture_output=True,
         text=True,
     )
-    metrics = json.loads(completed.stdout)
+    payload = json.loads(completed.stdout)
 
-    repair_metrics = next(item for item in metrics if item["task_type"] == "repair_direction")
-    assert repair_metrics["accuracy"] == 1.0
-    assert repair_metrics["invalid_outputs"] == 0
+    assert payload["report"]["system"] == "intersectionedit_repair_direction_exact_verifier"
+    assert payload["report"]["row_count"] == len(repair_rows)
+    assert payload["report"]["repair_success_rate"] == 1.0
+    assert payload["report"]["exact_answer_accuracy"] == 1.0
+    assert payload["report"]["by_output"]
+    assert all(item["repaired"] for item in payload["results"])

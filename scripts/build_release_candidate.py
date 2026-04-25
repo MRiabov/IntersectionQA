@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 from time import monotonic
 
@@ -12,9 +13,11 @@ from intersectionqa.evaluation.aabb import evaluate_aabb_binary
 from intersectionqa.evaluation.comparison import (
     comparison_rows_from_aabb,
     comparison_rows_from_metrics,
+    comparison_rows_from_repair_verifier,
     comparison_rows_to_markdown,
 )
 from intersectionqa.evaluation.obb import evaluate_obb_binary
+from intersectionqa.evaluation.repair import verify_repair_predictions
 from intersectionqa.evaluation.tool_assisted import run_tool_assisted_upper_bound
 from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.evaluation.metrics import dataset_stats, manifest_stats
@@ -100,6 +103,20 @@ def main() -> None:
     _write_json(obb.__dict__, reports_dir / "obb_baseline.json")
     tool_assisted = run_tool_assisted_upper_bound(rows)
     _write_json(tool_assisted.report, reports_dir / "tool_assisted_upper_bound.json")
+    repair_verifier = verify_repair_predictions(
+        rows,
+        [prediction.as_prediction() for prediction in tool_assisted.predictions],
+    )
+    repair_verifier_report = None
+    if repair_verifier.report["row_count"]:
+        repair_verifier_report = repair_verifier.report
+        _write_json(
+            {
+                "report": repair_verifier_report,
+                "results": [asdict(result) for result in repair_verifier.results],
+            },
+            reports_dir / "repair_verifier.json",
+        )
 
     failures_report = failure_case_analysis(rows, object_validations, failures)
     _write_json(failures_report, reports_dir / "failure_analysis.json")
@@ -107,6 +124,12 @@ def main() -> None:
     comparison_rows = comparison_rows_from_aabb(aabb)
     comparison_rows.extend(comparison_rows_from_aabb(obb, system="obb_overlap"))
     comparison_rows.extend(comparison_rows_from_metrics(tool_assisted.metrics, system="tool_assisted_upper_bound"))
+    comparison_rows.extend(
+        comparison_rows_from_repair_verifier(
+            repair_verifier,
+            system="tool_assisted_repair_verifier",
+        )
+    )
     _write_json([row.as_dict() for row in comparison_rows], reports_dir / "baseline_comparison.json")
     (reports_dir / "baseline_comparison.md").write_text(
         comparison_rows_to_markdown(comparison_rows),
@@ -121,6 +144,7 @@ def main() -> None:
         "class_balance": class_balance_report,
         "validated_rows": len(rows),
         "parquet_dir": str(dataset_dir / "parquet"),
+        "repair_verifier": repair_verifier_report,
     }
     _write_json(release_report, reports_dir / "release_candidate_report.json")
     print(json.dumps(release_report, indent=2, sort_keys=True))

@@ -1,5 +1,7 @@
 from intersectionqa.config import DatasetConfig
-from intersectionqa.enums import TaskType
+from intersectionqa.enums import Relation, TaskType
+from intersectionqa.geometry.cadquery_exec import measure_source_pair
+from intersectionqa.geometry.labels import derive_labels
 from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.prompts.binary import ALLOWED_ANSWERS as BINARY_ALLOWED
 from intersectionqa.prompts.binary import make_binary_prompt
@@ -10,8 +12,11 @@ from intersectionqa.prompts.fit import tolerance_fit_answer
 from intersectionqa.prompts.ranking import ranking_answer, ranking_records
 from intersectionqa.prompts.common import strict_parse
 from intersectionqa.prompts.materialize import materialize_rows
+from intersectionqa.prompts.repair import ALLOWED_ANSWERS as REPAIR_ALLOWED
+from intersectionqa.prompts.repair import make_repair_direction_prompt
 from intersectionqa.prompts.relation import ALLOWED_ANSWERS as RELATION_ALLOWED
-from intersectionqa.sources.synthetic import fixture_geometry_records
+from intersectionqa.schema import Transform
+from intersectionqa.sources.synthetic import fixture_geometry_records, synthetic_source_records
 from intersectionqa.splits.grouped import assign_geometry_splits
 
 
@@ -27,6 +32,9 @@ def test_strict_parsers_reject_prose_and_case_changes():
     assert parse_answer(TaskType.PAIRWISE_INTERFERENCE, "both") == "both"
     assert parse_answer(TaskType.RANKING_NORMALIZED_INTERSECTION, "CBA") == "CBA"
     assert parse_answer(TaskType.TOLERANCE_FIT, "no") == "no"
+    assert strict_parse("+x", REPAIR_ALLOWED) == "+x"
+    assert parse_answer(TaskType.REPAIR_DIRECTION, "-z") == "-z"
+    assert parse_answer(TaskType.REPAIR_DIRECTION, "no_valid_move") is None
 
 
 def test_prompts_do_not_leak_stored_labels_or_diagnostics():
@@ -37,6 +45,12 @@ def test_prompts_do_not_leak_stored_labels_or_diagnostics():
     assert record.labels.relation not in prompt
     assert "aabb_overlap" not in prompt
     assert "label_status" not in prompt
+
+    repair_prompt = make_repair_direction_prompt(record)
+    assert str(record.labels.intersection_volume) not in repair_prompt
+    assert record.labels.relation not in repair_prompt
+    assert "aabb_overlap" not in repair_prompt
+    assert "selected_direction" not in repair_prompt
 
 
 def test_materialized_rows_validate_answers():
@@ -99,3 +113,58 @@ def test_counterfactual_pairwise_and_ranking_rows_materialize_from_group():
     assert by_task[TaskType.RANKING_NORMALIZED_INTERSECTION][0].geometry_ids == [
         record.geometry_id for record in ranked
     ]
+
+
+def test_repair_direction_rows_use_positive_overlap_records_only():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+
+    rows = materialize_rows(records, splits, [TaskType.REPAIR_DIRECTION])
+    positive_overlap_records = [
+        record
+        for record in records
+        if record.labels.relation in {Relation.INTERSECTING, Relation.CONTAINED}
+    ]
+
+    assert len(rows) == len(positive_overlap_records)
+    assert {row.geometry_ids[0] for row in rows} == {
+        record.geometry_id for record in positive_overlap_records
+    }
+    assert all(row.task_type == TaskType.REPAIR_DIRECTION for row in rows)
+    assert all(row.answer in REPAIR_ALLOWED for row in rows)
+    assert all(row.answer == row.metadata["selected_direction"] for row in rows)
+    assert all(
+        row.metadata["repair_policy"] == "conservative_aabb_separating_translation_v01"
+        for row in rows
+    )
+    assert all(len(row.metadata["candidate_moves"]) == 6 for row in rows)
+
+
+def test_repair_direction_move_removes_exact_synthetic_overlap():
+    config = DatasetConfig()
+    records = fixture_geometry_records(config.label_policy, config.config_hash)
+    splits = assign_geometry_splits(records, config.seed)
+    rows = materialize_rows(records, splits, [TaskType.REPAIR_DIRECTION])
+    source_by_id = {record.object_id: record for record in synthetic_source_records()}
+    geometry_by_id = {record.geometry_id: record for record in records}
+
+    for row in rows:
+        record = geometry_by_id[row.geometry_ids[0]]
+        vector = row.metadata["selected_translation_vector_mm"]
+        moved_transform_b = Transform(
+            translation=tuple(
+                record.transform_b.translation[index] + vector[index] for index in range(3)
+            ),
+            rotation_xyz_deg=record.transform_b.rotation_xyz_deg,
+        )
+        raw_geometry = measure_source_pair(
+            source_by_id[record.object_a_id],
+            source_by_id[record.object_b_id],
+            record.transform_a,
+            moved_transform_b,
+            record.label_policy,
+        )
+        labels, _ = derive_labels(raw_geometry, record.label_policy)
+
+        assert labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}

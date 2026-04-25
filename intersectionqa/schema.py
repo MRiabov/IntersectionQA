@@ -310,6 +310,11 @@ class PublicTaskRow(StrictModel):
         if self.task_type == TaskType.RANKING_NORMALIZED_INTERSECTION:
             if self.answer != _expected_ranking_answer(self.metadata):
                 raise ValueError("ranking answer does not match variant metadata")
+        if self.task_type == TaskType.REPAIR_DIRECTION:
+            if self.labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+                raise ValueError("repair_direction rows require positive-overlap relation")
+            if self.answer != _expected_repair_direction(self.metadata):
+                raise ValueError("repair_direction answer does not match repair metadata")
         if self.hashes.prompt_hash is None:
             raise ValueError("public task rows require prompt_hash")
         required = [
@@ -412,6 +417,93 @@ def _expected_ranking_answer(metadata: dict[str, Any]) -> str:
         key=lambda item: (-float(item[1]["normalized_intersection"]), item[0]),
     )
     return "".join(letter for letter, _ in ordered)
+
+
+def _expected_repair_direction(metadata: dict[str, Any]) -> str:
+    if metadata.get("repair_policy") != "conservative_aabb_separating_translation_v01":
+        raise ValueError("repair_direction rows require the conservative AABB repair policy")
+    selected = metadata.get("selected_direction")
+    allowed = {"+x", "-x", "+y", "-y", "+z", "-z"}
+    if selected not in allowed:
+        raise ValueError("repair_direction selected_direction is invalid")
+    if metadata.get("movable_object") != "object_b" or metadata.get("fixed_object") != "object_a":
+        raise ValueError("repair_direction rows require object_b movable and object_a fixed")
+    candidate_labels = metadata.get("candidate_direction_labels")
+    tie_break_order = ["+x", "-x", "+y", "-y", "+z", "-z"]
+    if candidate_labels != tie_break_order:
+        raise ValueError("repair_direction candidate labels must document tie-break order")
+    selected_magnitude = _finite_nonnegative_metadata_float(metadata, "selected_magnitude_mm")
+    selected_vector = _metadata_vector(metadata, "selected_translation_vector_mm")
+    if not math.isclose(selected_magnitude, _vector_magnitude_l1(selected_vector), abs_tol=1e-9):
+        raise ValueError("repair_direction selected magnitude must match translation vector")
+    _validate_repair_vector_direction(selected, selected_vector)
+    candidate_moves = metadata.get("candidate_moves")
+    if not isinstance(candidate_moves, list) or len(candidate_moves) != 6:
+        raise ValueError("repair_direction rows require six candidate moves")
+    candidate_by_direction: dict[str, dict[str, Any]] = {}
+    for item in candidate_moves:
+        if not isinstance(item, dict):
+            raise ValueError("repair_direction candidate moves must be objects")
+        direction = item.get("direction")
+        if direction not in allowed or direction in candidate_by_direction:
+            raise ValueError("repair_direction candidate move direction is invalid")
+        magnitude = _finite_nonnegative_metadata_float(item, "magnitude_mm")
+        vector = _metadata_vector(item, "translation_vector_mm")
+        if not math.isclose(magnitude, _vector_magnitude_l1(vector), abs_tol=1e-9):
+            raise ValueError("repair_direction candidate magnitude must match translation vector")
+        _validate_repair_vector_direction(direction, vector)
+        candidate_by_direction[direction] = item
+    if set(candidate_by_direction) != allowed:
+        raise ValueError("repair_direction candidate moves must cover all six directions")
+    expected = min(
+        candidate_by_direction.items(),
+        key=lambda item: (float(item[1]["magnitude_mm"]), tie_break_order.index(item[0])),
+    )[0]
+    if selected != expected:
+        raise ValueError("repair_direction selected direction does not match tie-break policy")
+    expected_candidate = candidate_by_direction[selected]
+    expected_vector = _metadata_vector(expected_candidate, "translation_vector_mm")
+    if selected_vector != expected_vector:
+        raise ValueError("repair_direction selected vector must match selected candidate")
+    return selected
+
+
+def _finite_nonnegative_metadata_float(metadata: dict[str, Any], key: str) -> float:
+    value = metadata.get(key)
+    if not isinstance(value, int | float):
+        raise ValueError(f"{key} must be numeric")
+    value = float(value)
+    if not math.isfinite(value) or value < 0.0:
+        raise ValueError(f"{key} must be finite and non-negative")
+    return value
+
+
+def _metadata_vector(metadata: dict[str, Any], key: str) -> tuple[float, float, float]:
+    value = metadata.get(key)
+    if not isinstance(value, list | tuple) or len(value) != 3:
+        raise ValueError(f"{key} must be a 3-vector")
+    result = tuple(float(item) for item in value)
+    for item in result:
+        if not math.isfinite(item):
+            raise ValueError(f"{key} must contain finite values")
+    return result
+
+
+def _vector_magnitude_l1(vector: tuple[float, float, float]) -> float:
+    return sum(abs(item) for item in vector)
+
+
+def _validate_repair_vector_direction(direction: str, vector: tuple[float, float, float]) -> None:
+    axis_by_name = {"x": 0, "y": 1, "z": 2}
+    axis = axis_by_name[direction[1]]
+    for index, value in enumerate(vector):
+        if index != axis and not math.isclose(value, 0.0, abs_tol=1e-9):
+            raise ValueError("repair_direction vector must move only along its direction axis")
+    axis_value = vector[axis]
+    if direction[0] == "+" and axis_value < -1e-9:
+        raise ValueError("repair_direction vector sign does not match direction")
+    if direction[0] == "-" and axis_value > 1e-9:
+        raise ValueError("repair_direction vector sign does not match direction")
 
 
 class FailureRecord(StrictModel):

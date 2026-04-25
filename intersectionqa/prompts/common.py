@@ -15,6 +15,7 @@ TASK_PREFIX = {
     TaskType.CLEARANCE_BUCKET: "intersectionqa_clearance_bucket",
     TaskType.PAIRWISE_INTERFERENCE: "intersectionqa_pairwise",
     TaskType.RANKING_NORMALIZED_INTERSECTION: "intersectionqa_ranking",
+    TaskType.REPAIR_DIRECTION: "intersectionedit_repair_direction",
     TaskType.TOLERANCE_FIT: "intersectionqa_tolerance_fit",
 }
 
