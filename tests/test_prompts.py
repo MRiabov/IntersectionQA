@@ -5,7 +5,7 @@ from intersectionqa.prompts.binary import ALLOWED_ANSWERS as BINARY_ALLOWED
 from intersectionqa.prompts.binary import make_binary_prompt
 from intersectionqa.prompts.buckets import ALLOWED_ANSWERS as BUCKET_ALLOWED
 from intersectionqa.prompts.buckets import clearance_bucket
-from intersectionqa.prompts.counterfactual import pairwise_answer, pairwise_records
+from intersectionqa.prompts.counterfactual import balanced_pairwise_records, pairwise_answer, pairwise_records
 from intersectionqa.prompts.fit import tolerance_fit_answer
 from intersectionqa.prompts.ranking import ranking_answer, ranking_records
 from intersectionqa.prompts.common import strict_parse
@@ -78,16 +78,20 @@ def test_counterfactual_pairwise_and_ranking_rows_materialize_from_group():
     rows = materialize_rows(records, splits, task_types)
     by_task = {task_type: [row for row in rows if row.task_type == task_type] for task_type in task_types}
 
-    assert len(rows) == len(records) * 5 + 2
-    assert len(by_task[TaskType.PAIRWISE_INTERFERENCE]) == 1
+    assert len(rows) == len(records) * 5 + 5
+    assert len(by_task[TaskType.PAIRWISE_INTERFERENCE]) == 4
     assert len(by_task[TaskType.RANKING_NORMALIZED_INTERSECTION]) == 1
 
     group = [record for record in records if record.counterfactual_group_id == "cfg_000001"]
     pair = pairwise_records(group)
     assert pair is not None
-    assert by_task[TaskType.PAIRWISE_INTERFERENCE][0].answer == pairwise_answer(*pair)
-    assert by_task[TaskType.PAIRWISE_INTERFERENCE][0].counterfactual_group_id == "cfg_000001"
-    assert by_task[TaskType.PAIRWISE_INTERFERENCE][0].metadata["source_variant_ids"]
+    assert pairwise_answer(*pair) == "B"
+    balanced_pairs = balanced_pairwise_records(group)
+    pairwise_rows = by_task[TaskType.PAIRWISE_INTERFERENCE]
+    assert [row.answer for row in pairwise_rows] == [pairwise_answer(*pair) for pair in balanced_pairs]
+    assert {row.answer for row in pairwise_rows} == {"A", "B", "both", "neither"}
+    assert all(row.counterfactual_group_id == "cfg_000001" for row in pairwise_rows)
+    assert all(row.metadata["source_variant_ids"] for row in pairwise_rows)
 
     ranked = ranking_records(group)
     assert len(ranked) == 5
