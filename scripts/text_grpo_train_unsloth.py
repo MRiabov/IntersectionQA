@@ -210,7 +210,7 @@ def row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list[
             row_id=row_id,
             task_type=row_task_type,
             answer=expected,
-            metadata=row_metadata,
+            metadata=json.loads(row_metadata) if isinstance(row_metadata, str) else row_metadata,
             output=text,
         )
         rewards.append(result.reward)
@@ -226,7 +226,7 @@ def to_grpo_example(row: PublicTaskRow) -> dict[str, Any]:
         "answer": row.answer,
         "id": row.id,
         "task_type": str(row.task_type),
-        "metadata": row.metadata,
+        "metadata": json.dumps(row.metadata, sort_keys=True),
     }
 
 
