@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from intersectionqa.export.jsonl import read_jsonl
-from intersectionqa.splits.grouped import DEFAULT_SPLITS
+from intersectionqa.splits.grouped import ALL_SPLITS
 
 
 def main() -> None:
@@ -30,7 +30,7 @@ def main() -> None:
 def audit_dataset(dataset_dir: Path, *, min_share: float, max_share: float, min_count: int) -> dict[str, object]:
     by_split_task: dict[str, dict[str, Counter[str]]] = defaultdict(lambda: defaultdict(Counter))
     row_counts: Counter[str] = Counter()
-    for split in DEFAULT_SPLITS:
+    for split in ALL_SPLITS:
         path = dataset_dir / f"{split}.jsonl"
         if not path.exists():
             continue

@@ -23,7 +23,12 @@ from intersectionqa.hashing import sha256_json
 from intersectionqa.prompts.counterfactual import TEMPLATE_VERSION
 from intersectionqa.prompts.common import TASK_PREFIX
 from intersectionqa.schema import Hashes, PublicTaskRow
-from intersectionqa.splits.grouped import DEFAULT_SPLITS, audit_group_leakage, split_manifest
+from intersectionqa.splits.grouped import (
+    ALL_SPLITS,
+    audit_group_leakage,
+    split_manifest,
+    split_names_for_rows,
+)
 
 
 def main() -> None:
@@ -40,7 +45,12 @@ def main() -> None:
     args = parser.parse_args()
 
     dataset_dir = args.dataset_dir
-    rows = [row for split in DEFAULT_SPLITS for row in read_jsonl(dataset_dir / f"{split}.jsonl")]
+    rows = [
+        row
+        for split in ALL_SPLITS
+        if (dataset_dir / f"{split}.jsonl").exists()
+        for row in read_jsonl(dataset_dir / f"{split}.jsonl")
+    ]
     metadata = read_metadata(dataset_dir / "metadata.json")
     if metadata is None:
         raise ValueError(f"missing metadata.json in {dataset_dir}")
@@ -98,7 +108,7 @@ def main() -> None:
         backup_dir = dataset_dir / "pre_pairwise_rebalance_backup"
         backup_dir.mkdir(exist_ok=True)
         for name in [
-            *[f"{split}.jsonl" for split in DEFAULT_SPLITS],
+            *[f"{split}.jsonl" for split in split_names_for_rows(rows)],
             "metadata.json",
             "split_manifest.json",
             "parquet_manifest.json",

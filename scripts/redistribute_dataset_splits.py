@@ -19,10 +19,11 @@ from intersectionqa.export.jsonl import (
 )
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.splits.grouped import (
-    DEFAULT_SPLITS,
+    ALL_SPLITS,
     audit_group_leakage,
     reassign_public_row_splits,
     split_manifest,
+    split_names_for_rows,
 )
 
 
@@ -58,7 +59,7 @@ def redistribute_dataset_splits(
         raise ValueError(f"missing metadata.json in {dataset_dir}")
 
     rows = []
-    for split in DEFAULT_SPLITS:
+    for split in ALL_SPLITS:
         path = dataset_dir / f"{split}.jsonl"
         if path.exists():
             rows.extend(read_jsonl(path))
@@ -85,7 +86,7 @@ def redistribute_dataset_splits(
         backup_dir = dataset_dir / "pre_split_redistribution_backup"
         backup_dir.mkdir(exist_ok=True)
         for name in [
-            *[f"{split}.jsonl" for split in DEFAULT_SPLITS],
+            *[f"{split}.jsonl" for split in split_names_for_rows(rows)],
             "metadata.json",
             "split_manifest.json",
             "parquet_manifest.json",

@@ -10,7 +10,7 @@ from typing import Any
 
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
-from intersectionqa.splits.grouped import DEFAULT_SPLITS
+from intersectionqa.splits.grouped import ALL_SPLITS
 
 RELEASE_ARTIFACTS = [
     "metadata.json",
@@ -20,8 +20,8 @@ RELEASE_ARTIFACTS = [
     "parquet_manifest.json",
     "object_validation_manifest.jsonl",
     "failure_manifest.jsonl",
-    *[f"{split}.jsonl" for split in DEFAULT_SPLITS],
-    *[f"parquet/{split}.parquet" for split in DEFAULT_SPLITS],
+    *[f"{split}.jsonl" for split in ALL_SPLITS],
+    *[f"parquet/{split}.parquet" for split in ALL_SPLITS],
 ]
 
 

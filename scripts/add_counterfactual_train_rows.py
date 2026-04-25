@@ -19,7 +19,12 @@ from intersectionqa.export.jsonl import (
 )
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.schema import PublicTaskRow
-from intersectionqa.splits.grouped import DEFAULT_SPLITS, audit_group_leakage, split_manifest
+from intersectionqa.splits.grouped import (
+    ALL_SPLITS,
+    audit_group_leakage,
+    split_manifest,
+    split_names_for_rows,
+)
 
 
 def main() -> None:
@@ -38,7 +43,12 @@ def main() -> None:
         raise ValueError("--train-fraction must be in (0, 1]")
 
     dataset_dir = args.dataset_dir
-    rows = [row for split in DEFAULT_SPLITS for row in read_jsonl(dataset_dir / f"{split}.jsonl")]
+    rows = [
+        row
+        for split in ALL_SPLITS
+        if (dataset_dir / f"{split}.jsonl").exists()
+        for row in read_jsonl(dataset_dir / f"{split}.jsonl")
+    ]
     metadata = read_metadata(dataset_dir / "metadata.json")
     if metadata is None:
         raise ValueError(f"missing metadata.json in {dataset_dir}")
@@ -48,7 +58,7 @@ def main() -> None:
         for row in rows
         if row.split == args.source_split and row.counterfactual_group_id is not None
     ]
-    forbidden_splits = set(DEFAULT_SPLITS) - {args.source_split, args.target_split}
+    forbidden_splits = set(ALL_SPLITS) - {args.source_split, args.target_split}
     forbidden_base_object_pair_ids = {
         row.base_object_pair_id for row in rows if row.split in forbidden_splits
     }
@@ -105,7 +115,7 @@ def main() -> None:
         backup_dir = dataset_dir / "pre_counterfactual_train_backup"
         backup_dir.mkdir(exist_ok=True)
         for name in [
-            *[f"{split}.jsonl" for split in DEFAULT_SPLITS],
+            *[f"{split}.jsonl" for split in split_names_for_rows(rows)],
             "metadata.json",
             "split_manifest.json",
             "parquet_manifest.json",
