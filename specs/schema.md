@@ -235,9 +235,17 @@ contact_vs_interference
 near_boundary
 tiny_overlap
 near_miss
+clearance_bucket_targeted
+tiny_clearance
+mid_clearance
+volume_bucket_targeted
+small_overlap
+medium_overlap
+deep_overlap
 aabb_exact_disagreement
 contained
 primitive_fixture
+broad_placement
 invalid
 ```
 
@@ -899,14 +907,14 @@ Each `group_holdout_rules[]` object must contain:
       "rule_id": "counterfactual_inseparable",
       "description": "Rows sharing counterfactual_group_id must not cross train, validation, or test splits.",
       "group_fields": ["counterfactual_group_id"],
-      "forbidden_cross_split_pairs": [["train", "validation"], ["train", "test_random"], ["train", "test_near_boundary"]],
+      "forbidden_cross_split_pairs": [["train", "validation"], ["train", "test_random"], ["train", "test_near_boundary"], ["validation", "test_near_boundary"]],
       "status": "pass"
     },
     {
       "rule_id": "object_pair_holdout",
-      "description": "Rows sharing base_object_pair_id or assembly_group_id must not cross held-out object-pair tests.",
+      "description": "Rows sharing base_object_pair_id or assembly_group_id must not cross validation or held-out test splits.",
       "group_fields": ["base_object_pair_id", "assembly_group_id"],
-      "forbidden_cross_split_pairs": [["train", "test_object_pair_heldout"], ["validation", "test_object_pair_heldout"]],
+      "forbidden_cross_split_pairs": [["train", "validation"], ["train", "test_random"], ["train", "test_near_boundary"], ["train", "test_object_pair_heldout"], ["validation", "test_object_pair_heldout"]],
       "status": "pass"
     }
   ],

@@ -230,7 +230,12 @@ Only one transform or object parameter should vary within a group. For the CADEv
 
 Each group should contain at least two different derived labels when possible. If a group cannot achieve label diversity after the configured sweep, keep the failure summary for diagnostics and do not count the group as a successful counterfactual group.
 
-Group members are split-inseparable. No normal train/validation/test split may place variants from the same `counterfactual_group_id` in different splits.
+Group members are split-inseparable. No normal train/validation/test split may
+place variants from the same `counterfactual_group_id`, `assembly_group_id`, or
+`base_object_pair_id` in different splits. Near-boundary groups should be
+distributed across train, validation, and small held-out challenge slices by the
+same deterministic group policy rather than routed wholesale to a hard test
+bucket.
 
 Every group member must store:
 
@@ -265,8 +270,16 @@ Initial difficulty and diagnostic tags:
 - `near_boundary`
 - `tiny_overlap`
 - `near_miss`
+- `clearance_bucket_targeted`
+- `tiny_clearance`
+- `mid_clearance`
+- `volume_bucket_targeted`
+- `small_overlap`
+- `medium_overlap`
+- `deep_overlap`
 - `aabb_exact_disagreement`
 - `contained`
+- `broad_placement`
 - `invalid`
 
 Tags are multi-label diagnostics, not mutually exclusive classes. For example, one record may be tagged `cadevolve_compound`, `rotated`, `near_boundary`, and `tiny_overlap`.

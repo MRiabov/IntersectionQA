@@ -208,6 +208,8 @@ epics:
         recommendation: Build now
         status: implemented
         stable: false
+        notes:
+          - CADEvolve bbox-guided generation includes deterministic clearance-bucket and overlap-magnitude candidates in addition to touch, near-miss, and tiny-overlap candidates.
       - id: "3.5"
         title: Cavity-targeted examples
         priority: P1
@@ -433,6 +435,9 @@ epics:
         recommendation: Build now
         status: implemented
         stable: false
+        notes:
+          - Near-boundary and counterfactual groups are now distributed by a deterministic group-level policy instead of being routed wholesale to test_near_boundary.
+          - The target boundary-group policy keeps test_near_boundary as a small 5-10% challenge slice while moving most hard examples into train and validation.
       - id: "6.7"
         title: Class balancing
         priority: P0
@@ -441,6 +446,11 @@ epics:
         recommendation: Build now
         status: implemented
         stable: false
+        notes:
+          - Deterministic post-materialization class balancing is wired into smoke and release-candidate exports by default.
+          - Whole geometry groups are downsampled toward the v0.1 relation target where all target classes exist.
+          - Pairwise answers are capped to equal A/B/both/neither counts.
+          - Sparse or missing target classes are reported in class_balance_report.json rather than treated as balanced.
 
   - id: epic-7
     title: Baselines and model evaluation
