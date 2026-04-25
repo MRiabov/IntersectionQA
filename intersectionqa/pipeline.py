@@ -246,32 +246,67 @@ def _limit_public_rows(rows: list[PublicTaskRow], limit: int | None) -> list[Pub
     if len(rows) == limit:
         return rows
 
-    buckets: dict[str, list[int]] = {}
+    buckets: dict[str, dict[str, list[int]]] = {}
     task_order: list[str] = []
+    answer_order: dict[str, list[str]] = {}
     for index, row in enumerate(rows):
         task_type = str(row.task_type)
+        answer = row.answer
         if task_type not in buckets:
-            buckets[task_type] = []
+            buckets[task_type] = {}
+            answer_order[task_type] = []
             task_order.append(task_type)
-        buckets[task_type].append(index)
+        if answer not in buckets[task_type]:
+            buckets[task_type][answer] = []
+            answer_order[task_type].append(answer)
+        buckets[task_type][answer].append(index)
 
     selected: set[int] = set()
-    positions = {task_type: 0 for task_type in task_order}
+    positions = {
+        (task_type, answer): 0
+        for task_type, answers in answer_order.items()
+        for answer in answers
+    }
+    answer_positions = {task_type: 0 for task_type in task_order}
     while len(selected) < limit:
         added = False
         for task_type in task_order:
-            bucket = buckets[task_type]
-            position = positions[task_type]
-            if position >= len(bucket):
+            key = _next_available_answer_bucket(
+                buckets[task_type],
+                answer_order[task_type],
+                positions,
+                answer_positions[task_type],
+                task_type,
+            )
+            if key is None:
                 continue
+            _, answer = key
+            bucket = buckets[task_type][answer]
+            position = positions[key]
             selected.add(bucket[position])
-            positions[task_type] = position + 1
+            positions[key] = position + 1
+            answer_positions[task_type] = (answer_order[task_type].index(answer) + 1) % len(answer_order[task_type])
             added = True
             if len(selected) == limit:
                 break
         if not added:
             break
     return [row for index, row in enumerate(rows) if index in selected]
+
+
+def _next_available_answer_bucket(
+    task_buckets: dict[str, list[int]],
+    answers: list[str],
+    positions: dict[tuple[str, str], int],
+    start_position: int,
+    task_type: str,
+) -> tuple[str, str] | None:
+    for offset in range(len(answers)):
+        answer = answers[(start_position + offset) % len(answers)]
+        key = (task_type, answer)
+        if positions[key] < len(task_buckets[answer]):
+            return key
+    return None
 
 
 def _source_manifest(
