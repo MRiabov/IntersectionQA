@@ -19,7 +19,6 @@ from unsloth import FastModel
 
 from intersectionqa.evaluation.metrics import Prediction, evaluate_predictions
 from intersectionqa.evaluation.rewards import reward_from_fields
-from intersectionqa.export.jsonl import read_jsonl
 from intersectionqa.schema import PublicTaskRow
 
 SYSTEM_PROMPT = (
@@ -243,7 +242,14 @@ def load_rows(
     for split in splits:
         path = dataset_dir / f"{split}.jsonl"
         if path.exists():
-            rows.extend(read_jsonl(path))
+            with path.open("r", encoding="utf-8") as handle:
+                for line_number, line in enumerate(handle, start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        rows.append(PublicTaskRow.model_validate_json(line))
+                    except Exception as exc:
+                        raise ValueError(f"{path}:{line_number}: invalid public row: {exc}") from exc
     if task_types is not None:
         rows = [row for row in rows if str(row.task_type) in task_types]
     rng = random.Random(seed)
