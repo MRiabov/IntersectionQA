@@ -86,3 +86,8 @@ def materialize_ranking_row(records: list[GeometryRecord], row_number: int, spli
             },
         },
     )
+
+
+def materialize_ranking_rows(records: list[GeometryRecord], row_number: int, split: str) -> list[PublicTaskRow]:
+    row = materialize_ranking_row(records, row_number, split)
+    return [row] if row is not None else []

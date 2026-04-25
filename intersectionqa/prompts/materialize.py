@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from collections.abc import Callable
 from intersectionqa.enums import LabelStatus, Relation, TaskType
 from intersectionqa.prompts.binary import materialize_binary_row
 from intersectionqa.prompts.buckets import materialize_clearance_bucket_row, materialize_volume_bucket_row
-from intersectionqa.prompts.counterfactual import materialize_pairwise_row
+from intersectionqa.prompts.counterfactual import materialize_pairwise_rows
 from intersectionqa.prompts.fit import materialize_tolerance_fit_row
-from intersectionqa.prompts.ranking import materialize_ranking_row
+from intersectionqa.prompts.ranking import materialize_ranking_rows
 from intersectionqa.prompts.relation import materialize_relation_row
 from intersectionqa.schema import GeometryRecord, PublicTaskRow
 
@@ -22,9 +23,11 @@ SINGLE_RECORD_MATERIALIZERS = {
 }
 
 GROUP_MATERIALIZERS = {
-    TaskType.PAIRWISE_INTERFERENCE: materialize_pairwise_row,
-    TaskType.RANKING_NORMALIZED_INTERSECTION: materialize_ranking_row,
+    TaskType.PAIRWISE_INTERFERENCE: materialize_pairwise_rows,
+    TaskType.RANKING_NORMALIZED_INTERSECTION: materialize_ranking_rows,
 }
+
+GroupMaterializer = Callable[[list[GeometryRecord], int, str], list[PublicTaskRow]]
 
 
 def materialize_rows(
@@ -55,12 +58,9 @@ def materialize_rows(
             materializer = GROUP_MATERIALIZERS.get(task_type)
             if materializer is None:
                 continue
-            counters[task_type] += 1
-            row = materializer(group_records, counters[task_type], split)
-            if row is None:
-                counters[task_type] -= 1
-                continue
-            rows.append(row)
+            group_rows = materializer(group_records, counters[task_type] + 1, split)
+            counters[task_type] += len(group_rows)
+            rows.extend(group_rows)
     return rows
 
 
