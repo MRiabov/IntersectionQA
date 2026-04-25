@@ -50,6 +50,8 @@ def test_build_release_candidate_writes_reports_and_parquet(tmp_path):
     tool_report = json.loads((output_dir / "reports" / "tool_assisted_upper_bound.json").read_text())
     repair_report = json.loads((output_dir / "reports" / "repair_verifier.json").read_text())
     comparison_report = json.loads((output_dir / "reports" / "baseline_comparison.json").read_text())
+    failure_report = json.loads((output_dir / "reports" / "failure_analysis.json").read_text())
+    stats_report = json.loads((output_dir / "reports" / "dataset_stats.json").read_text())
 
     assert report["validated_rows"] > 0
     assert report["parquet_dir"] == str(output_dir / "parquet")
@@ -60,6 +62,8 @@ def test_build_release_candidate_writes_reports_and_parquet(tmp_path):
     assert any(metric["task_type"] == "repair_direction" for metric in tool_report["metrics"])
     assert repair_report["report"]["row_count"] == metadata["counts"]["by_task"]["repair_direction"]
     assert repair_report["report"]["repair_success_rate"] == 1.0
+    assert failure_report["repair_prediction_verifier"]["repair_success_rate"] == 1.0
+    assert stats_report["repair_direction"]["row_count"] == metadata["counts"]["by_task"]["repair_direction"]
     assert any(
         row["system"] == "tool_assisted_repair_verifier"
         and row["task_type"] == "repair_direction"
