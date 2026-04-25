@@ -979,6 +979,10 @@ def materialize_axis_aligned_repair_vector_row(
         **metadata,
         "output_format": "translation_vector",
         "edit_family": "axis_aligned_intersection_repair_vector",
+        "edit_diagnostics": {
+            **metadata.get("edit_diagnostics", {}),
+            "difficulty": "axis_aligned_intersection_repair_vector",
+        },
         **_edit_counterfactual_metadata(
             record,
             edit_family="axis_aligned_intersection_repair_vector",
@@ -1010,6 +1014,10 @@ def materialize_axis_aligned_repair_program_row(
         "output_format": "edit_program",
         "edit_family": "axis_aligned_intersection_repair_program",
         "edit_program_language": "cadquery_python",
+        "edit_diagnostics": {
+            **metadata.get("edit_diagnostics", {}),
+            "difficulty": "axis_aligned_intersection_repair_program",
+        },
         **_edit_counterfactual_metadata(
             record,
             edit_family="axis_aligned_intersection_repair_program",
