@@ -313,3 +313,11 @@ loss_type = "dr_grpo"
 - [x] Local GRPO execution smoke is intentionally deferred to the GPU canary:
   this laptop has no GPU and the local project environment does not install
   `torch`, `transformers`, `datasets`, `trl`, or `unsloth`.
+- [x] Investigated the exact repair slowdown instead of treating it as
+  inherent. The original path amplified CAD-kernel work by running full
+  `measure_shape_pair`/Boolean checks inside every binary-search predicate.
+  The repair materializer now caches placed shape/bbox/volume state, uses
+  bbox/distance predicates during one-decimal label search, and reserves exact
+  Boolean label derivation for final candidate metadata. A 10-geometry local
+  CADEvolve probe with 4 positive-overlap rows dropped from not finishing after
+  roughly 90 seconds to about 33.6 seconds for 4 exact repair rows.

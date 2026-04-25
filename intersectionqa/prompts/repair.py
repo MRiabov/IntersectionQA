@@ -6,9 +6,9 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
-from intersectionqa.enums import Relation, Split, TaskType
-from intersectionqa.geometry.cadquery_exec import apply_transform, measure_shape_pair, object_to_shape
-from intersectionqa.geometry.labels import derive_labels
+from intersectionqa.enums import BooleanStatus, DistanceStatus, Relation, Split, TaskType
+from intersectionqa.geometry.cadquery_exec import apply_transform, bounding_box_from_shape, measure_shape_pair, object_to_shape
+from intersectionqa.geometry.labels import RawGeometry, derive_labels
 from intersectionqa.geometry.transforms import IDENTITY_TRANSFORM
 from intersectionqa.prompts.common import object_code_from_script, public_row, transforms_text
 from intersectionqa.schema import BoundingBox, GeometryRecord, PublicTaskRow, Transform
@@ -86,6 +86,16 @@ class ExactRepairMove:
             "final_intersection_volume": self.final_intersection_volume,
             "satisfies_target": self.satisfies_target,
         }
+
+
+@dataclass(frozen=True)
+class _RepairShapeContext:
+    shape_a: Any
+    shape_b: Any
+    bbox_a: BoundingBox
+    bbox_b: BoundingBox
+    volume_a: float
+    volume_b: float
 
 
 def repair_direction_answer(record: GeometryRecord) -> str:
@@ -180,24 +190,28 @@ def exact_axis_aligned_repair_candidates(
     cache_key = (record.hashes.geometry_hash or record.geometry_id, float(target_clearance_mm))
     if cache_key in _EXACT_CANDIDATE_CACHE:
         return list(_EXACT_CANDIDATE_CACHE[cache_key])
-    shape_a, shape_b = _placed_shapes(record)
+    context = _placed_repair_context(record)
     candidates: list[ExactRepairMove] = []
     for direction in _TIE_BREAK_ORDER:
-        exact_magnitude = _minimum_exact_magnitude(
+        upper_bound = _repair_search_upper_bound(
             record,
-            shape_a,
-            shape_b,
+            context,
             direction,
             target_clearance_mm,
         )
-        label_magnitude = _label_magnitude(exact_magnitude)
+        label_magnitude = _minimum_label_magnitude(
+            record,
+            context,
+            direction,
+            target_clearance_mm,
+            upper_bound_mm=upper_bound,
+        )
         candidates.append(
             _exact_move_from_magnitude(
                 record,
-                shape_a,
-                shape_b,
+                context,
                 direction,
-                exact_magnitude,
+                label_magnitude,
                 label_magnitude,
                 target_clearance_mm,
             )
@@ -1186,54 +1200,75 @@ def _placed_shapes(record: GeometryRecord) -> tuple[Any, Any]:
     return object_to_shape(placed_a), object_to_shape(placed_b)
 
 
-def _minimum_exact_magnitude(
+def _placed_repair_context(record: GeometryRecord) -> _RepairShapeContext:
+    shape_a, shape_b = _placed_shapes(record)
+    return _RepairShapeContext(
+        shape_a=shape_a,
+        shape_b=shape_b,
+        bbox_a=bounding_box_from_shape(shape_a),
+        bbox_b=bounding_box_from_shape(shape_b),
+        volume_a=float(shape_a.Volume()),
+        volume_b=float(shape_b.Volume()),
+    )
+
+
+def _repair_search_upper_bound(
     record: GeometryRecord,
-    shape_a: Any,
-    shape_b: Any,
+    context: _RepairShapeContext,
     direction: str,
     target_clearance_mm: float,
 ) -> float:
-    if _satisfies_target(record, shape_a, shape_b, direction, 0.0, target_clearance_mm)[0]:
-        return 0.0
     hi = max(
         _aabb_candidate_magnitude(record, direction) + target_clearance_mm + record.label_policy.epsilon_distance_mm,
         target_clearance_mm + 1.0,
         1.0,
     )
     for _ in range(40):
-        if _satisfies_target(record, shape_a, shape_b, direction, hi, target_clearance_mm)[0]:
-            break
+        if _satisfies_target_context(record, context, direction, hi, target_clearance_mm)[0]:
+            return hi
         hi *= 2.0
-    else:
-        raise ValueError(f"could not bracket repair distance for {direction}")
+    raise ValueError(f"could not bracket repair distance for {direction}")
 
-    lo = 0.0
-    for _ in range(22):
-        mid = (lo + hi) / 2.0
-        if _satisfies_target(record, shape_a, shape_b, direction, mid, target_clearance_mm)[0]:
-            hi = mid
+
+def _minimum_label_magnitude(
+    record: GeometryRecord,
+    context: _RepairShapeContext,
+    direction: str,
+    target_clearance_mm: float,
+    *,
+    upper_bound_mm: float,
+) -> float:
+    upper_steps = max(0, math.ceil((upper_bound_mm + NUMERIC_LABEL_DECIMAL_MM) / NUMERIC_LABEL_DECIMAL_MM))
+    lo_steps = 0
+    hi_steps = upper_steps
+    while lo_steps < hi_steps:
+        mid_steps = (lo_steps + hi_steps) // 2
+        magnitude = mid_steps * NUMERIC_LABEL_DECIMAL_MM
+        if _satisfies_target_context(record, context, direction, magnitude, target_clearance_mm)[0]:
+            hi_steps = mid_steps
         else:
-            lo = mid
-    return hi
+            lo_steps = mid_steps + 1
+    return _round_one_decimal(lo_steps * NUMERIC_LABEL_DECIMAL_MM)
 
 
 def _exact_move_from_magnitude(
     record: GeometryRecord,
-    shape_a: Any,
-    shape_b: Any,
+    context: _RepairShapeContext,
     direction: str,
     exact_magnitude: float,
     label_magnitude: float,
     target_clearance_mm: float,
 ) -> ExactRepairMove:
-    satisfies, labels = _satisfies_target(
+    satisfies, labels = _satisfies_target_context(
         record,
-        shape_a,
-        shape_b,
+        context,
         direction,
         label_magnitude,
         target_clearance_mm,
+        require_labels=True,
     )
+    if labels is None:
+        raise ValueError("exact repair final verification did not produce labels")
     return ExactRepairMove(
         direction=direction,
         exact_magnitude_mm=exact_magnitude,
@@ -1254,21 +1289,39 @@ def _satisfies_target(
     magnitude_mm: float,
     target_clearance_mm: float,
 ) -> tuple[bool, Any]:
-    moved_b = apply_transform(
-        shape_b,
-        Transform(
-            translation=_translation_vector(direction, magnitude_mm),
-            rotation_xyz_deg=(0.0, 0.0, 0.0),
-        ),
+    return _satisfies_target_context(
+        record,
+        _repair_context_from_shapes(shape_a, shape_b),
+        direction,
+        magnitude_mm,
+        target_clearance_mm,
+        require_labels=True,
     )
-    raw = measure_shape_pair(
-        shape_a,
-        moved_b,
-        IDENTITY_TRANSFORM,
-        IDENTITY_TRANSFORM,
-        record.label_policy,
-    )
-    labels, _ = derive_labels(raw, record.label_policy)
+
+
+def _satisfies_target_context(
+    record: GeometryRecord,
+    context: _RepairShapeContext,
+    direction: str,
+    magnitude_mm: float,
+    target_clearance_mm: float,
+    *,
+    require_labels: bool = False,
+) -> tuple[bool, Any | None]:
+    moved_bbox = _translated_bbox(context.bbox_b, _translation_vector(direction, magnitude_mm))
+    if not _boxes_overlap(context.bbox_a, moved_bbox):
+        if target_clearance_mm <= 0.0:
+            if not require_labels:
+                return True, None
+        elif _bbox_distance(context.bbox_a, moved_bbox) + record.label_policy.epsilon_distance_mm >= target_clearance_mm:
+            if not require_labels:
+                return True, None
+    if not require_labels:
+        return (
+            _distance_satisfies_target(record, context, direction, magnitude_mm, target_clearance_mm),
+            None,
+        )
+    labels = _exact_labels_for_translation(record, context, direction, magnitude_mm, moved_bbox)
     non_intersecting = labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}
     if target_clearance_mm <= 0.0:
         return non_intersecting, labels
@@ -1281,9 +1334,154 @@ def _satisfies_target(
     )
 
 
+def _repair_context_from_shapes(shape_a: Any, shape_b: Any) -> _RepairShapeContext:
+    return _RepairShapeContext(
+        shape_a=shape_a,
+        shape_b=shape_b,
+        bbox_a=bounding_box_from_shape(shape_a),
+        bbox_b=bounding_box_from_shape(shape_b),
+        volume_a=float(shape_a.Volume()),
+        volume_b=float(shape_b.Volume()),
+    )
+
+
+def _exact_labels_for_translation(
+    record: GeometryRecord,
+    context: _RepairShapeContext,
+    direction: str,
+    magnitude_mm: float,
+    moved_bbox: BoundingBox | None = None,
+) -> Any:
+    moved_b = apply_transform(
+        context.shape_b,
+        Transform(
+            translation=_translation_vector(direction, magnitude_mm),
+            rotation_xyz_deg=(0.0, 0.0, 0.0),
+        ),
+    )
+    if moved_bbox is None:
+        moved_bbox = bounding_box_from_shape(moved_b)
+    bbox_overlap = _boxes_overlap(context.bbox_a, moved_bbox)
+    if bbox_overlap:
+        intersection_volume, boolean_status = _intersection_volume(context.shape_a, moved_b)
+    else:
+        intersection_volume, boolean_status = 0.0, BooleanStatus.SKIPPED_AABB_DISJOINT
+    minimum_distance, distance_status = _minimum_distance(
+        context.shape_a,
+        moved_b,
+        intersection_volume,
+        record,
+        context.volume_a,
+        context.volume_b,
+    )
+    contains_a_in_b, contains_b_in_a = _containment_flags(
+        intersection_volume,
+        context.volume_a,
+        context.volume_b,
+        record,
+    )
+    raw = RawGeometry(
+        volume_a=context.volume_a,
+        volume_b=context.volume_b,
+        intersection_volume=intersection_volume,
+        minimum_distance=minimum_distance,
+        contains_a_in_b=contains_a_in_b,
+        contains_b_in_a=contains_b_in_a,
+        aabb_overlap=bbox_overlap,
+        boolean_status=boolean_status,
+        distance_status=distance_status,
+    )
+    labels, _ = derive_labels(raw, record.label_policy)
+    return labels
+
+
+def _distance_satisfies_target(
+    record: GeometryRecord,
+    context: _RepairShapeContext,
+    direction: str,
+    magnitude_mm: float,
+    target_clearance_mm: float,
+) -> bool:
+    moved_b = apply_transform(
+        context.shape_b,
+        Transform(
+            translation=_translation_vector(direction, magnitude_mm),
+            rotation_xyz_deg=(0.0, 0.0, 0.0),
+        ),
+    )
+    try:
+        clearance = max(0.0, float(context.shape_a.distance(moved_b)))
+    except Exception:
+        return False
+    if target_clearance_mm <= 0.0:
+        return clearance > record.label_policy.epsilon_distance_mm
+    return clearance + record.label_policy.epsilon_distance_mm >= target_clearance_mm
+
+
+def _intersection_volume(shape_a: Any, shape_b: Any) -> tuple[float | None, BooleanStatus]:
+    try:
+        return max(0.0, float(shape_a.intersect(shape_b).Volume())), BooleanStatus.OK
+    except Exception:
+        return None, BooleanStatus.FAILED
+
+
+def _minimum_distance(
+    shape_a: Any,
+    shape_b: Any,
+    intersection_volume: float | None,
+    record: GeometryRecord,
+    volume_a: float,
+    volume_b: float,
+) -> tuple[float | None, DistanceStatus]:
+    if intersection_volume is not None and intersection_volume > record.label_policy.epsilon_volume(volume_a, volume_b):
+        return 0.0, DistanceStatus.SKIPPED_POSITIVE_OVERLAP
+    try:
+        return max(0.0, float(shape_a.distance(shape_b))), DistanceStatus.OK
+    except Exception:
+        return None, DistanceStatus.FAILED
+
+
+def _containment_flags(
+    intersection_volume: float | None,
+    volume_a: float,
+    volume_b: float,
+    record: GeometryRecord,
+) -> tuple[bool, bool]:
+    if intersection_volume is None:
+        return False, False
+    tolerance = record.label_policy.epsilon_volume(volume_a, volume_b)
+    contains_a_in_b = volume_a <= volume_b + tolerance and abs(intersection_volume - volume_a) <= tolerance
+    contains_b_in_a = volume_b <= volume_a + tolerance and abs(intersection_volume - volume_b) <= tolerance
+    return contains_a_in_b, contains_b_in_a
+
+
 def _translation_vector(direction: str, magnitude_mm: float) -> tuple[float, float, float]:
     unit = _DIRECTION_VECTORS[direction]
     return tuple(component * magnitude_mm for component in unit)
+
+
+def _translated_bbox(bbox: BoundingBox, vector: tuple[float, float, float]) -> BoundingBox:
+    return BoundingBox(
+        min=tuple(bbox.min[index] + vector[index] for index in range(3)),
+        max=tuple(bbox.max[index] + vector[index] for index in range(3)),
+    )
+
+
+def _boxes_overlap(a: BoundingBox, b: BoundingBox) -> bool:
+    return all(a.min[index] <= b.max[index] and b.min[index] <= a.max[index] for index in range(3))
+
+
+def _bbox_distance(a: BoundingBox, b: BoundingBox) -> float:
+    squared = 0.0
+    for index in range(3):
+        if a.max[index] < b.min[index]:
+            gap = b.min[index] - a.max[index]
+        elif b.max[index] < a.min[index]:
+            gap = a.min[index] - b.max[index]
+        else:
+            gap = 0.0
+        squared += gap * gap
+    return math.sqrt(squared)
 
 
 def _aabb_candidate_magnitude(record: GeometryRecord, direction: str) -> float:

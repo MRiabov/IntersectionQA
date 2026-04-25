@@ -11,11 +11,11 @@ import random
 from pathlib import Path
 from typing import Any
 
+from unsloth import FastModel
 from datasets import Dataset
 import torch
 from transformers import TrainerCallback
 from trl import GRPOConfig, GRPOTrainer
-from unsloth import FastModel
 
 from intersectionqa.evaluation.metrics import Prediction, evaluate_predictions
 from intersectionqa.evaluation.rewards import reward_from_fields
