@@ -17,6 +17,10 @@ TASK_PREFIX = {
     TaskType.RANKING_NORMALIZED_INTERSECTION: "intersectionqa_ranking",
     TaskType.REPAIR_DIRECTION: "intersectionedit_repair_direction",
     TaskType.REPAIR_TRANSLATION: "intersectionedit_repair_translation",
+    TaskType.AXIS_ALIGNED_REPAIR: "intersectionedit_axis_aligned_repair",
+    TaskType.TARGET_CLEARANCE_REPAIR: "intersectionedit_target_clearance_repair",
+    TaskType.EDIT_CANDIDATE_SELECTION: "intersectionedit_candidate_selection",
+    TaskType.EDIT_CANDIDATE_RANKING: "intersectionedit_candidate_ranking",
     TaskType.TOLERANCE_FIT: "intersectionqa_tolerance_fit",
 }
 

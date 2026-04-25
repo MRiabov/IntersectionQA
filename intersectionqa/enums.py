@@ -42,6 +42,10 @@ class TaskType(StrEnum):
     RANKING_NORMALIZED_INTERSECTION = "ranking_normalized_intersection"
     REPAIR_DIRECTION = "repair_direction"
     REPAIR_TRANSLATION = "repair_translation"
+    AXIS_ALIGNED_REPAIR = "axis_aligned_repair"
+    TARGET_CLEARANCE_REPAIR = "target_clearance_repair"
+    EDIT_CANDIDATE_SELECTION = "edit_candidate_selection"
+    EDIT_CANDIDATE_RANKING = "edit_candidate_ranking"
     TOLERANCE_FIT = "tolerance_fit"
 
 
