@@ -489,8 +489,26 @@ loss_type = "dr_grpo"
   canonical answers for quality eval, and added `--adapter-init-dir` to the
   GRPO runner so the next GRPO canary can start from a short reasoning-SFT
   adapter.
+- [x] Rented Vast contract `35608197` for the reasoning-bootstrap canary on an
+  `NVIDIA A100-SXM4-80GB`. The first SFT launch failed before training because
+  assistant-only loss is unsupported for Qwen3.5's processor-backed trainer
+  path; the successful run used manual packed-token masking with
+  `--pack-tokenized --no-assistant-only-loss`.
+- [x] Ran a 20-step reasoning SFT bootstrap on 256 train rows and 64 eval rows.
+  It saved an adapter with train loss `1.1380`; 32-row generation quality was
+  `0.3438` exact overall, but centroid movement, repair translation,
+  target-clearance movement, and target-contact movement stayed `0.0` exact.
+- [x] Ran a 20-step GRPO canary initialized from the reasoning SFT adapter.
+  Step-20 train reward was `0.3995`, internal eval reward was `0.3348`, and
+  final quality reward was `0.3249`. The tiny repair-direction sample improved
+  to `0.5` accuracy, but repair translation and movement families stayed `0.0`
+  exact, so the 300-step pilot remains stopped.
+- [x] Pulled reasoning-bootstrap artifacts into
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap/reasoning_bootstrap_artifacts.tar.gz`
+  and destroyed Vast instance `35608197`; `vastai show instances --raw`
+  returned `[]`.
 
-Next GPU bootstrap command:
+Successful GPU bootstrap command:
 
 ```bash
 python scripts/text_sft_train_unsloth.py \
@@ -500,18 +518,22 @@ python scripts/text_sft_train_unsloth.py \
   --train-splits inner_train \
   --eval-splits inner_eval \
   --task-types binary_interference centroid_distance_move clearance_bucket relation_classification repair_direction repair_translation target_clearance_move target_contact_move tolerance_fit volume_bucket \
-  --max-train-rows 512 \
+  --max-train-rows 256 \
   --max-eval-rows 64 \
-  --max-steps 100 \
-  --max-seq-length 2048 \
-  --gradient-accumulation-steps 8 \
+  --max-steps 20 \
+  --max-seq-length 1536 \
+  --gradient-accumulation-steps 4 \
   --learning-rate 2e-4 \
-  --quality-eval-steps 50 \
+  --pack-tokenized \
+  --no-assistant-only-loss \
+  --eval-steps 20 \
+  --save-steps 20 \
+  --quality-eval-steps 20 \
   --quality-eval-max-rows 32 \
   --quality-max-new-tokens 128
 ```
 
-Then run the small GRPO canary from the SFT adapter:
+Successful GRPO canary from the SFT adapter:
 
 ```bash
 python scripts/text_grpo_train_unsloth.py \

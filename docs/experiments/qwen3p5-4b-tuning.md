@@ -306,10 +306,31 @@ Reasoning-SFT bootstrap follow-up:
   canonical answers, and updated `scripts/text_grpo_train_unsloth.py` with
   `--adapter-init-dir` so GRPO can initialize from the short reasoning-SFT
   adapter.
-- This is the next compute path before any 300-step GRPO run: run a short SFT
-  bootstrap canary, then a 20-step GRPO canary from that adapter. Extend only if
-  repair direction, repair translation, and movement exact/within-tolerance
-  metrics improve over the balanced canary.
+- Vast contract `35608197` ran the bootstrap canary on an
+  `NVIDIA A100-SXM4-80GB`, using Torch `2.10.0+cu128`, transformers `5.5.0`,
+  TRL `0.24.0`, and Unsloth `2026.4.8`. The first SFT attempt failed before
+  training because assistant-only loss is unsupported for Qwen3.5's
+  processor-backed path, so the successful canary used manual packed-token
+  masking with `--pack-tokenized --no-assistant-only-loss`.
+- The 20-step reasoning SFT bootstrap used 256 train rows, 64 eval rows,
+  1536-token packing, and saved an adapter. Train loss was `1.1380`; final eval
+  loss was `NaN` under the packed-token eval path, so generation quality is the
+  useful signal. The 32-row quality probe reached `0.3438` exact accuracy
+  overall, but edit numerics were still `0.0` exact for centroid movement,
+  repair translation, target clearance, and target contact.
+- A 20-step GRPO canary initialized from that SFT adapter used 128 train rows
+  and 32 eval rows. Step-20 train reward was `0.3995`; step-20 internal eval
+  reward was `0.3348`; final quality reward was `0.3249`.
+- The bootstrap path slightly improved the tiny repair-direction quality sample
+  to `0.5` accuracy, but repair translation, centroid movement,
+  target-clearance movement, and target-contact movement remained `0.0` exact.
+  Clearance bucket and relation quality regressed on the final sample. Stop
+  decision: still do not launch the 300-step pilot from this adapter.
+- Local artifact mirror:
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap/reasoning_bootstrap_artifacts.tar.gz`
+  contains both run logs, train/quality metrics, checkpoints, and adapters.
+  Vast instance `35608197` was destroyed after artifact retrieval; `show
+  instances --raw` returned `[]`.
 
 Reasoning-SFT bootstrap command:
 
@@ -321,13 +342,17 @@ python scripts/text_sft_train_unsloth.py \
   --train-splits inner_train \
   --eval-splits inner_eval \
   --task-types binary_interference centroid_distance_move clearance_bucket relation_classification repair_direction repair_translation target_clearance_move target_contact_move tolerance_fit volume_bucket \
-  --max-train-rows 512 \
+  --max-train-rows 256 \
   --max-eval-rows 64 \
-  --max-steps 100 \
-  --max-seq-length 2048 \
-  --gradient-accumulation-steps 8 \
+  --max-steps 20 \
+  --max-seq-length 1536 \
+  --gradient-accumulation-steps 4 \
   --learning-rate 2e-4 \
-  --quality-eval-steps 50 \
+  --pack-tokenized \
+  --no-assistant-only-loss \
+  --eval-steps 20 \
+  --save-steps 20 \
+  --quality-eval-steps 20 \
   --quality-eval-max-rows 32 \
   --quality-max-new-tokens 128
 ```
