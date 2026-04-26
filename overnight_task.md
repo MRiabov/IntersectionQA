@@ -289,6 +289,8 @@ loss_type = "dr_grpo"
   to step 30, pull artifacts, destroy the H100 instance, and record the result.
 - [x] Stop before a 300-step pilot because checkpoint-20 was best and
   repair-translation exact accuracy remained `0.0`.
+- [x] Add a separate `edit_geometry_with_candidates` prompt-feature mode for
+  repair-translation curriculum canaries.
 
 ## Done
 

@@ -456,6 +456,25 @@ Feature + lenient signed-distance continuation:
   checkpoints 10/20/30, and adapter files. Vast instance `35610767` was
   destroyed after artifact retrieval; `show instances --raw` returned `[]`.
 
+Repair-translation candidate-feature prep:
+
+- Added a separate training/eval prompt mode,
+  `--prompt-feature-mode edit_geometry_with_candidates`, for bounded
+  curriculum canaries. It keeps the existing trusted AABB, target, and allowed
+  edit features, and for conservative repair rows also exposes the six
+  precomputed signed-axis move options as
+  `conservative_axis_move_options_mm`.
+- This mode deliberately stays separate from `edit_geometry`: it does not alter
+  public dataset prompts, and it does not print `selected_direction`,
+  `selected_magnitude_mm`, `structured_answer`, or raw `candidate_moves`
+  metadata. The answer is still derivable from the conservative repair rule by
+  choosing the minimum magnitude with the documented tie order, so this is a
+  curriculum/debug feature rather than a release prompt.
+- Local inspection over
+  `data/intersectionedit_grpo_pilot_balanced_inner_all` found 134
+  repair-translation rows and a maximum candidate-feature prompt length of
+  6,488 characters, within the existing 2,048 prompt-token canary cap.
+
 Reasoning-SFT bootstrap command:
 
 ```bash

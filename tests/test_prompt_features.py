@@ -37,6 +37,38 @@ def test_edit_geometry_repair_features_expose_aabbs_without_direct_answer():
     assert "candidate_moves" not in prompt
 
 
+def test_candidate_feature_mode_exposes_ordered_repair_candidates_without_selected_label():
+    prompt = augment_prompt(
+        prompt="Repair prompt",
+        task_type="repair_translation",
+        metadata={
+            "bbox_a": {"min": [-1.0, -2.0, -3.0], "max": [1.0, 2.0, 3.0]},
+            "bbox_b": {"min": [0.5, -1.0, -1.0], "max": [2.5, 1.0, 1.0]},
+            "label_policy": {"epsilon_distance_mm": 0.0001},
+            "selected_direction": "+x",
+            "selected_magnitude_mm": 1.5001,
+            "candidate_moves": [
+                {"direction": "+z", "magnitude_mm": 4.0},
+                {"direction": "-x", "magnitude_mm": 3.0},
+                {"direction": "+x", "magnitude_mm": 1.5001},
+                {"direction": "-z", "magnitude_mm": 6.0},
+                {"direction": "+y", "magnitude_mm": 2.0},
+                {"direction": "-y", "magnitude_mm": 5.0},
+            ],
+        },
+        mode="edit_geometry_with_candidates",
+    )
+
+    assert (
+        "conservative_axis_move_options_mm: "
+        "+x=1.500100, -x=3.000000, +y=2.000000, -y=5.000000, "
+        "+z=4.000000, -z=6.000000"
+    ) in prompt
+    assert "selected_direction" not in prompt
+    assert "selected_magnitude" not in prompt
+    assert "candidate_moves" not in prompt
+
+
 def test_edit_geometry_signed_distance_features_expose_initial_and_target_state():
     prompt = augment_prompt(
         prompt="Move prompt",

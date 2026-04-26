@@ -7,7 +7,7 @@ from typing import Any, Mapping
 from intersectionqa.enums import TaskType
 from intersectionqa.schema import PublicTaskRow
 
-PROMPT_FEATURE_MODES = ("none", "edit_geometry")
+PROMPT_FEATURE_MODES = ("none", "edit_geometry", "edit_geometry_with_candidates")
 _EDIT_TASKS = {
     TaskType.REPAIR_DIRECTION.value,
     TaskType.REPAIR_TRANSLATION.value,
@@ -65,11 +65,15 @@ def augment_prompt(
 ) -> str:
     if mode == "none":
         return prompt
-    if mode != "edit_geometry":
+    if mode not in {"edit_geometry", "edit_geometry_with_candidates"}:
         raise ValueError(f"Unsupported prompt feature mode: {mode}")
     if task_type not in _EDIT_TASKS:
         return prompt
-    lines = edit_geometry_feature_lines(task_type, metadata)
+    lines = edit_geometry_feature_lines(
+        task_type,
+        metadata,
+        include_repair_candidates=mode == "edit_geometry_with_candidates",
+    )
     if not lines:
         return prompt
     return (
@@ -79,7 +83,12 @@ def augment_prompt(
     )
 
 
-def edit_geometry_feature_lines(task_type: str, metadata: Mapping[str, Any]) -> list[str]:
+def edit_geometry_feature_lines(
+    task_type: str,
+    metadata: Mapping[str, Any],
+    *,
+    include_repair_candidates: bool = False,
+) -> list[str]:
     lines: list[str] = []
     bbox_a = metadata.get("bbox_a")
     bbox_b = metadata.get("bbox_b")
@@ -89,6 +98,8 @@ def edit_geometry_feature_lines(task_type: str, metadata: Mapping[str, Any]) -> 
         lines.append(f"- object_b_world_aabb: {_format_bbox(bbox_b)}")
     if task_type in _REPAIR_TASKS:
         lines.extend(_repair_lines(metadata))
+        if include_repair_candidates:
+            lines.extend(_repair_candidate_lines(metadata))
     if task_type in _SIGNED_DISTANCE_TASKS:
         lines.extend(_signed_distance_lines(metadata))
     return lines
@@ -105,6 +116,32 @@ def _repair_lines(metadata: Mapping[str, Any]) -> list[str]:
     if epsilon is not None:
         lines.append(f"- contact_tolerance_mm: {_fmt(epsilon)}")
     return lines
+
+
+def _repair_candidate_lines(metadata: Mapping[str, Any]) -> list[str]:
+    candidate_moves = metadata.get("candidate_moves")
+    if not isinstance(candidate_moves, list):
+        return []
+    formatted: list[str] = []
+    for item in candidate_moves:
+        if not isinstance(item, Mapping):
+            continue
+        direction = item.get("direction")
+        magnitude = _finite_float(item.get("magnitude_mm"))
+        if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"} or magnitude is None:
+            continue
+        formatted.append(f"{direction}={magnitude:.6f}")
+    if not formatted:
+        return []
+    return [
+        "- conservative_axis_move_options_mm: "
+        + ", ".join(_order_direction_values(formatted))
+    ]
+
+
+def _order_direction_values(values: list[str]) -> list[str]:
+    order = {direction: index for index, direction in enumerate(("+x", "-x", "+y", "-y", "+z", "-z"))}
+    return sorted(values, key=lambda value: order.get(value.split("=", 1)[0], len(order)))
 
 
 def _signed_distance_lines(metadata: Mapping[str, Any]) -> list[str]:
