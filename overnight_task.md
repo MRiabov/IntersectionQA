@@ -393,3 +393,32 @@ loss_type = "dr_grpo"
 - [x] Updated GRPO quality logging to keep diverse low-reward samples instead
   of the first few eval rows, and raised the default sample log count to 16 so
   the next run exposes repair/movement/bucket failures directly.
+- [x] Rented a third A100 contract `35603017` for the stratified capped-row
+  canary. The working stack was Torch `2.10.0+cu128`, transformers `5.5.0`,
+  TRL `0.24.0`, Unsloth `2026.4.8`, and the run trained `38,756,352` LoRA
+  parameters on Qwen3.5 4B.
+- [x] Ran the 20-step stratified canary with 128 train rows and 32 eval rows.
+  The train cap covered every task family with 12-13 rows each and the eval cap
+  covered every family with 3-4 rows each. Step 20 quality over 16 rows had
+  reward mean `0.3911` with `0.0` invalid-output rate.
+- [x] Ran a bounded 50-step continuation from `checkpoint-20`. Final internal
+  eval reward was `0.3191` at step 50, down from `0.3475` at step 40, and the
+  step-30 quality probe was only `0.4031`. The final quality callback did not
+  log a step-50 record because the resumed trainer kept mismatched eval/save
+  cadence, so the reliable final metric is the internal eval reward.
+- [x] Preserved failure-focused samples from the stratified run. They show the
+  same competence gap as before: repair direction predicts `-z` for `+x`/`+z`,
+  repair translation predicts `+y 34.000000` for `+z 120.000100`, target
+  clearance predicts `distance_mm=-199.5` for `distance_mm=0.5`, centroid move
+  predicts negative distances for `distance_mm=5.0`, and volume bucket predicts
+  `(0.01, 0.05]` for answer `0`.
+- [x] Pulled the stratified-pilot artifacts into
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_stratified_pilot50/`,
+  including logs, metrics JSONL files, `train_result.json`, `checkpoint-50`,
+  final adapter, and the compressed remote artifact bundle.
+- [x] Destroyed Vast instance `35603017`; `vastai show instances --raw` returned
+  `[]`.
+- [x] Stop decision remains: do not launch the 300-step GRPO pilot from these
+  checkpoints. Stratified sampling fixed data coverage and validity, but not
+  repair/movement/bucket learning. The next serious attempt should change the
+  learning signal before spending on a long RL run.

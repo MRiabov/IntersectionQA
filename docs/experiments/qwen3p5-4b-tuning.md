@@ -19,7 +19,7 @@ out of the general text fine-tuning runbook.
   records
 - Public validation: `scripts.validate_dataset` passed and leakage audit status
   is `pass`
-- Status: A100 canaries and a 50-step continuation completed, with
+- Status: A100 canaries and stratified 50-step continuations completed, with
   checkpointed artifacts. The 300-step pilot remains blocked because accuracy is
   still concentrated in easy tolerance/relation rows and does not cover repair,
   movement, or bucket tasks.
@@ -184,7 +184,7 @@ Format-reward follow-up:
 - Vast instance `35601616` was destroyed after artifact retrieval; `show
   instances --raw` returned `[]`.
 
-Next canary preparation:
+Stratified canary follow-up:
 
 - The failed 50-step continuation exposed a data-starvation issue in capped
   canaries: the previous random 128-row cap contained only 7
@@ -195,8 +195,36 @@ Next canary preparation:
   now prioritize low-reward task diversity rather than the first rows. This
   should make the next canary's failure log useful for repair/movement/bucket
   debugging without increasing generation cost.
-- The next GPU check should be another short canary with the same cheap shape as
-  the format run, but with default stratified sampling:
+- The stratified A100 retry used contract `35603017`, Torch `2.10.0+cu128`,
+  transformers `5.5.0`, TRL `0.24.0`, Unsloth `2026.4.8`, and trained
+  `38,756,352` LoRA parameters on an `NVIDIA A100-SXM4-80GB`.
+- The 20-step stratified canary used 128 train rows and 32 eval rows. The train
+  cap covered every task family with 12-13 rows each; the eval cap covered every
+  task family with 3-4 rows each. Step 20 quality over 16 rows had reward mean
+  `0.3911` and invalid-output rate `0.0`.
+- A bounded 50-step continuation resumed from `checkpoint-20`. Final internal
+  eval reward was `0.3191` at step 50, down from `0.3475` at step 40. The
+  quality callback logged step 30 only because the resumed trainer kept
+  mismatched checkpoint/eval cadence; step 30 quality was `0.4031`.
+- Failure-focused samples were stable and useful: repair direction still
+  predicted `-z` for `+x`/`+z`, repair translation predicted
+  `+y 34.000000` for `+z 120.000100`, target-clearance predicted
+  `distance_mm=-199.5` for `distance_mm=0.5`, centroid move predicted negative
+  distances for `distance_mm=5.0`, and volume bucket predicted `(0.01, 0.05]`
+  for answer `0`.
+- The stratified run did not justify the 300-step pilot. It fixed task coverage
+  and output validity but not repair/movement/bucket competence. The next run
+  should change the learning signal, likely with a short supervised/bootstrap
+  trace pass or task-specific answer-shape examples before another RL pilot.
+- Local artifact mirror:
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_stratified_pilot50/`
+  contains logs, `train_metrics.jsonl`, `quality_metrics.jsonl`,
+  `train_result.json`, `checkpoint-50`, final adapter, and the compressed
+  remote artifact bundle.
+- Vast instance `35603017` was destroyed after artifact retrieval; `show
+  instances --raw` returned `[]`.
+
+Initial stratified canary command:
 
 ```bash
 python scripts/text_grpo_train_unsloth.py \
