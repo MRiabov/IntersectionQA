@@ -54,13 +54,18 @@ def reward_from_fields(
     candidate_output, format_components = canonical_answer_candidate(output)
     parsed = parse_answer(task_type, candidate_output)
     if parsed is None:
+        scaffold_reward = _format_scaffold_reward(format_components)
         return RewardResult(
             row_id=row_id,
             task_type=task_type,
             output=output,
             parsed_output=None,
-            reward=0.0,
-            components={**format_components, "answer_format": 0.0},
+            reward=scaffold_reward,
+            components={
+                **format_components,
+                "answer_format": 0.0,
+                "format_scaffold": scaffold_reward,
+            },
             failure_reason="invalid_output",
         )
 
@@ -82,14 +87,31 @@ def reward_from_fields(
         reward = 1.0 if parsed == answer else 0.0
         components = {"format": 1.0, "exact": reward}
 
+    answer_format_reward = 0.05 * format_components["format"]
+    final_reward = max(_clamp01(reward * format_components["format"]), answer_format_reward)
     return RewardResult(
         row_id=row_id,
         task_type=task_type,
         output=output,
         parsed_output=parsed,
-        reward=_clamp01(reward * format_components["format"]),
-        components={key: _clamp01(value) for key, value in {**format_components, **components}.items()},
+        reward=final_reward,
+        components={
+            key: _clamp01(value)
+            for key, value in {
+                **format_components,
+                **components,
+                "answer_format": 1.0,
+                "answer_format_reward": answer_format_reward,
+            }.items()
+        },
     )
+
+
+def _format_scaffold_reward(format_components: dict[str, float]) -> float:
+    if format_components.get("answer_tag", 0.0) <= 0.0:
+        return 0.0
+    return 0.03 + 0.02 * format_components.get("reasoning_format", 0.0)
+
 
 def _axis_repair_reward(
     answer: str,

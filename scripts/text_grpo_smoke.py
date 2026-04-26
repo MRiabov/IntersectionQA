@@ -37,8 +37,10 @@ def main() -> None:
                     {
                         "role": "system",
                         "content": (
-                            "Solve the CAD spatial-reasoning task. Think briefly in <think>...</think>, "
-                            "then put only the canonical answer string inside <answer>...</answer>."
+                            "Solve the CAD spatial-reasoning task. Return exactly "
+                            "<think>one short sentence</think><answer>ANSWER</answer>. The ANSWER must be "
+                            "only the canonical answer string requested by the user prompt. Do not write "
+                            "anything after </answer>."
                         ),
                     },
                     {"role": "user", "content": row["prompt"]},

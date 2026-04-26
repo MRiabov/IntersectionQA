@@ -50,6 +50,28 @@ def test_rewards_accept_reasoning_answer_tags():
     assert result.components["reasoning_format"] == 1.0
 
 
+def test_rewards_give_small_format_scaffold_credit():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                task_types=[TaskType.BINARY_INTERFERENCE],
+            )
+        )
+    )
+    row = rows[0]
+
+    malformed_with_tags = reward_prediction(row, "<think>Check.</think><answer>not_a_valid_answer</answer>")
+    valid_but_wrong = reward_prediction(row, "yes" if row.answer != "yes" else "no")
+    unstructured_invalid = reward_prediction(row, "not_a_valid_answer")
+
+    assert malformed_with_tags.reward == 0.05
+    assert malformed_with_tags.failure_reason == "invalid_output"
+    assert valid_but_wrong.reward == 0.05
+    assert valid_but_wrong.components["answer_format"] == 1.0
+    assert unstructured_invalid.reward == 0.0
+
+
 def test_axis_repair_vector_and_program_rewards_use_vector_error():
     rows, _ = build_smoke_rows(
         DatasetConfig(

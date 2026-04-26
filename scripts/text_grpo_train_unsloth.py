@@ -22,8 +22,10 @@ from intersectionqa.evaluation.rewards import reward_from_fields
 from intersectionqa.schema import PublicTaskRow
 
 SYSTEM_PROMPT = (
-    "Solve the CAD spatial-reasoning task. Think briefly in <think>...</think>, "
-    "then put only the canonical answer string inside <answer>...</answer>."
+    "Solve the CAD spatial-reasoning task. Return exactly "
+    "<think>one short sentence</think><answer>ANSWER</answer>. The ANSWER must be "
+    "only the canonical answer string requested by the user prompt. Do not write "
+    "anything after </answer>."
 )
 
 
@@ -60,8 +62,9 @@ def main() -> None:
     parser.add_argument("--metrics-log-file", default="train_metrics.jsonl")
     parser.add_argument("--quality-metrics-log-file", default="quality_metrics.jsonl")
     parser.add_argument("--quality-eval-steps", type=int, default=50)
-    parser.add_argument("--quality-eval-max-rows", type=int, default=64)
-    parser.add_argument("--quality-max-new-tokens", type=int, default=512)
+    parser.add_argument("--quality-eval-max-rows", type=int, default=16)
+    parser.add_argument("--quality-max-new-tokens", type=int, default=128)
+    parser.add_argument("--quality-sample-count", type=int, default=4)
     parser.add_argument("--seed", type=int, default=3407)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--resume-from-checkpoint", type=Path)
@@ -125,9 +128,10 @@ def main() -> None:
             ReasoningQualityCallback(
                 path=args.output_dir / args.quality_metrics_log_file,
                 rows=eval_rows[: args.quality_eval_max_rows],
-                tokenizer=tokenizer,
+                tokenizer=text_tokenizer,
                 every_steps=args.quality_eval_steps,
                 max_new_tokens=args.quality_max_new_tokens,
+                sample_count=args.quality_sample_count,
                 append=checkpoint is not None,
             )
         )
@@ -298,6 +302,7 @@ class ReasoningQualityCallback(TrainerCallback):
         tokenizer: Any,
         every_steps: int,
         max_new_tokens: int,
+        sample_count: int,
         append: bool,
     ) -> None:
         self.path = path
@@ -305,6 +310,7 @@ class ReasoningQualityCallback(TrainerCallback):
         self.tokenizer = tokenizer
         self.every_steps = every_steps
         self.max_new_tokens = max_new_tokens
+        self.sample_count = sample_count
         self.append = append
         self._last_step = -1
 
@@ -326,22 +332,36 @@ class ReasoningQualityCallback(TrainerCallback):
             max_new_tokens=self.max_new_tokens,
         )
         metrics = evaluate_predictions(self.rows, predictions)
-        reward_values = [
-            reward_from_fields(
+        reward_values = []
+        samples: list[dict[str, Any]] = []
+        for row, prediction in zip(self.rows, predictions, strict=True):
+            result = reward_from_fields(
                 row_id=row.id,
                 task_type=row.task_type,
                 answer=row.answer,
                 metadata=row.metadata,
                 output=prediction.output,
-            ).reward
-            for row, prediction in zip(self.rows, predictions, strict=True)
-        ]
+            )
+            reward_values.append(result.reward)
+            if len(samples) < self.sample_count:
+                samples.append(
+                    {
+                        "row_id": row.id,
+                        "task_type": str(row.task_type),
+                        "answer": row.answer,
+                        "parsed_output": result.parsed_output,
+                        "reward": result.reward,
+                        "failure_reason": result.failure_reason,
+                        "output": prediction.output[:1000],
+                    }
+                )
         payload = {
             "timestamp": datetime.now(UTC).isoformat(),
             "step": state.global_step,
             "rows": len(self.rows),
             "reward_mean": sum(reward_values) / len(reward_values) if reward_values else 0.0,
             "metrics": [metric.__dict__ for metric in metrics],
+            "samples": samples,
         }
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, sort_keys=True) + "\n")
