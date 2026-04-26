@@ -19,8 +19,10 @@ out of the general text fine-tuning runbook.
   records
 - Public validation: `scripts.validate_dataset` passed and leakage audit status
   is `pass`
-- Status: A100 canary completed, with checkpointed artifacts, but stopped before
-  the 300-step pilot because formatted-answer quality was not yet healthy enough
+- Status: A100 canaries and a 50-step continuation completed, with
+  checkpointed artifacts. The 300-step pilot remains blocked because accuracy is
+  still concentrated in easy tolerance/relation rows and does not cover repair,
+  movement, or bucket tasks.
 
 The initial `configs/repair_smoke.yaml` path was confirmed to be a tiny smoke
 configuration (`geometry_limit: 100`). Exact `axis_aligned_repair` and candidate
@@ -147,6 +149,40 @@ Actual canary results:
 Stop decision: do not launch the 300-step pilot from this checkpoint. The next
 run should first improve output-format reliability, reduce quality-eval cost,
 and then rerun a small canary with the text-tokenizer trainer path.
+
+Format-reward follow-up:
+
+- Added small format-scaffold reward for `<answer>...</answer>` and
+  `<think>...</think><answer>...</answer>` outputs, tightened the system prompt,
+  reduced quality-eval defaults, and logged representative quality samples.
+- On a fresh A100 contract `35601616`, the clean Torch `2.5.1` stack loaded but
+  produced zero trainable LoRA parameters. Upgrading Unsloth installed Torch
+  `2.10.0+cu128`, transformers `5.5.0`, TRL `0.23.0`, and Unsloth
+  `2026.4.8`; this stack trained with `38,756,352` LoRA parameters.
+- Qwen3.5/TRL needed a compatibility shim that attaches `warnings_issued` to
+  the Unsloth-wrapped model before `GRPOTrainer` initialization.
+- The 10-step format canary used `max_completion_length=128`,
+  `num_generations=2`, 128 train rows, and 32 eval rows. Step 10 quality over 8
+  rows had reward mean `0.3491` and invalid-output rate `0.0`. Correct rows were
+  still only tolerance-fit (`2/2`) and one relation row (`1/2`); repair and
+  clearance bucket remained wrong.
+- A bounded 50-step continuation resumed from checkpoint 10 in the same output
+  directory. Step 25 train reward peaked at `0.4942`, but the 16-row quality
+  probe was only `0.3319`. Step 50 quality fell to `0.3116`: tolerance-fit
+  remained `3/3`, relation was `1/2`, and binary interference, centroid-distance
+  move, clearance bucket, repair translation, target-clearance move, and volume
+  bucket were all `0%` exact. Invalid-output rate stayed `0.0`, so the remaining
+  issue is task competence, not parsing.
+- Final internal eval reward at step 50 was `0.3066` with clipped completion
+  ratio `0.0625`, while KL rose to `0.6432`. Do not extend this checkpoint to a
+  300-step run without changing the data mix, prompt, or reward shaping for the
+  underperforming task families.
+- Local artifact mirror:
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_format_pilot50/`
+  contains logs, `train_metrics.jsonl`, `quality_metrics.jsonl`, `checkpoint-50`,
+  the final adapter, and the compressed remote artifact bundle.
+- Vast instance `35601616` was destroyed after artifact retrieval; `show
+  instances --raw` returned `[]`.
 
 ### Earlier April 25, 2026 SFT Run
 

@@ -270,7 +270,7 @@ loss_type = "dr_grpo"
 - [x] Upload validated dataset/artifacts if possible. Preserved local artifacts;
   HF bucket upload was not attempted because no bucket target was specified.
 - [x] Update `docs/experiments/qwen3p5-4b-tuning.md`.
-- [ ] Commit final docs/code state.
+- [x] Commit final docs/code state.
 
 ## Done
 
@@ -360,3 +360,28 @@ loss_type = "dr_grpo"
   including train/quality JSONL logs, remote command logs, and the step-10 LoRA
   adapter checkpoint files. Destroyed Vast instance `35599309` after artifact
   retrieval.
+- [x] Added small format-scaffold GRPO rewards for tagged answers, tightened
+  the GRPO system prompt, reduced default quality-eval cost, and logged sample
+  generations in `quality_metrics.jsonl`.
+- [x] Fixed a cleaner-stack TRL/transformers compatibility issue by ensuring
+  the Unsloth-wrapped Qwen3.5 model exposes `warnings_issued` before
+  `GRPOTrainer` initialization.
+- [x] Rented a second A100 contract `35601616` for the format canary. The
+  initial clean Torch `2.5.1` stack produced zero trainable parameters; upgrading
+  Unsloth installed Torch `2.10.0+cu128`, transformers `5.5.0`, TRL `0.23.0`,
+  and trained `38,756,352` LoRA parameters.
+- [x] Ran a 10-step format canary on 128 train rows and 32 eval rows. Step 10
+  quality over 8 rows improved to reward mean `0.3491` with `0.0`
+  invalid-output rate, but correct answers were still limited to tolerance-fit
+  and one relation row.
+- [x] Ran a bounded 50-step continuation from checkpoint 10. Step 25 train
+  reward peaked at `0.4942`, but 16-row quality was `0.3319`; step 50 quality
+  fell to `0.3116`. Tolerance-fit stayed `3/3` and relation stayed `1/2`, while
+  binary interference, movement, bucket, volume, and repair rows remained wrong.
+  Stop decision remains: do not launch a 300-step pilot from this checkpoint.
+- [x] Pulled the format-pilot artifacts into
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_format_pilot50/`,
+  including logs, metrics JSONL files, `checkpoint-50`, final adapter, and the
+  compressed remote artifact bundle.
+- [x] Destroyed Vast instance `35601616`; `vastai show instances --raw` returned
+  `[]`.

@@ -29,8 +29,8 @@ ordering:
   source: implementation-complexity-priority-matrix.md
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
-  date: "2026-04-25"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; the 300-step pilot was stopped because output-format quality is not yet stable enough.
+  date: "2026-04-26"
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; format-scaffold rewards fixed parse-invalid completions, but a 50-step continuation still failed repair, movement, volume, and bucket rows, so the 300-step pilot remains stopped pending data/prompt/reward changes.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -79,8 +79,10 @@ current_snapshot:
     - intersectionedit_group_safe_mixed_grpo_splits
     - intersectionedit_reasoning_grpo_reward_runner
     - reasoning_answer_tag_eval_metrics
+    - grpo_format_scaffold_reward
     - grpo_text_tokenizer_training_path
     - qwen3p5_4b_intersectionedit_grpo_canary_checkpoint
+    - qwen3p5_4b_intersectionedit_grpo_format_pilot50_artifact
     - dataset_card_generation
     - smoke_dataset_generation
 
@@ -1333,11 +1335,15 @@ epics:
           GSPO-style sequence importance sampling, Dr. GRPO/DAPO loss selection, periodic
           generation-quality eval, JSONL metrics, and adapter saving. The runner now uses
           the underlying text tokenizer for both quality generation and GRPOTrainer
-          processing instead of the Qwen processor. The first validated pilot uses
-          `data/intersectionedit_grpo_pilot_inner_all` for mixed QA+Edit RL; a Vast A100
-          canary saved a checkpoint at step 10, but the 300-step pilot was stopped because
-          corrected quality metrics still showed high invalid-output rates outside
-          tolerance-fit rows.
+          processing instead of the Qwen processor. Added format-scaffold rewards,
+          stricter tagged-answer instructions, cheaper quality-eval defaults, sample
+          generation logging, and a compatibility shim for TRL/transformers stacks that
+          expect `warnings_issued` on the wrapped model. The first validated pilot uses
+          `data/intersectionedit_grpo_pilot_inner_all` for mixed QA+Edit RL. Vast A100
+          canaries saved checkpoints at steps 10 and 50. The format canary reduced
+          parse-invalid completions to `0.0`, but the 50-step continuation still only
+          solved tolerance-fit and part of relation classification while repair, movement,
+          volume, and bucket rows stayed wrong; the 300-step pilot remains stopped.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit

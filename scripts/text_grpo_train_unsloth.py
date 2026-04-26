@@ -102,6 +102,7 @@ def main() -> None:
         loftq_config=None,
     )
     FastModel.for_training(model)
+    ensure_transformers_warning_state(model)
 
     train_dataset = Dataset.from_list([to_grpo_example(row) for row in train_rows])
     eval_dataset = Dataset.from_list([to_grpo_example(row) for row in eval_rows])
@@ -198,6 +199,17 @@ def build_grpo_config(args: argparse.Namespace) -> GRPOConfig:
         if key in signature:
             kwargs[key] = value
     return GRPOConfig(**kwargs)
+
+
+def ensure_transformers_warning_state(model: Any) -> None:
+    if not hasattr(model, "warnings_issued"):
+        model.warnings_issued = {}
+    base_model = getattr(model, "base_model", None)
+    if base_model is not None and not hasattr(base_model, "warnings_issued"):
+        base_model.warnings_issued = model.warnings_issued
+    inner_model = getattr(base_model, "model", None) if base_model is not None else None
+    if inner_model is not None and not hasattr(inner_model, "warnings_issued"):
+        inner_model.warnings_issued = model.warnings_issued
 
 
 def row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list[float]:
