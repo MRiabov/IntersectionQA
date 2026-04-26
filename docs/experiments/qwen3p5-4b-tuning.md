@@ -226,6 +226,12 @@ Stratified canary follow-up:
   diverse magnitudes. The current pilot source still has no negative
   repair-direction labels, so a balanced repair dataset needs generation changes
   rather than sampling alone.
+- The generation-side repair imbalance is now fixed for new CADEvolve builds.
+  Bbox-guided gap placement cycles deterministic object-pair placements across
+  all six signed axes instead of always placing `object_b` on the positive-x
+  side. The placement direction is recorded in metadata, axis-specific
+  translation variants remain counterfactual grouped, and a 200-geometry
+  repair-only probe produced all six repair directions.
 - Local artifact mirror:
   `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_stratified_pilot50/`
   contains logs, `train_metrics.jsonl`, `quality_metrics.jsonl`,

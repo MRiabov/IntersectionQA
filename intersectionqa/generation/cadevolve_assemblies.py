@@ -47,6 +47,8 @@ class _CandidateSpec:
     rotation_b: tuple[float, float, float]
     tags: tuple[str, ...]
     placement: str = "x_gap"
+    placement_axis: int = 0
+    placement_side: int = 1
     center_offset_y: float = 0.0
     center_offset_z: float = 0.0
     changed_parameter: str | None = "transform_b.translation[0]"
@@ -122,6 +124,7 @@ def generate_cadevolve_geometry_records(
                 validation_b,
                 policy,
                 pair_key=f"{object_a.source_id}|{object_b.source_id}",
+                pair_index=pair_index,
             ),
             start=1,
         ):
@@ -337,6 +340,7 @@ def _candidate_specs(
     policy: LabelPolicy,
     *,
     pair_key: str = "",
+    pair_index: int = 1,
 ) -> list[_CandidateSpec]:
     assert validation_a.bbox is not None
     assert validation_b.bbox is not None
@@ -345,6 +349,8 @@ def _candidate_specs(
     overlap_clear = max(overlap_small * 4.0, span_x * 0.25)
     targeted_overlap_gap = _targeted_overlap_gap(span_x, pair_key)
     targeted_clearance_gap = _targeted_clearance_gap(policy, pair_key)
+    placement_axis, placement_side = _gap_axis_side(pair_key, pair_index)
+    changed_parameter = f"transform_b.translation[{placement_axis}]"
     clear_gap = max(policy.near_miss_threshold_mm + 5.0, span_x * 0.5)
     far_gap = clear_gap + _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
     broad_scale = _diagonal(validation_a.bbox) + _diagonal(validation_b.bbox)
@@ -356,12 +362,17 @@ def _candidate_specs(
             translation_gap=clear_gap,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned",),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy="broad_random_disjoint",
             translation_gap=far_gap * (1.0 + broad_jitter),
             rotation_b=(0.0, 0.0, broad_rotation),
             tags=("broad_placement", "rotated"),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
             center_offset_y=broad_scale * (-0.5 + _stable_unit_interval(f"{pair_key}:y")),
             center_offset_z=broad_scale * (-0.5 + _stable_unit_interval(f"{pair_key}:z")),
             changed_parameter="transform_b.translation",
@@ -371,12 +382,18 @@ def _candidate_specs(
             translation_gap=0.0,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned", "contact_vs_interference", "near_boundary"),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy="near_miss",
             translation_gap=0.5,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned", "near_boundary", "near_miss"),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy=f"{targeted_clearance_gap[0]}_clearance",
@@ -388,30 +405,44 @@ def _candidate_specs(
                 "clearance_bucket_targeted",
                 f"{targeted_clearance_gap[0]}_clearance",
             ),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy="tiny_overlap",
             translation_gap=-overlap_small,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned", "near_boundary", "tiny_overlap"),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy=f"{targeted_overlap_gap[0]}_overlap",
             translation_gap=-targeted_overlap_gap[1],
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned", "volume_bucket_targeted", f"{targeted_overlap_gap[0]}_overlap"),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy="clear_overlap",
             translation_gap=-overlap_clear,
             rotation_b=(0.0, 0.0, 0.0),
             tags=("axis_aligned",),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
+            changed_parameter=changed_parameter,
         ),
         _CandidateSpec(
             strategy="rotated_clear_disjoint",
             translation_gap=far_gap,
             rotation_b=(0.0, 0.0, 15.0),
             tags=("rotated",),
+            placement_axis=placement_axis,
+            placement_side=placement_side,
             changed_parameter="transform_b.rotation_xyz_deg[2]",
         ),
     ]
@@ -423,6 +454,8 @@ def _candidate_specs(
                 rotation_b=(0.0, 0.0, 0.0),
                 tags=("cavity_targeted",),
                 placement="center",
+                placement_axis=placement_axis,
+                placement_side=placement_side,
                 changed_parameter="transform_b.translation",
             )
         )
@@ -455,6 +488,8 @@ def _measure_candidate(
     transform_hash = sha256_json(
         {
             "candidate_strategy": spec.strategy,
+            "placement_axis": spec.placement_axis,
+            "placement_side": spec.placement_side,
             "transform_a": transform_a.model_dump(mode="json"),
             "transform_b": transform_b.model_dump(mode="json"),
         }
@@ -493,9 +528,7 @@ def _measure_candidate(
     )
     world_a = transform_aabb(local_a, transform_a)
     world_b = transform_aabb(local_b, transform_b)
-    counterfactual_group_id = (
-        f"cfg_cadevolve_{pair_index:06d}" if spec.changed_parameter == "transform_b.translation[0]" else None
-    )
+    counterfactual_group_id = f"cfg_cadevolve_{pair_index:06d}" if _is_axis_translation_parameter(spec) else None
     variant_id = (
         f"{counterfactual_group_id}_v{spec_index:02d}" if counterfactual_group_id else None
     )
@@ -555,6 +588,9 @@ def _measure_candidate(
             "ocp_version": ocp_version(),
             "candidate_transform_values": {
                 "placement": spec.placement,
+                "placement_axis": spec.placement_axis,
+                "placement_side": spec.placement_side,
+                "placement_direction": _placement_direction(spec),
                 "translation_gap": spec.translation_gap,
                 "transform_a": transform_a.model_dump(mode="json"),
                 "transform_b": transform_b.model_dump(mode="json"),
@@ -573,11 +609,16 @@ def _bbox_guided_transform(local_a: AABB, local_b: AABB, spec: _CandidateSpec) -
             _center(local_a, 2) - _center(local_b, 2) + spec.center_offset_z,
         ]
     else:
-        translation = [
-            local_a.max[0] + spec.translation_gap - local_b.min[0],
-            _center(local_a, 1) - _center(local_b, 1) + spec.center_offset_y,
-            _center(local_a, 2) - _center(local_b, 2) + spec.center_offset_z,
-        ]
+        translation = [0.0, 0.0, 0.0]
+        offset_by_axis = _center_offsets_by_axis(spec.placement_axis, spec.center_offset_y, spec.center_offset_z)
+        for axis in range(3):
+            if axis == spec.placement_axis:
+                if spec.placement_side >= 0:
+                    translation[axis] = local_a.max[axis] + spec.translation_gap - local_b.min[axis]
+                else:
+                    translation[axis] = local_a.min[axis] - spec.translation_gap - local_b.max[axis]
+            else:
+                translation[axis] = _center(local_a, axis) - _center(local_b, axis) + offset_by_axis[axis]
     return Transform(translation=tuple(translation), rotation_xyz_deg=spec.rotation_b)
 
 
@@ -780,6 +821,33 @@ def _stable_index(value: str, count: int) -> int:
     return int(digest[:8], 16) % count
 
 
+def _gap_axis_side(pair_key: str, pair_index: int | None = None) -> tuple[int, int]:
+    index = (pair_index - 1) % 6 if pair_index is not None else _stable_index(f"{pair_key}:gap_axis_side", 6)
+    return index // 2, 1 if index % 2 == 0 else -1
+
+
+def _placement_direction(spec: _CandidateSpec) -> str:
+    axis = "xyz"[spec.placement_axis]
+    sign = "+" if spec.placement_side >= 0 else "-"
+    return f"{sign}{axis}"
+
+
+def _center_offsets_by_axis(axis: int, first_offset: float, second_offset: float) -> list[float]:
+    offsets = [0.0, 0.0, 0.0]
+    non_placement_axes = [index for index in range(3) if index != axis]
+    offsets[non_placement_axes[0]] = first_offset
+    offsets[non_placement_axes[1]] = second_offset
+    return offsets
+
+
+def _is_axis_translation_parameter(spec: _CandidateSpec) -> bool:
+    return spec.changed_parameter in {
+        "transform_b.translation[0]",
+        "transform_b.translation[1]",
+        "transform_b.translation[2]",
+    }
+
+
 def _targeted_clearance_gap(policy: LabelPolicy, pair_key: str) -> tuple[str, float]:
     tiny_gap = max(policy.epsilon_distance_mm * 10.0, min(0.05, policy.near_miss_threshold_mm * 0.05))
     mid_gap = min(4.0, max(policy.near_miss_threshold_mm + 0.5, 2.5))
@@ -802,6 +870,10 @@ def _targeted_overlap_gap(span_x: float, pair_key: str) -> tuple[str, float]:
 def _changed_value(spec: _CandidateSpec, transform: Transform) -> Any:
     if spec.changed_parameter == "transform_b.translation[0]":
         return transform.translation[0]
+    if spec.changed_parameter == "transform_b.translation[1]":
+        return transform.translation[1]
+    if spec.changed_parameter == "transform_b.translation[2]":
+        return transform.translation[2]
     if spec.changed_parameter == "transform_b.translation":
         return transform.translation
     return transform.rotation_xyz_deg[2]

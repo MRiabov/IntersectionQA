@@ -432,3 +432,13 @@ loss_type = "dr_grpo"
   This also exposed a source-data limitation: the current fast pilot has no
   negative repair-direction labels, so that balance issue cannot be fixed by
   sampling alone.
+- [x] Fixed the source-side repair-direction imbalance. CADEvolve bbox-guided
+  gap placement no longer always puts `object_b` on the positive-x side; it now
+  cycles deterministic pair placements across `+x`, `-x`, `+y`, `-y`, `+z`,
+  and `-z`, stores the placement direction in metadata, and treats axis-specific
+  translation variants as counterfactual groups. A 200-geometry repair-only
+  probe produced all six repair directions.
+- [x] Rechecked the broad fast pilot path and confirmed row materialization is
+  still the slow stage when target movement tasks are included. This is local
+  CPU time, not GPU spend, but it remains a practical blocker for quickly
+  rebuilding larger mixed datasets.

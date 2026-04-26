@@ -108,9 +108,53 @@ def test_cadevolve_candidate_generation_aliases_sources_and_preserves_provenance
     assert "def object_a():" in record.assembly_script
     assert "def object_b():" in record.assembly_script
     assert record.metadata["candidate_strategy"] == "clear_disjoint"
+    assert record.metadata["candidate_transform_values"]["placement_direction"] in {
+        "+x",
+        "-x",
+        "+y",
+        "-y",
+        "+z",
+        "-z",
+    }
     assert record.metadata["pre_balance_geometry_id"] == "geom_cadevolve_000001"
     assert record.metadata["source_paths"] == ["CADEvolve-C/test/b.py", "CADEvolve-P/test/a.py"]
     assert record.metadata["cadquery_version"] is not None
+
+
+def test_cadevolve_gap_placement_spreads_repair_directions():
+    config = DatasetConfig()
+    sources = [
+        _cadevolve_box("obj_ca", "CADEvolve-P/test/a.py", (10.0, 10.0, 10.0)),
+        _cadevolve_box("obj_cb", "CADEvolve-C/test/b.py", (8.0, 8.0, 8.0)),
+        _cadevolve_box("obj_cc", "CADEvolve-S/test/c.py", (7.0, 7.0, 7.0)),
+        _cadevolve_box("obj_cd", "CADEvolve-T/test/d.py", (6.0, 6.0, 6.0)),
+    ]
+    validations = [
+        validate_source_object(
+            source,
+            config_hash=config.config_hash,
+            validated_at_version="test",
+            isolated=False,
+        )
+        for source in sources
+    ]
+    generated = generate_cadevolve_geometry_records(
+        sources,
+        {validation.object_id: validation for validation in validations},
+        policy=config.label_policy,
+        config_hash=config.config_hash,
+        max_records=24,
+        relation_balance=False,
+    )
+    rows = materialize_rows(
+        generated.records,
+        assign_geometry_splits(generated.records, config.seed),
+        [TaskType.REPAIR_DIRECTION],
+    )
+    directions = {row.answer for row in rows}
+
+    assert directions & {"+x", "+y", "+z"}
+    assert directions & {"-x", "-y", "-z"}
 
 
 def test_cadevolve_candidate_generation_reuses_geometry_label_cache(tmp_path, capsys):
