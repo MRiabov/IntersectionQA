@@ -34,6 +34,7 @@ Use these documents in `specs/` as the source of truth:
 | `specs/useful-implementation-optimization.md` | Implementation and scaling guidance; informative unless it conflicts with the canonical specs above. |
 | `specs/reviewer-readiness-checklist.md` | Operational checklist for validating a dataset build before review or release. |
 | `specs/paper-spec.md` | Research framing and paper ambition; informative unless it conflicts with the canonical specs above. |
+| `specs/research-experiment-spec.md` | Paper experiment suite, budgets, baselines, ablations, metrics, artifact requirements, and priority order; informative unless it conflicts with the canonical specs above. |
 | `epics-and-stories.md` and `epics-and-stories.yaml` | Planning backlog generated from the specs and implementation matrix. |
 | `implementation-complexity-priority-matrix.md` | Build/defer decisions, suggested module map, and risk-ranked implementation order. |
 | `docs/text_finetune_runbook.md` | Current text-only dataset, HF upload, Vast/A100, Qwen3.5 SFT commands, and known training failure modes. |

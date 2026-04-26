@@ -161,7 +161,9 @@ Keep experiment-specific choices, rejected model paths, instance IDs, launch
 commands, and run observations in `docs/experiments/` instead of expanding this
 runbook.
 
-- [Qwen3.5 4B tuning experiment](experiments/qwen3p5-4b-tuning.md)
+- [Qwen3.5 4B tuning notes](qwen3p5-4b-tuning.md)
+- [April 25, 2026 Qwen3.5 4B IntersectionQA SFT](experiments/apr-25-qwen3p5-4b-intersectionqa-sft.md)
+- [April 25-26, 2026 Qwen3.5 4B IntersectionEdit GRPO](experiments/apr-25-26-qwen3p5-4b-intersectionedit-grpo.md)
 
 ## IntersectionEdit SFT/GRPO Staging
 
@@ -261,19 +263,9 @@ df -h /root
 
 ## Known Failure Modes
 
-- 120GB disk is too small to keep both `Qwen/Qwen3.6-27B` and
-  `Qwen/Qwen3.6-35B-A3B` caches at once. Clear failed model caches before
-  switching:
-
-```bash
-rm -rf /root/.cache/huggingface/hub/models--Qwen--Qwen3.6-27B
-rm -rf /root/.cache/huggingface/hub/models--Qwen--Qwen3.6-35B-A3B
-rm -rf /root/.cache/huggingface/hub/.locks/models--Qwen--Qwen3.6-27B
-rm -rf /root/.cache/huggingface/hub/.locks/models--Qwen--Qwen3.6-35B-A3B
-```
-
-- Generic PEFT QLoRA on `Qwen/Qwen3.6-35B-A3B` OOMed on A100 80GB during
-  k-bit preparation. Use Unsloth bf16 LoRA for MoE.
+- Qwen-specific model-selection, disk-cache, and hardware failures live in
+  [Qwen3.5 4B tuning notes](qwen3p5-4b-tuning.md) and the dated experiment
+  records. Keep this runbook focused on dataset and workflow procedure.
 - Plain single-field SFT without `--assistant-only-loss` likely trains mostly on
   prompt reconstruction. Use the packed tokenized path, which masks labels
   before the assistant answer.

@@ -19,7 +19,7 @@ We have a set of tasks today:
 7. Make sure that the IntersectionEdit is well-covered in the document.
 Oh yes. Try to spend no more than 5-7$ on the Vast.ai account. Which means - you either have to a) run 3-5 hours of H100 or 6 hours of A100 80gb. Decide on your own.
 
-(I'm not quite sure if I should do any SFT going forward. It may prove results, and in fact it did in @docs/experiments/qwen-3p5-4b-tuning.md, however I don't know...)
+(I'm not quite sure if I should do any SFT going forward. It may prove results, and in fact it did in @docs/experiments/apr-25-qwen3p5-4b-intersectionqa-sft.md, however I don't know...)
 Also, I suspect that we have dropped all unsloth training in SFT pipeline. Unsloth is 2x faster and results could be supreme!
 Also, GRPO isn't the best, there is also Dr. GRPO, there is also GSPO... I'm not sure what these do, but I know they are improvements. Check out Unsloth docs, it implements both.
 
@@ -166,7 +166,7 @@ Non-goals for tonight:
      release candidate reports, and command logs.
    - Upload final train artifacts to an HF bucket if credentials and bandwidth
      permit.
-   - Update `docs/experiments/qwen3p5-4b-tuning.md` with the actual result,
+   - Update `docs/experiments/apr-25-26-qwen3p5-4b-intersectionedit-grpo.md` with the actual result,
      even if the result is a failed canary.
 
 ## Concrete command skeletons
@@ -271,14 +271,14 @@ loss_type = "dr_grpo"
   showed unrepaired repair/movement failures.
 - [x] Upload validated dataset/artifacts if possible. Preserved local artifacts;
   HF bucket upload was not attempted because no bucket target was specified.
-- [x] Update `docs/experiments/qwen3p5-4b-tuning.md`.
+- [x] Update `docs/experiments/apr-25-26-qwen3p5-4b-intersectionedit-grpo.md`.
 - [x] Commit final docs/code state.
 - [x] Add shaped partial-credit rewards for conservative repair direction,
   repair translation, and coarse signed-distance movement.
 - [x] Run a shaped-reward GPU canary and stop before the 300-step pilot because
   exact repair/movement quality remained `0.0`.
 - [x] Pull shaped-reward canary artifacts, destroy the H100 instance, and update
-  `docs/experiments/qwen3p5-4b-tuning.md` plus `epics-and-stories.yaml`.
+  `docs/experiments/apr-25-26-qwen3p5-4b-intersectionedit-grpo.md` plus `epics-and-stories.yaml`.
 - [x] Add opt-in edit geometry feature exposure for GRPO/SFT canaries before
   spending on another run.
 - [x] Run the edit-geometry feature canary, pull artifacts, destroy the H100
@@ -566,6 +566,23 @@ loss_type = "dr_grpo"
   `distance_mm=<one decimal>` format, but target-movement samples with the right
   number no longer collapse to format-scaffold reward only. Focused validation
   passed with 31 tests.
+- [x] Let the H100 adapter-init run reach `checkpoint-200`, then stopped and
+  resumed it with the patched GRPO runner. The resumed segment disables duplicate
+  TRL internal eval via `--eval-strategy no` and relies on the quality callback
+  every 50 steps.
+- [x] Batched quality-callback generation with
+  `--quality-generation-batch-size`, replacing row-by-row deterministic
+  `model.generate` calls while keeping the same offline exact metrics and reward
+  logging.
+- [x] Recorded the efficient GRPO resume command in
+  `docs/experiments/apr-25-26-qwen3p5-4b-intersectionedit-grpo.md`: disable TRL eval, use batched quality
+  eval, resume from `checkpoint-200`, use `--per-device-train-batch-size 2`,
+  and set `--generation-batch-size 8`.
+- [x] Uploaded the completed candidate-feature 300-step artifacts to Hugging
+  Face bucket `MRiabov/intersectionqa-qwen3p5-4b-grpo-artifacts` under
+  `grpo_qwen3p5_4b_intersectionqa_edit_feature_candidate_adapter300/`.
+  Tarball SHA256:
+  `41afbf46e968d4149289292a6ab0bd190da4c502cd620bad6df9935a5a248218`.
 
 Successful GPU bootstrap command:
 
