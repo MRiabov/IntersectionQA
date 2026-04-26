@@ -37,7 +37,11 @@ def main() -> None:
     parser.add_argument("--train-splits", nargs="+", default=["inner_train", "train"])
     parser.add_argument("--eval-splits", nargs="+", default=["inner_eval", "validation"])
     parser.add_argument("--task-types", nargs="+")
-    parser.add_argument("--row-sampling-strategy", choices=["random", "stratified_task"], default="stratified_task")
+    parser.add_argument(
+        "--row-sampling-strategy",
+        choices=["random", "stratified_task", "stratified_task_answer"],
+        default="stratified_task_answer",
+    )
     parser.add_argument("--max-train-rows", type=int)
     parser.add_argument("--max-eval-rows", type=int, default=256)
     parser.add_argument("--max-steps", type=int, default=20)
@@ -294,6 +298,7 @@ def load_rows(
         seed=seed,
         strategy=sampling_strategy,
         key=lambda row: str(row.task_type),
+        secondary_key=lambda row: row.answer,
     )
 
 

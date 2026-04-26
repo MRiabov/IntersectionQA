@@ -425,3 +425,10 @@ loss_type = "dr_grpo"
   checkpoints. Stratified sampling fixed data coverage and validity, but not
   repair/movement/bucket learning. The next serious attempt should change the
   learning signal before spending on a long RL run.
+- [x] Added hierarchical task-then-answer stratified row caps for future GRPO
+  canaries. The same 128-row cap now keeps task coverage while spreading
+  binary, clearance, relation, tolerance, volume, repair-direction, repair-
+  translation, and movement-distance answers across available labels/magnitudes.
+  This also exposed a source-data limitation: the current fast pilot has no
+  negative repair-direction labels, so that balance issue cannot be fixed by
+  sampling alone.

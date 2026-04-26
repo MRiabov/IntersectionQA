@@ -219,6 +219,13 @@ Stratified canary follow-up:
   and output validity but not repair/movement/bucket competence. The next run
   should change the learning signal, likely with a short supervised/bootstrap
   trace pass or task-specific answer-shape examples before another RL pilot.
+- A follow-up sampler now defaults capped GRPO rows to hierarchical
+  task-then-answer stratification. With the same 128-row cap, binary rows are
+  near yes/no balanced, clearance and volume buckets cover all available labels,
+  repair direction covers `+x`, `+y`, and `+z`, and numeric edit rows use
+  diverse magnitudes. The current pilot source still has no negative
+  repair-direction labels, so a balanced repair dataset needs generation changes
+  rather than sampling alone.
 - Local artifact mirror:
   `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_stratified_pilot50/`
   contains logs, `train_metrics.jsonl`, `quality_metrics.jsonl`,

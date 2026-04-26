@@ -22,7 +22,11 @@ def main() -> None:
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/intersectionqa_grpo_smoke"))
     parser.add_argument("--max-rows", type=int, default=8)
-    parser.add_argument("--row-sampling-strategy", choices=["random", "stratified_task"], default="stratified_task")
+    parser.add_argument(
+        "--row-sampling-strategy",
+        choices=["random", "stratified_task", "stratified_task_answer"],
+        default="stratified_task_answer",
+    )
     parser.add_argument("--max-steps", type=int, default=1)
     parser.add_argument("--max-completion-length", type=int, default=512)
     parser.add_argument("--num-generations", type=int, default=2)
@@ -161,6 +165,7 @@ def _load_rows(dataset_dir: Path, *, limit: int, sampling_strategy: str) -> list
         seed=3407,
         strategy=sampling_strategy,
         key=lambda row: str(row["task_type"]),
+        secondary_key=lambda row: str(row["answer"]),
     )
 
 
