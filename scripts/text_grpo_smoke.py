@@ -13,6 +13,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import GRPOConfig, GRPOTrainer
 
 from intersectionqa.evaluation.rewards import reward_from_fields
+from intersectionqa.training.sampling import select_rows
 
 
 def main() -> None:
@@ -21,6 +22,7 @@ def main() -> None:
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/intersectionqa_grpo_smoke"))
     parser.add_argument("--max-rows", type=int, default=8)
+    parser.add_argument("--row-sampling-strategy", choices=["random", "stratified_task"], default="stratified_task")
     parser.add_argument("--max-steps", type=int, default=1)
     parser.add_argument("--max-completion-length", type=int, default=512)
     parser.add_argument("--num-generations", type=int, default=2)
@@ -29,7 +31,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    rows = _load_rows(args.dataset_dir, limit=args.max_rows)
+    rows = _load_rows(args.dataset_dir, limit=args.max_rows, sampling_strategy=args.row_sampling_strategy)
     dataset = Dataset.from_list(
         [
             {
@@ -134,7 +136,7 @@ def _row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list
     return rewards
 
 
-def _load_rows(dataset_dir: Path, *, limit: int) -> list[dict]:
+def _load_rows(dataset_dir: Path, *, limit: int, sampling_strategy: str) -> list[dict]:
     rows: list[dict] = []
     for split in (
         "inner_train",
@@ -153,9 +155,13 @@ def _load_rows(dataset_dir: Path, *, limit: int) -> list[dict]:
                 if not line.strip():
                     continue
                 rows.append(json.loads(line))
-                if len(rows) >= limit:
-                    return rows
-    return rows
+    return select_rows(
+        rows,
+        limit=limit,
+        seed=3407,
+        strategy=sampling_strategy,
+        key=lambda row: str(row["task_type"]),
+    )
 
 
 if __name__ == "__main__":

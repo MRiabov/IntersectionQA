@@ -7,7 +7,6 @@ from collections import Counter
 from datetime import UTC, datetime
 import inspect
 import json
-import random
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +19,7 @@ from trl import GRPOConfig, GRPOTrainer
 from intersectionqa.evaluation.metrics import Prediction, evaluate_predictions
 from intersectionqa.evaluation.rewards import reward_from_fields
 from intersectionqa.schema import PublicTaskRow
+from intersectionqa.training.sampling import select_diverse_low_reward_samples, select_rows
 
 SYSTEM_PROMPT = (
     "Solve the CAD spatial-reasoning task. Return exactly "
@@ -37,6 +37,7 @@ def main() -> None:
     parser.add_argument("--train-splits", nargs="+", default=["inner_train", "train"])
     parser.add_argument("--eval-splits", nargs="+", default=["inner_eval", "validation"])
     parser.add_argument("--task-types", nargs="+")
+    parser.add_argument("--row-sampling-strategy", choices=["random", "stratified_task"], default="stratified_task")
     parser.add_argument("--max-train-rows", type=int)
     parser.add_argument("--max-eval-rows", type=int, default=256)
     parser.add_argument("--max-steps", type=int, default=20)
@@ -64,15 +65,29 @@ def main() -> None:
     parser.add_argument("--quality-eval-steps", type=int, default=50)
     parser.add_argument("--quality-eval-max-rows", type=int, default=16)
     parser.add_argument("--quality-max-new-tokens", type=int, default=128)
-    parser.add_argument("--quality-sample-count", type=int, default=4)
+    parser.add_argument("--quality-sample-count", type=int, default=16)
     parser.add_argument("--seed", type=int, default=3407)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--resume-from-checkpoint", type=Path)
     args = parser.parse_args()
 
     task_types = set(args.task_types) if args.task_types else None
-    train_rows = load_rows(args.dataset_dir, args.train_splits, task_types=task_types, limit=args.max_train_rows, seed=args.seed)
-    eval_rows = load_rows(args.dataset_dir, args.eval_splits, task_types=task_types, limit=args.max_eval_rows, seed=args.seed + 1)
+    train_rows = load_rows(
+        args.dataset_dir,
+        args.train_splits,
+        task_types=task_types,
+        limit=args.max_train_rows,
+        seed=args.seed,
+        sampling_strategy=args.row_sampling_strategy,
+    )
+    eval_rows = load_rows(
+        args.dataset_dir,
+        args.eval_splits,
+        task_types=task_types,
+        limit=args.max_eval_rows,
+        seed=args.seed + 1,
+        sampling_strategy=args.row_sampling_strategy,
+    )
     if not train_rows:
         raise ValueError("No training rows matched the requested splits and task types.")
     if not eval_rows:
@@ -152,6 +167,7 @@ def main() -> None:
         "max_prompt_length": args.max_prompt_length,
         "max_completion_length": args.max_completion_length,
         "num_generations": args.num_generations,
+        "row_sampling_strategy": args.row_sampling_strategy,
         "importance_sampling_level": args.importance_sampling_level,
         "loss_type": args.loss_type,
         "scale_rewards": args.scale_rewards,
@@ -254,6 +270,7 @@ def load_rows(
     task_types: set[str] | None,
     limit: int | None,
     seed: int,
+    sampling_strategy: str = "stratified_task",
 ) -> list[PublicTaskRow]:
     rows: list[PublicTaskRow] = []
     for split in splits:
@@ -269,9 +286,13 @@ def load_rows(
                         raise ValueError(f"{path}:{line_number}: invalid public row: {exc}") from exc
     if task_types is not None:
         rows = [row for row in rows if str(row.task_type) in task_types]
-    rng = random.Random(seed)
-    rng.shuffle(rows)
-    return rows[:limit] if limit else rows
+    return select_rows(
+        rows,
+        limit=limit,
+        seed=seed,
+        strategy=sampling_strategy,
+        key=lambda row: str(row.task_type),
+    )
 
 
 def resolve_checkpoint(args: argparse.Namespace) -> Path | None:
@@ -345,7 +366,7 @@ class ReasoningQualityCallback(TrainerCallback):
         )
         metrics = evaluate_predictions(self.rows, predictions)
         reward_values = []
-        samples: list[dict[str, Any]] = []
+        sample_candidates: list[dict[str, Any]] = []
         for row, prediction in zip(self.rows, predictions, strict=True):
             result = reward_from_fields(
                 row_id=row.id,
@@ -355,25 +376,24 @@ class ReasoningQualityCallback(TrainerCallback):
                 output=prediction.output,
             )
             reward_values.append(result.reward)
-            if len(samples) < self.sample_count:
-                samples.append(
-                    {
-                        "row_id": row.id,
-                        "task_type": str(row.task_type),
-                        "answer": row.answer,
-                        "parsed_output": result.parsed_output,
-                        "reward": result.reward,
-                        "failure_reason": result.failure_reason,
-                        "output": prediction.output[:1000],
-                    }
-                )
+            sample_candidates.append(
+                {
+                    "row_id": row.id,
+                    "task_type": str(row.task_type),
+                    "answer": row.answer,
+                    "parsed_output": result.parsed_output,
+                    "reward": result.reward,
+                    "failure_reason": result.failure_reason,
+                    "output": prediction.output[:1000],
+                }
+            )
         payload = {
             "timestamp": datetime.now(UTC).isoformat(),
             "step": state.global_step,
             "rows": len(self.rows),
             "reward_mean": sum(reward_values) / len(reward_values) if reward_values else 0.0,
             "metrics": [metric.__dict__ for metric in metrics],
-            "samples": samples,
+            "samples": select_diverse_low_reward_samples(sample_candidates, self.sample_count),
         }
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, sort_keys=True) + "\n")

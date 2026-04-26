@@ -184,6 +184,44 @@ Format-reward follow-up:
 - Vast instance `35601616` was destroyed after artifact retrieval; `show
   instances --raw` returned `[]`.
 
+Next canary preparation:
+
+- The failed 50-step continuation exposed a data-starvation issue in capped
+  canaries: the previous random 128-row cap contained only 7
+  `repair_translation`, 5 `target_clearance_move`, and 3 `repair_direction`
+  rows. The runner now defaults to task-stratified row sampling, which gives
+  roughly 12-13 rows per task family under the same 128-row cap.
+- Quality eval rows are selected from the stratified eval cap, and logged samples
+  now prioritize low-reward task diversity rather than the first rows. This
+  should make the next canary's failure log useful for repair/movement/bucket
+  debugging without increasing generation cost.
+- The next GPU check should be another short canary with the same cheap shape as
+  the format run, but with default stratified sampling:
+
+```bash
+python scripts/text_grpo_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_grpo_pilot_inner_all \
+  --model unsloth/Qwen3.5-4B \
+  --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_stratified_canary \
+  --train-splits inner_train \
+  --eval-splits inner_eval \
+  --max-train-rows 128 \
+  --max-eval-rows 32 \
+  --max-steps 20 \
+  --max-prompt-length 2048 \
+  --max-completion-length 128 \
+  --num-generations 2 \
+  --eval-steps 20 \
+  --save-steps 20 \
+  --quality-eval-steps 20 \
+  --quality-eval-max-rows 16 \
+  --quality-max-new-tokens 96 \
+  --quality-sample-count 16 \
+  --importance-sampling-level sequence \
+  --loss-type dapo \
+  --temperature 0.7
+```
+
 ### Earlier April 25, 2026 SFT Run
 
 - Date: April 25, 2026

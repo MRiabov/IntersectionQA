@@ -385,3 +385,11 @@ loss_type = "dr_grpo"
   compressed remote artifact bundle.
 - [x] Destroyed Vast instance `35601616`; `vastai show instances --raw` returned
   `[]`.
+- [x] Fixed the next canary's data-starvation issue before renting more GPU:
+  capped GRPO row loading now defaults to task-stratified sampling. For the
+  existing 128-row cap this changes train coverage from only 7
+  `repair_translation`, 5 `target_clearance_move`, and 3 `repair_direction`
+  rows to roughly 12-13 rows per task family.
+- [x] Updated GRPO quality logging to keep diverse low-reward samples instead
+  of the first few eval rows, and raised the default sample log count to 16 so
+  the next run exposes repair/movement/bucket failures directly.
