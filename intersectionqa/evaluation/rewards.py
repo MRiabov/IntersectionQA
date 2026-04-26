@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from intersectionqa.enums import TaskType
-from intersectionqa.evaluation.parsing import parse_answer
+from intersectionqa.evaluation.parsing import canonical_answer_candidate, parse_answer
 from intersectionqa.schema import PublicTaskRow
 
 AXIS_REPAIR_RE = re.compile(r"^direction=(\+x|-x|\+y|-y|\+z|-z), distance_mm=([0-9]+)\.([0-9])$")
@@ -19,7 +19,6 @@ TRANSLATION_VECTOR_RE = re.compile(
 EDIT_PROGRAM_RE = re.compile(
     r"^object_b = object_b\.translate\(\((-?[0-9]+)\.([0-9]), (-?[0-9]+)\.([0-9]), (-?[0-9]+)\.([0-9])\)\)$"
 )
-ANSWER_TAG_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -52,7 +51,7 @@ def reward_from_fields(
     output: str,
 ) -> RewardResult:
     task_type = TaskType(task_type)
-    candidate_output, format_components = _canonical_answer_candidate(output)
+    candidate_output, format_components = canonical_answer_candidate(output)
     parsed = parse_answer(task_type, candidate_output)
     if parsed is None:
         return RewardResult(
@@ -91,19 +90,6 @@ def reward_from_fields(
         reward=_clamp01(reward * format_components["format"]),
         components={key: _clamp01(value) for key, value in {**format_components, **components}.items()},
     )
-
-
-def _canonical_answer_candidate(output: str) -> tuple[str, dict[str, float]]:
-    match = ANSWER_TAG_RE.search(output)
-    if match is None:
-        return output, {"format": 1.0, "reasoning_format": 0.0, "answer_tag": 0.0}
-    has_think = "<think>" in output and "</think>" in output and output.index("<think>") < output.index("<answer>")
-    return match.group(1).strip(), {
-        "format": 1.0 if has_think else 0.85,
-        "reasoning_format": 1.0 if has_think else 0.0,
-        "answer_tag": 1.0,
-    }
-
 
 def _axis_repair_reward(
     answer: str,

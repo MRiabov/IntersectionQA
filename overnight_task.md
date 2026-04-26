@@ -264,11 +264,12 @@ loss_type = "dr_grpo"
 - [x] Add or confirm internal SFT/RL train/eval split usage in training code.
 - [x] Add production GRPO/Unsloth runner if missing.
 - [x] Run local GRPO smoke.
-- [ ] Launch GPU GRPO canary.
-- [ ] Launch 300-step pilot if canary is healthy.
-- [ ] Run held-out/internal eval and compare with SFT baseline.
-- [ ] Upload validated dataset/artifacts if possible.
-- [ ] Update `docs/experiments/qwen3p5-4b-tuning.md`.
+- [x] Launch GPU GRPO canary.
+- [x] Launch 300-step pilot if canary is healthy. Stop decision: canary was not healthy enough to extend.
+- [x] Run held-out/internal eval and compare with SFT baseline. Stop decision: GRPO canary is not comparable to the answer-only SFT baseline yet.
+- [x] Upload validated dataset/artifacts if possible. Preserved local artifacts;
+  HF bucket upload was not attempted because no bucket target was specified.
+- [x] Update `docs/experiments/qwen3p5-4b-tuning.md`.
 - [ ] Commit final docs/code state.
 
 ## Done
@@ -321,3 +322,41 @@ loss_type = "dr_grpo"
   Boolean label derivation for final candidate metadata. A 10-geometry local
   CADEvolve probe with 4 positive-overlap rows dropped from not finishing after
   roughly 90 seconds to about 33.6 seconds for 4 exact repair rows.
+- [x] Rented Vast contract `35599309`, an `NVIDIA A100-SXM4-80GB` instance at
+  about `$1.10/hr`, and installed the Unsloth/TRL stack remotely. The working
+  environment required `LD_LIBRARY_PATH=/opt/conda/lib/python3.11/site-packages/nvidia/cu13/lib`
+  after Unsloth pulled a Torch 2.11/CUDA 13 stack.
+- [x] Ran the first 20-step GRPO canary attempt with
+  `max_completion_length=512`, `num_generations=4`; it reached step 10 but the
+  quality callback crashed because the Qwen processor tried image processing
+  during text generation. Fixed by using the underlying text tokenizer in the
+  quality callback.
+- [x] Ran a faster canary from the same mixed split with
+  `max_completion_length=192`, `num_generations=2`, 128 train rows, and 64 eval
+  rows. Step 10 produced reward mean `0.08925`, eval reward `0.08164`, and a
+  saved checkpoint at
+  `/root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_canary_fast/checkpoint-10`.
+  Step time was still roughly 30-50 seconds, while the 32-row quality eval cost
+  about 10 minutes.
+- [x] Found a second evaluation bug: rewards accepted
+  `<think>...</think><answer>...</answer>`, but `evaluate_predictions` parsed
+  the raw generation string. Added shared answer-tag canonicalization so
+  training quality metrics and offline evaluation use the same answer candidate
+  as the reward path. A corrected 8-row resume quality probe at step 11 showed
+  reward mean `0.2125`; tolerance-fit rows were `2/2` correct with zero invalid
+  outputs, while clearance/relation/repair-translation rows remained invalid.
+- [x] Found a GRPO performance regression: the trainer was still receiving the
+  processor object instead of the underlying text tokenizer, causing processor
+  warnings and avoidable multimodal preprocessing overhead. The production GRPO
+  runner now passes the text tokenizer to `GRPOTrainer` and saves that tokenizer
+  with the adapter.
+- [x] Did not launch the 300-step pilot. The stop rule triggered because the
+  canary still had high invalid-output rates outside tolerance-fit rows,
+  clipped completions, and expensive quality evals. The next run should first
+  tighten the prompt/format reward or bootstrap short reasoning traces, then
+  rerun a smaller canary before spending on a long pilot.
+- [x] Pulled canary artifacts into
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_canary_fast/`,
+  including train/quality JSONL logs, remote command logs, and the step-10 LoRA
+  adapter checkpoint files. Destroyed Vast instance `35599309` after artifact
+  retrieval.

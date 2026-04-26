@@ -34,6 +34,20 @@ def test_evaluate_predictions_reports_invalid_outputs():
     assert all(0.0 <= item.accuracy <= 1.0 for item in metrics)
 
 
+def test_evaluate_predictions_accepts_reasoning_answer_tags():
+    rows, _ = build_smoke_rows(_synthetic_config())
+    predictions = [
+        Prediction(row_id=row.id, output=f"<think>Check the geometry.</think><answer>{row.answer}</answer>")
+        for row in rows
+    ]
+
+    metrics = evaluate_predictions(rows, predictions)
+
+    assert metrics
+    assert all(item.invalid_outputs == 0 for item in metrics)
+    assert all(item.accuracy == 1.0 for item in metrics)
+
+
 def test_dataset_stats_counts_rows():
     rows, _ = build_smoke_rows(_synthetic_config())
     stats = dataset_stats(rows)

@@ -76,6 +76,7 @@ EDIT_CANDIDATE_RANKING_ANSWERS = {
         if len({a, b, c, d}) == 4
     )
 }
+ANSWER_TAG_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", re.DOTALL)
 
 ALLOWED_BY_TASK = {
     TaskType.BINARY_INTERFERENCE: BINARY_ANSWERS,
@@ -131,3 +132,16 @@ def parse_answer(task_type: TaskType, output: str) -> str | None:
     if allowed is None:
         raise ValueError(f"unsupported task type for strict parsing: {task_type}")
     return stripped if stripped in allowed else None
+
+
+def canonical_answer_candidate(output: str) -> tuple[str, dict[str, float]]:
+    """Extract the strict answer candidate from optional reasoning markup."""
+    match = ANSWER_TAG_RE.search(output)
+    if match is None:
+        return output, {"format": 1.0, "reasoning_format": 0.0, "answer_tag": 0.0}
+    has_think = "<think>" in output and "</think>" in output and output.index("<think>") < output.index("<answer>")
+    return match.group(1).strip(), {
+        "format": 1.0 if has_think else 0.85,
+        "reasoning_format": 1.0 if has_think else 0.0,
+        "answer_tag": 1.0,
+    }

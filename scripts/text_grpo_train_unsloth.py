@@ -112,9 +112,9 @@ def main() -> None:
     }
     trainer_signature = inspect.signature(GRPOTrainer.__init__).parameters
     if "processing_class" in trainer_signature:
-        trainer_kwargs["processing_class"] = tokenizer
+        trainer_kwargs["processing_class"] = text_tokenizer
     elif "tokenizer" in trainer_signature:
-        trainer_kwargs["tokenizer"] = tokenizer
+        trainer_kwargs["tokenizer"] = text_tokenizer
     trainer = GRPOTrainer(**trainer_kwargs)
 
     checkpoint = resolve_checkpoint(args)
@@ -134,7 +134,7 @@ def main() -> None:
     result = trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None)
     adapter_dir = args.output_dir / "adapter"
     trainer.save_model(str(adapter_dir))
-    tokenizer.save_pretrained(adapter_dir)
+    text_tokenizer.save_pretrained(adapter_dir)
     payload = {
         "status": "ok",
         "model": args.model,

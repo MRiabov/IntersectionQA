@@ -9,7 +9,7 @@ from typing import Iterable
 
 from intersectionqa.enums import TaskType
 from intersectionqa.evaluation.edit_difficulty import edit_difficulty_tags
-from intersectionqa.evaluation.parsing import parse_answer
+from intersectionqa.evaluation.parsing import canonical_answer_candidate, parse_answer
 from intersectionqa.schema import FailureRecord, ObjectValidationRecord, PublicTaskRow
 
 
@@ -40,7 +40,8 @@ def evaluate_predictions(rows: Iterable[PublicTaskRow], predictions: Iterable[Pr
 
     for row_id, row in rows_by_id.items():
         output = predictions_by_id.get(row_id, "")
-        parsed = parse_answer(row.task_type, output)
+        candidate_output, _format_components = canonical_answer_candidate(output)
+        parsed = parse_answer(row.task_type, candidate_output)
         by_task[row.task_type].append((row, parsed))
 
     return [_metrics_for_task(task_type, items) for task_type, items in sorted(by_task.items())]

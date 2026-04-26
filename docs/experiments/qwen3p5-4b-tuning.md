@@ -19,8 +19,8 @@ out of the general text fine-tuning runbook.
   records
 - Public validation: `scripts.validate_dataset` passed and leakage audit status
   is `pass`
-- Status: ready for Vast A100 canary; local execution is blocked by the CPU-only
-  laptop and missing training stack dependencies in the local project venv
+- Status: A100 canary completed, with checkpointed artifacts, but stopped before
+  the 300-step pilot because formatted-answer quality was not yet healthy enough
 
 The initial `configs/repair_smoke.yaml` path was confirmed to be a tiny smoke
 configuration (`geometry_limit: 100`). Exact `axis_aligned_repair` and candidate
@@ -50,7 +50,19 @@ Prepared split report:
 }
 ```
 
-Vast launch target:
+Vast canary environment:
+
+- Contract: `35599309`
+- GPU: `NVIDIA A100-SXM4-80GB`
+- Host/port used: `80.188.223.202:14366`
+- Approx price: `$1.10/hr`
+- Working stack: Torch `2.11.0+cu130`, CUDA toolkit `13.0`,
+  transformers `5.6.2`, TRL `0.23.0`, Unsloth `2026.4.8`
+- Required runtime environment:
+  `LD_LIBRARY_PATH=/opt/conda/lib/python3.11/site-packages/nvidia/cu13/lib`
+  plus `PYTHONPATH=/root/IntersectionQA`
+
+First canary command:
 
 ```bash
 cd /root/IntersectionQA
@@ -99,6 +111,42 @@ nohup python scripts/text_grpo_train_unsloth.py \
   --resume \
   > /root/grpo_qwen3p5_4b_intersectionqa_edit_pilot.log 2>&1 &
 ```
+
+Actual canary results:
+
+- The first 512-token, 4-generation canary reached step 10, but the generation
+  quality callback crashed because Qwen3.5's processor was used for text-only
+  generation. The runner was patched to use the underlying text tokenizer for
+  quality generation.
+- The faster canary used `max_completion_length=192`, `num_generations=2`,
+  128 train rows, and 64 eval rows. It saved
+  `/root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_canary_fast/checkpoint-10`.
+- Step 5 train reward mean: `0.0500`; clipped completion ratio: `0.75`.
+- Step 10 train reward mean: `0.08925`; reward std: `0.1262`; clipped
+  completion ratio: `0.60`; grad norm: `1.0286`.
+- Step 10 internal eval reward mean: `0.08164`; eval clipped completion ratio:
+  `0.7344`; eval runtime: `648.7s` for 64 rows.
+- A metrics bug was found after the step-10 quality log: reward parsing accepted
+  `<answer>...</answer>`, but `evaluate_predictions` parsed raw completion text.
+  Shared answer-tag canonicalization was added so quality metrics evaluate the
+  same answer candidate as the reward function.
+- A corrected step-11 resume quality probe over 8 rows reported reward mean
+  `0.2125`. Tolerance-fit rows were `2/2` correct with zero invalid outputs;
+  clearance, relation, and repair-translation rows were still invalid. This is
+  enough to preserve the canary artifact, but not enough to justify the 300-step
+  pilot.
+- A second performance issue was fixed in the runner: `GRPOTrainer` now receives
+  the text tokenizer instead of the Qwen processor, avoiding the processor path
+  and associated warnings in future runs.
+- Local artifact mirror:
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_canary_fast/`
+  contains train/quality JSONL logs, remote command logs, and the step-10 LoRA
+  adapter checkpoint files. HF bucket upload was skipped because no bucket
+  target was specified for this canary.
+
+Stop decision: do not launch the 300-step pilot from this checkpoint. The next
+run should first improve output-format reliability, reduce quality-eval cost,
+and then rerun a small canary with the text-tokenizer trainer path.
 
 ### Earlier April 25, 2026 SFT Run
 

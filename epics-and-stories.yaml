@@ -30,7 +30,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-25"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented but remain too slow for the overnight CADEvolve training build.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; the 300-step pilot was stopped because output-format quality is not yet stable enough.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -78,6 +78,9 @@ current_snapshot:
     - intersectionedit_fast_grpo_pilot_release_candidate
     - intersectionedit_group_safe_mixed_grpo_splits
     - intersectionedit_reasoning_grpo_reward_runner
+    - reasoning_answer_tag_eval_metrics
+    - grpo_text_tokenizer_training_path
+    - qwen3p5_4b_intersectionedit_grpo_canary_checkpoint
     - dataset_card_generation
     - smoke_dataset_generation
 
@@ -1108,7 +1111,7 @@ epics:
         status: implemented
         stable: false
         source_document: specs/intersectionedit-full-spec.md
-        notes: Implemented opt-in `axis_aligned_repair` rows using exact CadQuery directional binary search over the six cardinal directions, deterministic tie-breaks, one-decimal label magnitudes, and ambiguity metadata. The original conservative AABB rows remain available as separate first-slice tasks.
+        notes: Implemented opt-in `axis_aligned_repair` rows using exact CadQuery directional search over the six cardinal directions, deterministic tie-breaks, one-decimal label magnitudes, and ambiguity metadata. The materializer now caches placed shape/bbox/volume context and uses bbox/distance predicates during label search, reserving exact Boolean labels for final candidate metadata. The original conservative AABB rows remain available as separate first-slice tasks, and exact rows remain excluded from the fast overnight training pilot until larger-scale throughput is revalidated.
       - id: "15.4"
         title: Axis-aligned target-clearance repair
         track: intersectionedit
@@ -1174,7 +1177,7 @@ epics:
         status: implemented
         stable: false
         source_document: specs/intersectionedit-full-spec.md
-        notes: Direction and stored-repair success metrics exist for the initial slice. Added exact edit distance MAE, signed-distance MAE, full-vector L2 MAE, within-tolerance accuracy, candidate task summaries, candidate ranking pairwise accuracy, and dataset summaries for target-clearance, target-contact, centroid-distance, vector, and edit-program rows; final-clearance error, movement optimality ratio, and richer success-weighted candidate metrics remain future work.
+        notes: Direction and stored-repair success metrics exist for the initial slice. Added exact edit distance MAE, signed-distance MAE, full-vector L2 MAE, within-tolerance accuracy, candidate task summaries, candidate ranking pairwise accuracy, and dataset summaries for target-clearance, target-contact, centroid-distance, vector, and edit-program rows. Prediction evaluation now canonicalizes optional `<answer>...</answer>` reasoning markup before strict task parsing, matching the GRPO reward path. Final-clearance error, movement optimality ratio, and richer success-weighted candidate metrics remain future work.
       - id: "15.10"
         title: Verifier reward functions for RL
         track: intersectionedit
@@ -1328,8 +1331,13 @@ epics:
           IntersectionEdit SFT/GRPO commands in `docs/text_finetune_runbook.md`. Added
           `scripts/text_grpo_train_unsloth.py` for the production Qwen3.5 4B run, with
           GSPO-style sequence importance sampling, Dr. GRPO/DAPO loss selection, periodic
-          generation-quality eval, JSONL metrics, and adapter saving. The first validated
-          pilot uses `data/intersectionedit_grpo_pilot_inner_all` for mixed QA+Edit RL.
+          generation-quality eval, JSONL metrics, and adapter saving. The runner now uses
+          the underlying text tokenizer for both quality generation and GRPOTrainer
+          processing instead of the Qwen processor. The first validated pilot uses
+          `data/intersectionedit_grpo_pilot_inner_all` for mixed QA+Edit RL; a Vast A100
+          canary saved a checkpoint at step 10, but the 300-step pilot was stopped because
+          corrected quality metrics still showed high invalid-output rates outside
+          tolerance-fit rows.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit
