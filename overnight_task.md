@@ -281,6 +281,8 @@ loss_type = "dr_grpo"
   `docs/experiments/qwen3p5-4b-tuning.md` plus `epics-and-stories.yaml`.
 - [x] Add opt-in edit geometry feature exposure for GRPO/SFT canaries before
   spending on another run.
+- [x] Run the edit-geometry feature canary, pull artifacts, destroy the H100
+  instance, and record the result.
 
 ## Done
 
@@ -538,6 +540,19 @@ loss_type = "dr_grpo"
   covered and the largest augmented prompt was 6,674 characters. Local
   compileall, prompt-feature, reward, metrics, sampling tests, and
   `git diff --check` passed.
+- [x] Rented H100 NVL contract `35610089` for a 10-step feature-exposure GRPO
+  canary. The run used the balanced internal split, shaped rewards, and
+  `--prompt-feature-mode edit_geometry`; step-10 train reward was `0.4358`,
+  internal eval reward was `0.5509`, train loss was `0.0913`, and final quality
+  reward was `0.5899`.
+- [x] Feature exposure improved exact edit signal: centroid-distance move reached
+  `1.0`, repair direction `0.5`, and target contact `0.5` on the tiny quality
+  probe. Repair translation and target-clearance movement stayed `0.0`, so the
+  stop decision is a bounded continuation/canary before any 300-step pilot.
+- [x] Pulled feature-canary artifacts into
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_feature_canary10/feature_canary10_artifacts.tar.gz`
+  and destroyed Vast instance `35610089`; `vastai show instances --raw`
+  returned `[]`.
 
 Successful GPU bootstrap command:
 

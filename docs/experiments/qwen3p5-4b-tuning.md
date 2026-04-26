@@ -387,8 +387,34 @@ Edit geometry feature-exposure prep:
   reasonable canary starting point.
 - Local validation passed with compileall, prompt-feature unit tests, focused
   reward/metrics/sampling tests, and `git diff --check`.
-- Next canary should rerun the shaped-reward GRPO setup with
-  `--prompt-feature-mode edit_geometry` before trying a 300-step pilot.
+
+Edit geometry feature-exposure H100 canary:
+
+- Vast contract `35610089` ran the feature-exposure canary on an `NVIDIA H100
+  NVL`, using Torch `2.10.0+cu128`, transformers `5.5.0`, TRL `0.24.0`, and
+  Unsloth `2026.4.8`.
+- The run used the same balanced internal split and shaped rewards as the prior
+  canary, adding `--prompt-feature-mode edit_geometry`: 128 train rows, 16 eval
+  rows, 10 max steps, 2,048 prompt tokens, 256 completion tokens, and 4
+  generations. The first step took about 78 seconds because of longer prompts;
+  step 10 completed at about 3:15 training elapsed before eval/save.
+- Metrics improved substantially over the shaped-reward-only canary. Step-10
+  train reward was `0.4358`, internal eval reward was `0.5509`, train loss was
+  `0.0913`, and final 16-row quality reward was `0.5899`.
+- Final quality exact accuracy by task: binary `0.5`, centroid-distance move
+  `1.0`, clearance bucket `1.0`, relation `0.5`, repair direction `0.5`,
+  repair translation `0.0`, target clearance move `0.0`, target contact move
+  `0.5`, tolerance fit `1.0`, and volume bucket `1.0`.
+- Stop decision: do not jump straight to a 300-step pilot yet. Feature exposure
+  finally gives positive exact signal on centroid movement, target contact, and
+  repair direction, but repair translation and target-clearance movement remain
+  unsolved. The next spend should be a bounded continuation or 20-50 step
+  canary from this checkpoint, not an overnight extension.
+- Local artifact mirror:
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_feature_canary10/feature_canary10_artifacts.tar.gz`
+  contains the remote log, train/quality metrics, `train_result.json`,
+  `checkpoint-10`, and adapter files. Vast instance `35610089` was destroyed
+  after artifact retrieval; `show instances --raw` returned `[]`.
 
 Reasoning-SFT bootstrap command:
 
