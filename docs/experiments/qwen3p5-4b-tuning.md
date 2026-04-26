@@ -332,6 +332,44 @@ Reasoning-SFT bootstrap follow-up:
   Vast instance `35608197` was destroyed after artifact retrieval; `show
   instances --raw` returned `[]`.
 
+Shaped-reward edit canary follow-up:
+
+- Added stronger partial-credit rewards for conservative IntersectionEdit rows:
+  repair-direction completions now receive soft credit for selecting a
+  plausible candidate direction from `metadata.candidate_moves`,
+  repair-translation completions receive direction, candidate-score, coarse
+  distance, fine distance, movement, and within-tolerance components, and signed
+  movement rows receive coarse numeric credit instead of mostly sign-only
+  reward.
+- Local validation before GPU rental passed:
+  `rtk uv run python -m compileall -q intersectionqa scripts`,
+  `rtk uv run pytest -q tests/test_rewards.py tests/test_metrics.py tests/test_training_sampling.py`,
+  and `rtk git diff --check`.
+- Vast contract `35609429` ran the shaped-reward canary on an `NVIDIA H100
+  NVL`, using Torch `2.10.0+cu128`, transformers `5.5.0`, TRL `0.24.0`, and
+  Unsloth `2026.4.8`.
+- The 10-step canary used 128 train rows and 16 eval rows from
+  `data/intersectionedit_grpo_pilot_balanced_inner_all`, with task-balanced
+  caps across binary, clearance, relation, tolerance, volume, repair, and
+  movement families. Step-10 train reward was `0.3365`, internal eval reward
+  was `0.3486`, and train loss was `0.1481`.
+- The final 16-row quality probe reached reward mean `0.3826`. Exact accuracy
+  stayed concentrated in easier QA families: `clearance_bucket`, `tolerance_fit`,
+  and `volume_bucket` were `1.0`, binary interference was `0.5`, and relation,
+  repair direction, repair translation, centroid movement, target clearance, and
+  target contact remained `0.0` exact. Numeric edit MAE was still large
+  (`105.8` centroid, `54.5` target clearance, `121.2` target contact).
+- Stop decision: do not launch the 300-step pilot from shaped rewards alone.
+  The reward signal is less sparse, but the exact repair/movement behaviors
+  still do not appear in generation. The next serious attempt should expose
+  structured geometric features or use a smaller synthetic curriculum before
+  spending on another long GRPO run.
+- Local artifact mirror:
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_shaped_reward_canary10/shaped_reward_canary10_artifacts.tar.gz`
+  contains the remote log, train/quality metrics, `train_result.json`,
+  `checkpoint-10`, and adapter files. Vast instance `35609429` was destroyed
+  after artifact retrieval; `show instances --raw` returned `[]`.
+
 Reasoning-SFT bootstrap command:
 
 ```bash

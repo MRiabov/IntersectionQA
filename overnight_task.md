@@ -273,6 +273,12 @@ loss_type = "dr_grpo"
   HF bucket upload was not attempted because no bucket target was specified.
 - [x] Update `docs/experiments/qwen3p5-4b-tuning.md`.
 - [x] Commit final docs/code state.
+- [x] Add shaped partial-credit rewards for conservative repair direction,
+  repair translation, and coarse signed-distance movement.
+- [x] Run a shaped-reward GPU canary and stop before the 300-step pilot because
+  exact repair/movement quality remained `0.0`.
+- [x] Pull shaped-reward canary artifacts, destroy the H100 instance, and update
+  `docs/experiments/qwen3p5-4b-tuning.md` plus `epics-and-stories.yaml`.
 
 ## Done
 
@@ -506,6 +512,21 @@ loss_type = "dr_grpo"
 - [x] Pulled reasoning-bootstrap artifacts into
   `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap/reasoning_bootstrap_artifacts.tar.gz`
   and destroyed Vast instance `35608197`; `vastai show instances --raw`
+  returned `[]`.
+- [x] Added stronger partial-credit rewards for conservative repair direction,
+  repair translation, and signed movement rows. Local validation passed with
+  compileall, focused reward/metrics/sampling tests, and `git diff --check`.
+- [x] Rented H100 NVL contract `35609429` for a 10-step shaped-reward canary.
+  The run used 128 train rows and 16 eval rows from the balanced internal split;
+  step-10 train reward was `0.3365`, internal eval reward was `0.3486`, and
+  final quality reward was `0.3826`.
+- [x] Stopped before a 300-step shaped-reward pilot. Easier QA families still
+  carried the exact accuracy, while repair direction, repair translation,
+  centroid movement, target clearance, and target contact stayed `0.0` exact on
+  the final quality probe.
+- [x] Pulled shaped-reward artifacts into
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_shaped_reward_canary10/shaped_reward_canary10_artifacts.tar.gz`
+  and destroyed Vast instance `35609429`; `vastai show instances --raw`
   returned `[]`.
 
 Successful GPU bootstrap command:
