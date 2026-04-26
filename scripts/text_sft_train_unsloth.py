@@ -19,6 +19,7 @@ from trl import SFTConfig, SFTTrainer
 from transformers import Trainer, TrainerCallback
 
 from intersectionqa.evaluation.parsing import canonical_answer_candidate
+from intersectionqa.training.prompt_features import PROMPT_FEATURE_MODES, prompt_for_mapping
 
 
 DEFAULT_TASK_TYPES = (
@@ -41,6 +42,7 @@ def main() -> None:
     parser.add_argument("--eval-splits", nargs="+", default=["validation"])
     parser.add_argument("--task-types", nargs="+", default=list(DEFAULT_TASK_TYPES))
     parser.add_argument("--require-counterfactual-group", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--prompt-feature-mode", choices=PROMPT_FEATURE_MODES, default="none")
     parser.add_argument("--max-train-rows", type=int)
     parser.add_argument("--max-eval-rows", type=int, default=512)
     parser.add_argument("--max-steps", type=int, default=-1)
@@ -111,8 +113,14 @@ def main() -> None:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    train_examples = [to_sft_example(tokenizer, row) for row in train_rows]
-    eval_examples = [to_sft_example(tokenizer, row) for row in eval_rows]
+    train_examples = [
+        to_sft_example(tokenizer, row, prompt_feature_mode=args.prompt_feature_mode)
+        for row in train_rows
+    ]
+    eval_examples = [
+        to_sft_example(tokenizer, row, prompt_feature_mode=args.prompt_feature_mode)
+        for row in eval_rows
+    ]
     if args.pack_tokenized:
         train_dataset = Dataset.from_list(pack_tokenized_examples(tokenizer, train_examples, args.max_seq_length))
         eval_dataset = Dataset.from_list(pack_tokenized_examples(tokenizer, eval_examples, args.max_seq_length))
@@ -171,6 +179,7 @@ def main() -> None:
                 tokenizer=tokenizer,
                 every_steps=args.quality_eval_steps,
                 max_new_tokens=args.quality_max_new_tokens,
+                prompt_feature_mode=args.prompt_feature_mode,
                 append=checkpoint is not None,
                 print_metrics=args.print_metrics,
             )
@@ -205,6 +214,7 @@ def main() -> None:
         "finetune_mlp_modules": args.finetune_mlp_modules,
         "adapter_init_dir": str(args.adapter_init_dir) if args.adapter_init_dir else None,
         "require_counterfactual_group": args.require_counterfactual_group,
+        "prompt_feature_mode": args.prompt_feature_mode,
         "packing": args.packing,
         "pack_tokenized": args.pack_tokenized,
         "assistant_only_loss": args.assistant_only_loss,
@@ -365,6 +375,7 @@ class GenerationQualityCallback(TrainerCallback):
         tokenizer: Any,
         every_steps: int,
         max_new_tokens: int,
+        prompt_feature_mode: str,
         append: bool,
         print_metrics: bool,
     ) -> None:
@@ -375,6 +386,7 @@ class GenerationQualityCallback(TrainerCallback):
         self.tokenizer = tokenizer
         self.every_steps = every_steps
         self.max_new_tokens = max_new_tokens
+        self.prompt_feature_mode = prompt_feature_mode
         self.print_metrics = print_metrics
         self._seen_steps: set[int] = set()
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -394,6 +406,7 @@ class GenerationQualityCallback(TrainerCallback):
             self.tokenizer,
             self.rows,
             max_new_tokens=self.max_new_tokens,
+            prompt_feature_mode=self.prompt_feature_mode,
         )
         payload.update(
             {
@@ -410,7 +423,14 @@ class GenerationQualityCallback(TrainerCallback):
             print(f"[quality] {line}", flush=True)
 
 
-def evaluate_generation_quality(model: Any, tokenizer: Any, rows: list[dict], *, max_new_tokens: int) -> dict:
+def evaluate_generation_quality(
+    model: Any,
+    tokenizer: Any,
+    rows: list[dict],
+    *,
+    max_new_tokens: int,
+    prompt_feature_mode: str = "none",
+) -> dict:
     by_split: dict[str, Counter] = defaultdict(Counter)
     by_task: dict[str, Counter] = defaultdict(Counter)
     labels_by_task: dict[str, set[str]] = defaultdict(set)
@@ -421,7 +441,13 @@ def evaluate_generation_quality(model: Any, tokenizer: Any, rows: list[dict], *,
     model.eval()
     try:
         for row in rows:
-            prediction = generate_canonical_answer(model, tokenizer, row, max_new_tokens=max_new_tokens)
+            prediction = generate_canonical_answer(
+                model,
+                tokenizer,
+                row,
+                max_new_tokens=max_new_tokens,
+                prompt_feature_mode=prompt_feature_mode,
+            )
             normalized_prediction = normalize_answer(prediction)
             normalized_answer = normalize_answer(str(row["answer"]))
             exact = normalized_prediction == normalized_answer
@@ -456,9 +482,16 @@ def evaluate_generation_quality(model: Any, tokenizer: Any, rows: list[dict], *,
     }
 
 
-def generate_canonical_answer(model: Any, tokenizer_or_processor: Any, row: dict, *, max_new_tokens: int) -> str:
+def generate_canonical_answer(
+    model: Any,
+    tokenizer_or_processor: Any,
+    row: dict,
+    *,
+    max_new_tokens: int,
+    prompt_feature_mode: str = "none",
+) -> str:
     text_tokenizer = get_text_tokenizer(tokenizer_or_processor)
-    prompt = prompt_only_text(tokenizer_or_processor, row)
+    prompt = prompt_only_text(tokenizer_or_processor, row, prompt_feature_mode=prompt_feature_mode)
     encoded = text_tokenizer(prompt, return_tensors="pt").to(model.device)
     with torch.no_grad():
         output = model.generate(
@@ -472,11 +505,12 @@ def generate_canonical_answer(model: Any, tokenizer_or_processor: Any, row: dict
     return text_tokenizer.decode(completion, skip_special_tokens=True).strip()
 
 
-def prompt_only_text(tokenizer: Any, row: dict) -> str:
-    user_message = {"role": "user", "content": row["prompt"].rstrip()}
+def prompt_only_text(tokenizer: Any, row: dict, *, prompt_feature_mode: str = "none") -> str:
+    prompt = prompt_for_mapping(row, mode=prompt_feature_mode).rstrip()
+    user_message = {"role": "user", "content": prompt}
     if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
         return tokenizer.apply_chat_template([user_message], tokenize=False, add_generation_prompt=True)
-    return f"### User:\n{row['prompt'].rstrip()}\n\n### Assistant:\n"
+    return f"### User:\n{prompt}\n\n### Assistant:\n"
 
 
 def normalize_answer(value: str) -> str:
@@ -617,8 +651,9 @@ def load_rows(
     return rows[:limit] if limit else rows
 
 
-def to_sft_example(tokenizer: Any, row: dict) -> dict:
-    user_message = {"role": "user", "content": row["prompt"]}
+def to_sft_example(tokenizer: Any, row: dict, *, prompt_feature_mode: str = "none") -> dict:
+    prompt = prompt_for_mapping(row, mode=prompt_feature_mode)
+    user_message = {"role": "user", "content": prompt}
     assistant_text = str(row.get("target_text", row["answer"]))
     assistant_message = {"role": "assistant", "content": assistant_text}
     messages = [
@@ -629,8 +664,8 @@ def to_sft_example(tokenizer: Any, row: dict) -> dict:
         prompt_text = tokenizer.apply_chat_template([user_message], tokenize=False, add_generation_prompt=True)
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     else:
-        prompt_text = f"### User:\n{row['prompt']}\n\n### Assistant:\n"
-        text = f"{prompt_text}{row['answer']}"
+        prompt_text = f"### User:\n{prompt}\n\n### Assistant:\n"
+        text = f"{prompt_text}{assistant_text}"
     return {
         "text": text,
         "prompt_text": prompt_text,

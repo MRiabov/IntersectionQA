@@ -20,6 +20,7 @@ from trl import GRPOConfig, GRPOTrainer
 from intersectionqa.evaluation.metrics import Prediction, evaluate_predictions
 from intersectionqa.evaluation.rewards import reward_from_fields
 from intersectionqa.schema import PublicTaskRow
+from intersectionqa.training.prompt_features import PROMPT_FEATURE_MODES, prompt_for_row
 from intersectionqa.training.sampling import select_diverse_low_reward_samples, select_rows
 
 SYSTEM_PROMPT = (
@@ -38,6 +39,7 @@ def main() -> None:
     parser.add_argument("--train-splits", nargs="+", default=["inner_train", "train"])
     parser.add_argument("--eval-splits", nargs="+", default=["inner_eval", "validation"])
     parser.add_argument("--task-types", nargs="+")
+    parser.add_argument("--prompt-feature-mode", choices=PROMPT_FEATURE_MODES, default="none")
     parser.add_argument(
         "--row-sampling-strategy",
         choices=["random", "stratified_task", "stratified_task_answer"],
@@ -128,8 +130,12 @@ def main() -> None:
     FastModel.for_training(model)
     ensure_transformers_warning_state(model)
 
-    train_dataset = Dataset.from_list([to_grpo_example(row) for row in train_rows])
-    eval_dataset = Dataset.from_list([to_grpo_example(row) for row in eval_rows])
+    train_dataset = Dataset.from_list(
+        [to_grpo_example(row, prompt_feature_mode=args.prompt_feature_mode) for row in train_rows]
+    )
+    eval_dataset = Dataset.from_list(
+        [to_grpo_example(row, prompt_feature_mode=args.prompt_feature_mode) for row in eval_rows]
+    )
     training_args = build_grpo_config(args)
     trainer_kwargs: dict[str, Any] = {
         "model": model,
@@ -157,6 +163,7 @@ def main() -> None:
             every_steps=args.quality_eval_steps,
             max_new_tokens=args.quality_max_new_tokens,
             sample_count=args.quality_sample_count,
+            prompt_feature_mode=args.prompt_feature_mode,
             append=checkpoint is not None,
         )
         trainer.add_callback(quality_callback)
@@ -179,6 +186,7 @@ def main() -> None:
         "max_completion_length": args.max_completion_length,
         "num_generations": args.num_generations,
         "row_sampling_strategy": args.row_sampling_strategy,
+        "prompt_feature_mode": args.prompt_feature_mode,
         "importance_sampling_level": args.importance_sampling_level,
         "loss_type": args.loss_type,
         "scale_rewards": args.scale_rewards,
@@ -262,11 +270,11 @@ def row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list[
     return rewards
 
 
-def to_grpo_example(row: PublicTaskRow) -> dict[str, Any]:
+def to_grpo_example(row: PublicTaskRow, *, prompt_feature_mode: str = "none") -> dict[str, Any]:
     return {
         "prompt": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": row.prompt},
+            {"role": "user", "content": prompt_for_row(row, mode=prompt_feature_mode)},
         ],
         "answer": row.answer,
         "id": row.id,
@@ -349,6 +357,7 @@ class ReasoningQualityCallback(TrainerCallback):
         every_steps: int,
         max_new_tokens: int,
         sample_count: int,
+        prompt_feature_mode: str,
         append: bool,
     ) -> None:
         self.path = path
@@ -357,6 +366,7 @@ class ReasoningQualityCallback(TrainerCallback):
         self.every_steps = every_steps
         self.max_new_tokens = max_new_tokens
         self.sample_count = sample_count
+        self.prompt_feature_mode = prompt_feature_mode
         self.append = append
         self._last_step = -1
 
@@ -381,6 +391,7 @@ class ReasoningQualityCallback(TrainerCallback):
             self.tokenizer,
             self.rows,
             max_new_tokens=self.max_new_tokens,
+            prompt_feature_mode=self.prompt_feature_mode,
         )
         metrics = evaluate_predictions(self.rows, predictions)
         reward_values = []
@@ -424,6 +435,7 @@ def generate_predictions(
     rows: list[PublicTaskRow],
     *,
     max_new_tokens: int,
+    prompt_feature_mode: str = "none",
 ) -> list[Prediction]:
     predictions: list[Prediction] = []
     text_tokenizer = text_tokenizer_from_processing_class(tokenizer)
@@ -432,7 +444,7 @@ def generate_predictions(
         for row in rows:
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": row.prompt},
+                {"role": "user", "content": prompt_for_row(row, mode=prompt_feature_mode)},
             ]
             text = text_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             inputs = text_tokenizer(text, return_tensors="pt").to(model.device)

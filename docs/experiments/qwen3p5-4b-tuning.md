@@ -370,6 +370,26 @@ Shaped-reward edit canary follow-up:
   `checkpoint-10`, and adapter files. Vast instance `35609429` was destroyed
   after artifact retrieval; `show instances --raw` returned `[]`.
 
+Edit geometry feature-exposure prep:
+
+- Added an opt-in `--prompt-feature-mode edit_geometry` path to both the GRPO
+  and Unsloth SFT runners. It appends trusted training/eval-only geometry
+  features for IntersectionEdit rows without changing the public dataset
+  prompts.
+- The feature section exposes world AABBs, conservative repair policy/tolerance,
+  allowed signed movement direction/vector, initial relation, initial clearance
+  or centroid distance, and target clearance or centroid distance. It does not
+  append direct `selected_*`, `structured_answer`, or `candidate_moves` labels.
+- Local split inspection over
+  `data/intersectionedit_grpo_pilot_balanced_inner_all` covered 2,173
+  train+eval rows; the largest augmented prompt was 6,674 characters
+  (`centroid_distance_move`), so the existing 2,048 prompt-token cap remains a
+  reasonable canary starting point.
+- Local validation passed with compileall, prompt-feature unit tests, focused
+  reward/metrics/sampling tests, and `git diff --check`.
+- Next canary should rerun the shaped-reward GRPO setup with
+  `--prompt-feature-mode edit_geometry` before trying a 300-step pilot.
+
 Reasoning-SFT bootstrap command:
 
 ```bash

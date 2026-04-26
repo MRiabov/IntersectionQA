@@ -279,6 +279,8 @@ loss_type = "dr_grpo"
   exact repair/movement quality remained `0.0`.
 - [x] Pull shaped-reward canary artifacts, destroy the H100 instance, and update
   `docs/experiments/qwen3p5-4b-tuning.md` plus `epics-and-stories.yaml`.
+- [x] Add opt-in edit geometry feature exposure for GRPO/SFT canaries before
+  spending on another run.
 
 ## Done
 
@@ -528,6 +530,14 @@ loss_type = "dr_grpo"
   `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_shaped_reward_canary10/shaped_reward_canary10_artifacts.tar.gz`
   and destroyed Vast instance `35609429`; `vastai show instances --raw`
   returned `[]`.
+- [x] Added `--prompt-feature-mode edit_geometry` to the GRPO and Unsloth SFT
+  runners. The mode appends trusted AABB, initial-state, target, and allowed-edit
+  features for IntersectionEdit rows while leaving public dataset prompts
+  unchanged and avoiding direct selected-answer fields.
+- [x] Checked the balanced internal split with feature exposure: 2,173 rows were
+  covered and the largest augmented prompt was 6,674 characters. Local
+  compileall, prompt-feature, reward, metrics, sampling tests, and
+  `git diff --check` passed.
 
 Successful GPU bootstrap command:
 
