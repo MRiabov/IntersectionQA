@@ -51,6 +51,8 @@ def main() -> None:
     parser.add_argument("--max-prompt-length", type=int, default=2048)
     parser.add_argument("--max-completion-length", type=int, default=512)
     parser.add_argument("--num-generations", type=int, default=4)
+    parser.add_argument("--generation-batch-size", type=int)
+    parser.add_argument("--steps-per-generation", type=int)
     parser.add_argument("--per-device-train-batch-size", type=int, default=1)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=5e-6)
@@ -68,6 +70,16 @@ def main() -> None:
     parser.add_argument("--loss-type", default="dapo")
     parser.add_argument("--scale-rewards", default="group")
     parser.add_argument("--temperature", type=float, default=0.9)
+    parser.add_argument("--use-vllm", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--vllm-mode", choices=["server", "colocate"], default="server")
+    parser.add_argument("--vllm-gpu-memory-utilization", type=float, default=0.3)
+    parser.add_argument("--vllm-tensor-parallel-size", type=int, default=1)
+    parser.add_argument("--vllm-server-host", default="0.0.0.0")
+    parser.add_argument("--vllm-server-port", type=int, default=8000)
+    parser.add_argument("--vllm-server-timeout", type=float, default=240.0)
+    parser.add_argument("--torch-compile", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--torch-compile-backend")
+    parser.add_argument("--torch-compile-mode")
     parser.add_argument("--metrics-log-file", default="train_metrics.jsonl")
     parser.add_argument("--quality-metrics-log-file", default="quality_metrics.jsonl")
     parser.add_argument("--quality-eval-steps", type=int, default=50)
@@ -185,11 +197,20 @@ def main() -> None:
         "max_prompt_length": args.max_prompt_length,
         "max_completion_length": args.max_completion_length,
         "num_generations": args.num_generations,
+        "generation_batch_size": args.generation_batch_size,
+        "steps_per_generation": args.steps_per_generation,
+        "per_device_train_batch_size": args.per_device_train_batch_size,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
         "row_sampling_strategy": args.row_sampling_strategy,
         "prompt_feature_mode": args.prompt_feature_mode,
         "importance_sampling_level": args.importance_sampling_level,
         "loss_type": args.loss_type,
         "scale_rewards": args.scale_rewards,
+        "use_vllm": args.use_vllm,
+        "vllm_mode": args.vllm_mode,
+        "vllm_gpu_memory_utilization": args.vllm_gpu_memory_utilization,
+        "vllm_tensor_parallel_size": args.vllm_tensor_parallel_size,
+        "torch_compile": args.torch_compile,
         "adapter_init_dir": str(args.adapter_init_dir) if args.adapter_init_dir else None,
         "train_loss": result.training_loss,
         "output_dir": str(args.output_dir),
@@ -227,12 +248,24 @@ def build_grpo_config(args: argparse.Namespace) -> GRPOConfig:
     if "eval_steps" in signature:
         kwargs["eval_steps"] = args.eval_steps
     optional = {
+        "generation_batch_size": args.generation_batch_size,
+        "steps_per_generation": args.steps_per_generation,
         "importance_sampling_level": args.importance_sampling_level,
         "loss_type": args.loss_type,
         "scale_rewards": args.scale_rewards,
+        "use_vllm": args.use_vllm,
+        "vllm_mode": args.vllm_mode,
+        "vllm_gpu_memory_utilization": args.vllm_gpu_memory_utilization,
+        "vllm_tensor_parallel_size": args.vllm_tensor_parallel_size,
+        "vllm_server_host": args.vllm_server_host,
+        "vllm_server_port": args.vllm_server_port,
+        "vllm_server_timeout": args.vllm_server_timeout,
+        "torch_compile": args.torch_compile,
+        "torch_compile_backend": args.torch_compile_backend,
+        "torch_compile_mode": args.torch_compile_mode,
     }
     for key, value in optional.items():
-        if key in signature:
+        if value is not None and key in signature:
             kwargs[key] = value
     return GRPOConfig(**kwargs)
 
