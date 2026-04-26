@@ -12,6 +12,7 @@ from intersectionqa.evaluation.parsing import canonical_answer_candidate, parse_
 from intersectionqa.schema import PublicTaskRow
 
 AXIS_REPAIR_RE = re.compile(r"^direction=(\+x|-x|\+y|-y|\+z|-z), distance_mm=([0-9]+)\.([0-9])$")
+REPAIR_TRANSLATION_RE = re.compile(r"^(\+x|-x|\+y|-y|\+z|-z) ([0-9]+)\.([0-9]{6})$")
 SIGNED_DISTANCE_RE = re.compile(r"^distance_mm=(-?[0-9]+)\.([0-9])$")
 TRANSLATION_VECTOR_RE = re.compile(
     r"^dx=(-?[0-9]+)\.([0-9]), dy=(-?[0-9]+)\.([0-9]), dz=(-?[0-9]+)\.([0-9])$"
@@ -69,7 +70,11 @@ def reward_from_fields(
             failure_reason="invalid_output",
         )
 
-    if task_type in {TaskType.AXIS_ALIGNED_REPAIR, TaskType.TARGET_CLEARANCE_REPAIR}:
+    if task_type == TaskType.REPAIR_DIRECTION:
+        reward, components = _repair_direction_reward(answer, parsed, metadata)
+    elif task_type == TaskType.REPAIR_TRANSLATION:
+        reward, components = _repair_translation_reward(answer, parsed, metadata)
+    elif task_type in {TaskType.AXIS_ALIGNED_REPAIR, TaskType.TARGET_CLEARANCE_REPAIR}:
         reward, components = _axis_repair_reward(answer, parsed, metadata)
     elif task_type in {TaskType.AXIS_ALIGNED_REPAIR_VECTOR, TaskType.AXIS_ALIGNED_REPAIR_PROGRAM}:
         reward, components = _vector_repair_reward(answer, parsed, metadata, task_type)
@@ -153,6 +158,66 @@ def _axis_repair_reward(
     }
 
 
+def _repair_direction_reward(
+    answer: str,
+    parsed: str,
+    metadata: dict[str, Any],
+) -> tuple[float, dict[str, float]]:
+    exact = 1.0 if parsed == answer else 0.0
+    candidate_score = _repair_direction_candidate_score(parsed, metadata)
+    reward = max(exact, 0.10 + 0.55 * candidate_score)
+    return {
+        True: (1.0, {"format": 1.0, "exact": 1.0, "candidate_score": 1.0}),
+        False: (
+            reward,
+            {
+                "format": 1.0,
+                "exact": 0.0,
+                "candidate_score": candidate_score,
+            },
+        ),
+    }[exact == 1.0]
+
+
+def _repair_translation_reward(
+    answer: str,
+    parsed: str,
+    metadata: dict[str, Any],
+) -> tuple[float, dict[str, float]]:
+    expected = _repair_translation_parts(answer)
+    predicted = _repair_translation_parts(parsed)
+    if expected is None or predicted is None:
+        return 0.0, {"format": 1.0, "parse_error": 1.0}
+    expected_direction, expected_distance = expected
+    predicted_direction, predicted_distance = predicted
+    tolerance = _acceptance_tolerance(metadata)
+    direction_score = 1.0 if predicted_direction == expected_direction else 0.0
+    distance_error = abs(predicted_distance - expected_distance)
+    within_tolerance = 1.0 if direction_score and distance_error <= tolerance else 0.0
+    fine_distance_score = max(0.0, 1.0 - distance_error / max(tolerance * 4.0, 1e-9))
+    coarse_distance_score = _coarse_numeric_score(predicted_distance, expected_distance)
+    candidate_score = _repair_direction_candidate_score(predicted_direction, metadata)
+    movement_score = _movement_score(predicted_distance, expected_distance, metadata.get("target", {}))
+    reward = (
+        0.08
+        + 0.25 * direction_score
+        + 0.15 * candidate_score
+        + 0.25 * coarse_distance_score * direction_score
+        + 0.12 * fine_distance_score * direction_score
+        + 0.10 * movement_score * direction_score
+        + 0.05 * within_tolerance
+    )
+    return reward, {
+        "format": 1.0,
+        "direction": direction_score,
+        "candidate_score": candidate_score,
+        "coarse_distance": coarse_distance_score * direction_score,
+        "distance": fine_distance_score * direction_score,
+        "movement": movement_score * direction_score,
+        "within_tolerance": within_tolerance,
+    }
+
+
 def _candidate_selection_reward(
     parsed: str,
     metadata: dict[str, Any],
@@ -220,20 +285,23 @@ def _signed_distance_reward(
     tolerance = _acceptance_tolerance(metadata)
     distance_error = abs(predicted - expected)
     within_tolerance = 1.0 if distance_error <= tolerance else 0.0
-    distance_score = max(0.0, 1.0 - distance_error / max(tolerance * 4.0, 1e-9))
+    fine_distance_score = max(0.0, 1.0 - distance_error / max(tolerance * 4.0, 1e-9))
+    coarse_distance_score = _coarse_numeric_score(predicted, expected)
     movement_score = _movement_score(abs(predicted), abs(expected), metadata.get("target", {}))
     sign_score = 1.0 if (predicted == 0.0 and expected == 0.0) or (predicted * expected > 0.0) else 0.0
     reward = (
-        0.10
-        + 0.20 * sign_score
-        + 0.40 * distance_score
-        + 0.20 * movement_score
+        0.08
+        + 0.12 * sign_score
+        + 0.30 * coarse_distance_score
+        + 0.25 * fine_distance_score
+        + 0.15 * movement_score
         + 0.10 * within_tolerance
     )
     return reward, {
         "format": 1.0,
         "sign": sign_score,
-        "distance": distance_score,
+        "coarse_distance": coarse_distance_score,
+        "distance": fine_distance_score,
         "movement": movement_score,
         "within_tolerance": within_tolerance,
     }
@@ -321,6 +389,13 @@ def _signed_distance_answer_part(value: str) -> float | None:
     return float(f"{match.group(1)}.{match.group(2)}")
 
 
+def _repair_translation_parts(value: str) -> tuple[str, float] | None:
+    match = REPAIR_TRANSLATION_RE.match(value)
+    if match is None:
+        return None
+    return match.group(1), float(f"{match.group(2)}.{match.group(3)}")
+
+
 def _vector_answer_parts(value: str, task_type: TaskType) -> tuple[float, float, float] | None:
     match = (
         EDIT_PROGRAM_RE.match(value)
@@ -351,6 +426,30 @@ def _acceptance_tolerance(metadata: dict[str, Any]) -> float:
         return 0.15
     value = _finite_float(policy.get("acceptance_tolerance_mm"))
     return value if value is not None and value > 0.0 else 0.15
+
+
+def _coarse_numeric_score(predicted: float, expected: float) -> float:
+    error = abs(predicted - expected)
+    reference = max(abs(expected), abs(predicted), 1.0)
+    return max(0.0, 1.0 - error / reference)
+
+
+def _repair_direction_candidate_score(direction: str, metadata: dict[str, Any]) -> float:
+    candidates = metadata.get("candidate_moves")
+    if not isinstance(candidates, list):
+        return 1.0 if direction == metadata.get("selected_direction") else 0.0
+    magnitudes = {
+        str(candidate.get("direction")): _finite_float(candidate.get("magnitude_mm"))
+        for candidate in candidates
+        if isinstance(candidate, dict)
+    }
+    predicted_magnitude = magnitudes.get(direction)
+    selected_magnitude = _finite_float(metadata.get("selected_magnitude_mm"))
+    if predicted_magnitude is None or selected_magnitude is None:
+        return 0.0
+    if direction == metadata.get("selected_direction"):
+        return 1.0
+    return _coarse_numeric_score(predicted_magnitude, selected_magnitude)
 
 
 def _pairwise_ranking_accuracy(expected: str, predicted: str) -> float:

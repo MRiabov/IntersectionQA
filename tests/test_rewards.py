@@ -31,6 +31,47 @@ def test_axis_repair_reward_gives_partial_numeric_credit():
     assert invalid.failure_reason == "invalid_output"
 
 
+def test_conservative_repair_direction_reward_scores_near_candidate_directions():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                geometry_limit=3,
+                task_types=[TaskType.REPAIR_DIRECTION],
+            )
+        )
+    )
+    row = rows[0]
+    exact = reward_prediction(row, row.answer)
+    wrong = reward_prediction(row, "-z" if row.answer != "-z" else "+z")
+
+    assert exact.reward == 1.0
+    assert 0.0 < wrong.reward < exact.reward
+    assert "candidate_score" in wrong.components
+
+
+def test_conservative_repair_translation_reward_gives_direction_and_numeric_credit():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                geometry_limit=3,
+                task_types=[TaskType.REPAIR_TRANSLATION],
+            )
+        )
+    )
+    row = rows[0]
+    direction, magnitude_text = row.answer.split(" ")
+    wrong_same_direction = reward_prediction(row, f"{direction} {float(magnitude_text) + 1.0:.6f}")
+    wrong_direction = reward_prediction(row, f"{'-z' if direction != '-z' else '+z'} {float(magnitude_text) + 1.0:.6f}")
+    exact = reward_prediction(row, row.answer)
+
+    assert exact.reward == 1.0
+    assert 0.0 < wrong_direction.reward < wrong_same_direction.reward < exact.reward
+    assert wrong_same_direction.components["direction"] == 1.0
+    assert wrong_same_direction.components["coarse_distance"] > 0.0
+
+
 def test_rewards_accept_reasoning_answer_tags():
     rows, _ = build_smoke_rows(
         DatasetConfig(
