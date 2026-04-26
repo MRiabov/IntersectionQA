@@ -58,6 +58,7 @@ def main() -> None:
     parser.add_argument("--learning-rate", type=float, default=5e-6)
     parser.add_argument("--warmup-ratio", type=float, default=0.05)
     parser.add_argument("--logging-steps", type=int, default=5)
+    parser.add_argument("--eval-strategy", choices=["no", "steps"], default="steps")
     parser.add_argument("--eval-steps", type=int, default=50)
     parser.add_argument("--save-steps", type=int, default=50)
     parser.add_argument("--save-total-limit", type=int, default=3)
@@ -84,6 +85,7 @@ def main() -> None:
     parser.add_argument("--quality-metrics-log-file", default="quality_metrics.jsonl")
     parser.add_argument("--quality-eval-steps", type=int, default=50)
     parser.add_argument("--quality-eval-max-rows", type=int, default=16)
+    parser.add_argument("--quality-generation-batch-size", type=int, default=8)
     parser.add_argument("--quality-max-new-tokens", type=int, default=128)
     parser.add_argument("--quality-sample-count", type=int, default=16)
     parser.add_argument("--seed", type=int, default=3407)
@@ -173,6 +175,7 @@ def main() -> None:
             rows=eval_rows[: args.quality_eval_max_rows],
             tokenizer=text_tokenizer,
             every_steps=args.quality_eval_steps,
+            generation_batch_size=args.quality_generation_batch_size,
             max_new_tokens=args.quality_max_new_tokens,
             sample_count=args.quality_sample_count,
             prompt_feature_mode=args.prompt_feature_mode,
@@ -201,6 +204,13 @@ def main() -> None:
         "steps_per_generation": args.steps_per_generation,
         "per_device_train_batch_size": args.per_device_train_batch_size,
         "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "eval_strategy": args.eval_strategy,
+        "eval_steps": args.eval_steps,
+        "quality_eval_steps": args.quality_eval_steps,
+        "quality_eval_max_rows": args.quality_eval_max_rows,
+        "quality_generation_batch_size": args.quality_generation_batch_size,
+        "quality_max_new_tokens": args.quality_max_new_tokens,
+        "quality_sample_count": args.quality_sample_count,
         "row_sampling_strategy": args.row_sampling_strategy,
         "prompt_feature_mode": args.prompt_feature_mode,
         "importance_sampling_level": args.importance_sampling_level,
@@ -242,10 +252,10 @@ def build_grpo_config(args: argparse.Namespace) -> GRPOConfig:
     }
     signature = inspect.signature(GRPOConfig).parameters
     if "eval_strategy" in signature:
-        kwargs["eval_strategy"] = "steps"
+        kwargs["eval_strategy"] = args.eval_strategy
     elif "evaluation_strategy" in signature:
-        kwargs["evaluation_strategy"] = "steps"
-    if "eval_steps" in signature:
+        kwargs["evaluation_strategy"] = args.eval_strategy
+    if args.eval_strategy != "no" and "eval_steps" in signature:
         kwargs["eval_steps"] = args.eval_steps
     optional = {
         "generation_batch_size": args.generation_batch_size,
@@ -388,6 +398,7 @@ class ReasoningQualityCallback(TrainerCallback):
         rows: list[PublicTaskRow],
         tokenizer: Any,
         every_steps: int,
+        generation_batch_size: int,
         max_new_tokens: int,
         sample_count: int,
         prompt_feature_mode: str,
@@ -397,6 +408,7 @@ class ReasoningQualityCallback(TrainerCallback):
         self.rows = rows
         self.tokenizer = tokenizer
         self.every_steps = every_steps
+        self.generation_batch_size = generation_batch_size
         self.max_new_tokens = max_new_tokens
         self.sample_count = sample_count
         self.prompt_feature_mode = prompt_feature_mode
@@ -423,6 +435,7 @@ class ReasoningQualityCallback(TrainerCallback):
             model,
             self.tokenizer,
             self.rows,
+            batch_size=self.generation_batch_size,
             max_new_tokens=self.max_new_tokens,
             prompt_feature_mode=self.prompt_feature_mode,
         )
@@ -467,31 +480,50 @@ def generate_predictions(
     tokenizer: Any,
     rows: list[PublicTaskRow],
     *,
+    batch_size: int = 8,
     max_new_tokens: int,
     prompt_feature_mode: str = "none",
 ) -> list[Prediction]:
     predictions: list[Prediction] = []
     text_tokenizer = text_tokenizer_from_processing_class(tokenizer)
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    if text_tokenizer.pad_token_id is None and text_tokenizer.eos_token is not None:
+        text_tokenizer.pad_token = text_tokenizer.eos_token
+    was_training = bool(getattr(model, "training", False))
+    original_padding_side = getattr(text_tokenizer, "padding_side", None)
     model.eval()
-    with torch.no_grad():
-        for row in rows:
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt_for_row(row, mode=prompt_feature_mode)},
-            ]
-            text = text_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            inputs = text_tokenizer(text, return_tensors="pt").to(model.device)
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-                pad_token_id=text_tokenizer.pad_token_id,
-            )
-            completion_ids = output_ids[0, inputs["input_ids"].shape[-1] :]
-            predictions.append(
-                Prediction(row_id=row.id, output=text_tokenizer.decode(completion_ids, skip_special_tokens=True).strip())
-            )
-    model.train()
+    if original_padding_side is not None:
+        text_tokenizer.padding_side = "left"
+    try:
+        with torch.no_grad():
+            for start in range(0, len(rows), batch_size):
+                batch_rows = rows[start : start + batch_size]
+                prompts = []
+                for row in batch_rows:
+                    messages = [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt_for_row(row, mode=prompt_feature_mode)},
+                    ]
+                    prompts.append(text_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True))
+                inputs = text_tokenizer(prompts, return_tensors="pt", padding=True).to(model.device)
+                output_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                    pad_token_id=text_tokenizer.pad_token_id,
+                )
+                completion_ids = output_ids[:, inputs["input_ids"].shape[-1] :]
+                outputs = text_tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
+                predictions.extend(
+                    Prediction(row_id=row.id, output=output.strip())
+                    for row, output in zip(batch_rows, outputs, strict=True)
+                )
+    finally:
+        if original_padding_side is not None:
+            text_tokenizer.padding_side = original_padding_side
+        if was_training:
+            model.train()
     return predictions
 
 
