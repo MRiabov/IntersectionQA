@@ -30,7 +30,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-26"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. CADEvolve gap placement now cycles object-pair placements across all six signed axes so new repair-direction/translation rows can include negative as well as positive directions. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; format-scaffold rewards fixed parse-invalid completions. Task-stratified capped sampling fixed rare-family coverage for canaries and produced a saved 50-step stratified artifact, but final eval reward stayed low and repair, movement, volume, and bucket rows still failed. GRPO caps now support task-then-answer stratification for better label/magnitude coverage, and the 300-step pilot remains stopped until a rebuilt balanced dataset and/or learning-signal change is ready.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. CADEvolve gap placement now cycles object-pair placements across all six signed axes so new repair-direction/translation rows can include negative as well as positive directions. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Repair/movement materialization now reuses stored AABBs/volumes and AABB-disjoint centroid certificates, and release reports avoid redundant CAD replay for label-derived metrics, OBB local boxes, and conservative repair certificates. A fresh balanced release candidate has 2,821 rows from 500 geometries and all six repair directions, with group-safe task/answer-balanced internal RL splits. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; format-scaffold rewards fixed parse-invalid completions. Task-stratified and task-answer-stratified capped sampling fixed rare-family coverage for canaries, but balanced-data GRPO still fails repair/movement tasks, so the 300-step pilot remains stopped until the learning signal changes.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -77,7 +77,9 @@ current_snapshot:
     - intersectionedit_repair_smoke_config
     - intersectionedit_repair_reporting
     - intersectionedit_fast_grpo_pilot_release_candidate
+    - intersectionedit_balanced_grpo_pilot_release_candidate
     - intersectionedit_group_safe_mixed_grpo_splits
+    - intersectionedit_group_safe_task_answer_balanced_grpo_splits
     - intersectionedit_reasoning_grpo_reward_runner
     - reasoning_answer_tag_eval_metrics
     - grpo_format_scaffold_reward
@@ -89,6 +91,7 @@ current_snapshot:
     - qwen3p5_4b_intersectionedit_grpo_canary_checkpoint
     - qwen3p5_4b_intersectionedit_grpo_format_pilot50_artifact
     - qwen3p5_4b_intersectionedit_grpo_stratified_pilot50_artifact
+    - qwen3p5_4b_intersectionedit_grpo_balanced_canary20_artifact
     - dataset_card_generation
     - smoke_dataset_generation
 
@@ -1141,7 +1144,7 @@ epics:
         status: implemented
         stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Implemented opt-in `target_clearance_move` rows for already non-intersecting AABB-separated records. Rows specify a world-axis direction, use signed one-decimal `distance_mm` answers where negative moves closer and positive moves farther, exact-verify final clearance against a 1.0 mm target, and store signed-distance metadata/rewards. This task family is included in the validated `intersectionedit_grpo_pilot` release candidate and the mixed QA+Edit GRPO internal split.
+        notes: Implemented opt-in `target_clearance_move` rows for already non-intersecting AABB-separated records. Rows specify a world-axis direction, use signed one-decimal `distance_mm` answers where negative moves closer and positive moves farther, exact-verify final clearance against a 1.0 mm target, and store signed-distance metadata/rewards. This task family is included in the validated balanced `intersectionedit_grpo_pilot_balanced` release candidate and the mixed QA+Edit GRPO internal split.
       - id: "15.6"
         title: Candidate edit selection
         track: intersectionedit
@@ -1207,7 +1210,7 @@ epics:
         status: implemented
         stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Added `metadata.edit_split_group` and `metadata.edit_family` for repair, full-vector repair, edit-program repair, target-clearance movement, target-contact movement, centroid-distance movement, and candidate-set rows, plus deterministic group-safe inner train/eval split helpers for SFT/GRPO split hygiene. The split helper supports edit-only and mixed QA+Edit scopes; the validated GRPO pilot uses public `train` only, with 1,627 `inner_train` rows and 200 `inner_eval` rows. Target-distance-held-out and multi-object-hard tests remain planned.
+        notes: Added `metadata.edit_split_group` and `metadata.edit_family` for repair, full-vector repair, edit-program repair, target-clearance movement, target-contact movement, centroid-distance movement, and candidate-set rows, plus deterministic group-safe inner train/eval split helpers for SFT/GRPO split hygiene. The split helper supports edit-only and mixed QA+Edit scopes with optional task/answer-balanced eval selection; the current balanced GRPO pilot uses public `train` only, with 1,956 `inner_train` rows and 217 `inner_eval` rows from `data/intersectionedit_grpo_pilot_balanced_inner_all`. Target-distance-held-out and multi-object-hard tests remain planned.
       - id: "15.12"
         title: Centroid-distance and target-contact edit tasks
         track: intersectionedit
@@ -1218,7 +1221,7 @@ epics:
         status: implemented
         stable: true
         source_document: specs/intersectionedit-full-spec.md
-        notes: Implemented opt-in `target_contact_move` rows for already non-intersecting AABB-separated records, with signed one-decimal distance labels, exact final touching verification, prompt/parser/schema/reward/stat support, and split metadata. Implemented opt-in `centroid_distance_move` rows that translate non-intersecting records along the centroid-to-centroid direction to a verified target centroid distance while preserving non-intersection. Both task families are included in the validated fast GRPO pilot release candidate.
+        notes: Implemented opt-in `target_contact_move` rows for already non-intersecting AABB-separated records, with signed one-decimal distance labels, exact final touching verification, prompt/parser/schema/reward/stat support, and split metadata. Implemented opt-in `centroid_distance_move` rows that translate non-intersecting records along the centroid-to-centroid direction to a verified target centroid distance while preserving non-intersection. The centroid task now uses stored bboxes/volumes and an AABB-disjoint certificate fast path where valid. Both task families are included in the validated balanced fast GRPO pilot release candidate.
       - id: "15.13"
         title: Counterfactual edit groups
         track: intersectionedit
@@ -1357,14 +1360,20 @@ epics:
           `0.3191` and failure-focused samples still showed wrong repair direction,
           repair translation, movement distance, and volume-bucket answers. The runner now
           writes a final quality record after `trainer.train()` when the periodic callback
-          misses the final step after resume. The 300-step pilot remains stopped until the
-          prompt, reward, bootstrap data, or source label balance changes the learning
-          signal for those families. Capped GRPO row selection now supports hierarchical
-          task-then-answer stratification, which spreads available labels and magnitudes
-          within each task while preserving task coverage. CADEvolve bbox-guided gap
-          placement now cycles through all six signed axes and records placement
-          direction metadata; a 200-geometry repair-only probe produced all six
-          repair-direction labels for newly generated rows.
+          misses the final step after resume. Capped GRPO row selection now supports
+          hierarchical task-then-answer stratification, which spreads available labels
+          and magnitudes within each task while preserving task coverage. CADEvolve
+          bbox-guided gap placement now cycles through all six signed axes and records
+          placement direction metadata; a 200-geometry repair-only probe produced all six
+          repair-direction labels for newly generated rows. The balanced release candidate
+          `data/intersectionedit_grpo_pilot_balanced` has 2,821 rows from 500 geometries
+          and all six repair directions, and the balanced internal RL split has 1,956
+          train rows and 217 eval rows. A 20-step Vast A100 canary saved
+          `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_balanced_canary20`
+          with final eval reward `0.2646` and final quality reward `0.3678`; repair and
+          movement exact accuracy remained `0.0`, so the 300-step pilot remains stopped
+          until the prompt, reward shaping, or supervised/bootstrap data changes the
+          learning signal for those families.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit

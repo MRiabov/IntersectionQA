@@ -21,6 +21,8 @@ TRUSTED_SCRIPT_EXECUTION_MODEL = (
     "trusted_dataset_rows_only: repair verification executes row.script with Python exec "
     "because CadQuery reconstruction requires code execution. Do not run it on untrusted rows."
 )
+_PLACED_SHAPES_CACHE: dict[str, tuple[Any, Any]] = {}
+_RELATION_AFTER_MOVE_CACHE: dict[tuple[str, str], Relation] = {}
 
 
 @dataclass(frozen=True)
@@ -105,24 +107,11 @@ def verify_repair_rows_exact(rows: Iterable[PublicTaskRow]) -> RepairVerificatio
 def verified_repair_direction(row: PublicTaskRow) -> str:
     """Return the first candidate direction that exactly removes positive overlap."""
     _require_repair_row(row)
-    shape_a, shape_b = _placed_shapes(row)
     for candidate in sorted(_candidate_moves(row), key=_candidate_sort_key):
-        moved_b = apply_transform(
-            shape_b,
-            Transform(
-                translation=_candidate_vector(candidate),
-                rotation_xyz_deg=(0.0, 0.0, 0.0),
-            ),
-        )
-        raw = measure_shape_pair(
-            shape_a,
-            moved_b,
-            IDENTITY_TRANSFORM,
-            IDENTITY_TRANSFORM,
-            row.label_policy,
-        )
-        labels, _ = derive_labels(raw, row.label_policy)
-        if labels.relation not in {Relation.INTERSECTING, Relation.CONTAINED}:
+        if _relation_after_direction(row, str(candidate["direction"])) not in {
+            Relation.INTERSECTING,
+            Relation.CONTAINED,
+        }:
             return str(candidate["direction"])
     raise ValueError("no repair_direction candidate removed positive overlap")
 
@@ -240,8 +229,20 @@ def verify_repair_predictions(
 
 
 def _relation_after_direction(row: PublicTaskRow, direction: str) -> Relation:
-    shape_a, shape_b = _placed_shapes(row)
+    cache_key = _geometry_cache_key(row)
+    relation_cache_key = (cache_key, direction)
+    cached = _RELATION_AFTER_MOVE_CACHE.get(relation_cache_key)
+    if cached is not None:
+        return cached
     candidate = _candidate_by_direction(row, direction)
+    bbox_a = _metadata_bbox(row, "bbox_a")
+    bbox_b = _metadata_bbox(row, "bbox_b")
+    if bbox_a is not None and bbox_b is not None:
+        moved_bbox = _translated_bbox(bbox_b, _candidate_vector(candidate))
+        if not _boxes_overlap(bbox_a, moved_bbox):
+            _RELATION_AFTER_MOVE_CACHE[relation_cache_key] = Relation.DISJOINT
+            return Relation.DISJOINT
+    shape_a, shape_b = _placed_shapes(row)
     moved_b = apply_transform(
         shape_b,
         Transform(
@@ -257,11 +258,16 @@ def _relation_after_direction(row: PublicTaskRow, direction: str) -> Relation:
         row.label_policy,
     )
     labels, _ = derive_labels(raw, row.label_policy)
+    _RELATION_AFTER_MOVE_CACHE[relation_cache_key] = labels.relation
     return labels.relation
 
 
 def _placed_shapes(row: PublicTaskRow) -> tuple[Any, Any]:
     """Execute trusted dataset row code to reconstruct placed CadQuery shapes."""
+    cache_key = _geometry_cache_key(row)
+    cached = _PLACED_SHAPES_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     import cadquery as cq
 
     namespace: dict[str, Any] = {"cq": cq, "cadquery": cq, "__builtins__": __builtins__}
@@ -270,7 +276,31 @@ def _placed_shapes(row: PublicTaskRow) -> tuple[Any, Any]:
     if not callable(assembly):
         raise ValueError("assembly script does not define assembly()")
     placed_a, placed_b = assembly()
-    return object_to_shape(placed_a), object_to_shape(placed_b)
+    shapes = object_to_shape(placed_a), object_to_shape(placed_b)
+    _PLACED_SHAPES_CACHE[cache_key] = shapes
+    return shapes
+
+
+def _geometry_cache_key(row: PublicTaskRow) -> str:
+    return row.hashes.geometry_hash or row.geometry_ids[0] or row.id
+
+
+def _metadata_bbox(row: PublicTaskRow, key: str) -> BoundingBox | None:
+    value = row.metadata.get(key)
+    if value is None:
+        return None
+    return BoundingBox.model_validate(value)
+
+
+def _translated_bbox(bbox: BoundingBox, vector: tuple[float, float, float]) -> BoundingBox:
+    return BoundingBox(
+        min=tuple(bbox.min[index] + vector[index] for index in range(3)),
+        max=tuple(bbox.max[index] + vector[index] for index in range(3)),
+    )
+
+
+def _boxes_overlap(a: BoundingBox, b: BoundingBox) -> bool:
+    return all(a.min[index] <= b.max[index] and b.min[index] <= a.max[index] for index in range(3))
 
 
 def _candidate_by_direction(row: PublicTaskRow, direction: str) -> dict[str, Any]:

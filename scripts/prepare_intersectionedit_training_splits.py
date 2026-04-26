@@ -22,6 +22,7 @@ def main() -> None:
     parser.add_argument("--source-splits", nargs="+", default=["train"])
     parser.add_argument("--mode", choices=["sft", "rl"], default="sft")
     parser.add_argument("--scope", choices=["edit", "all"], default="edit")
+    parser.add_argument("--balance-task-answers", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
     report = prepare_intersectionedit_training_splits(
@@ -32,6 +33,7 @@ def main() -> None:
         source_splits=args.source_splits,
         mode=args.mode,
         scope=args.scope,
+        balance_task_answers=args.balance_task_answers,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
 
@@ -45,6 +47,7 @@ def prepare_intersectionedit_training_splits(
     source_splits: list[str],
     mode: str,
     scope: str,
+    balance_task_answers: bool = True,
 ) -> dict[str, object]:
     rows = _load_source_rows(dataset_dir, source_splits)
     edit_rows = [
@@ -56,6 +59,7 @@ def prepare_intersectionedit_training_splits(
         edit_rows,
         seed,
         eval_fraction=eval_fraction,
+        balance_task_answers=balance_task_answers,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(train_rows, output_dir / "inner_train.jsonl")
@@ -64,6 +68,7 @@ def prepare_intersectionedit_training_splits(
         "schema": "intersectionedit_training_splits_v1",
         "mode": mode,
         "scope": scope,
+        "balance_task_answers": balance_task_answers,
         "source_splits": source_splits,
         "input_rows": len(rows),
         "selected_rows": len(edit_rows),

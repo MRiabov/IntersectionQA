@@ -45,6 +45,8 @@ _DIRECTION_VECTORS = {
 }
 _CANDIDATE_LABELS = ("A", "B", "C", "D")
 _EXACT_CANDIDATE_CACHE: dict[tuple[str, float], list["ExactRepairMove"]] = {}
+_PLACED_SHAPES_CACHE: dict[str, tuple[Any, Any]] = {}
+_REPAIR_CONTEXT_CACHE: dict[str, "_RepairShapeContext"] = {}
 
 
 @dataclass(frozen=True)
@@ -405,9 +407,9 @@ def target_contact_move_metadata(record: GeometryRecord) -> dict[str, object] | 
 def centroid_distance_move_metadata(record: GeometryRecord) -> dict[str, object] | None:
     if record.labels.relation not in {Relation.DISJOINT, Relation.NEAR_MISS, Relation.TOUCHING}:
         return None
-    shape_a, shape_b = _placed_shapes(record)
-    center_a = _shape_center(shape_a)
-    center_b = _shape_center(shape_b)
+    context = _placed_repair_context(record)
+    center_a = _shape_center(context.shape_a)
+    center_b = _shape_center(context.shape_b)
     initial_distance = _distance(center_a, center_b)
     direction = _unit_vector(tuple(center_b[index] - center_a[index] for index in range(3)))
     if direction is None:
@@ -416,21 +418,29 @@ def centroid_distance_move_metadata(record: GeometryRecord) -> dict[str, object]
     signed_label_distance = _round_one_decimal(signed_exact_distance)
     target_distance = initial_distance + signed_exact_distance
     vector = tuple(component * signed_label_distance for component in direction)
-    moved_b = apply_transform(
-        shape_b,
-        Transform(translation=vector, rotation_xyz_deg=(0.0, 0.0, 0.0)),
-    )
-    raw = measure_shape_pair(
-        shape_a,
-        moved_b,
-        IDENTITY_TRANSFORM,
-        IDENTITY_TRANSFORM,
-        record.label_policy,
-    )
-    labels, _ = derive_labels(raw, record.label_policy)
-    if labels.relation in {Relation.INTERSECTING, Relation.CONTAINED}:
-        return None
-    final_center_b = _shape_center(moved_b)
+    moved_bbox = _translated_bbox(context.bbox_b, vector)
+    if _boxes_overlap(context.bbox_a, moved_bbox):
+        moved_b = apply_transform(
+            context.shape_b,
+            Transform(translation=vector, rotation_xyz_deg=(0.0, 0.0, 0.0)),
+        )
+        labels = _exact_labels_for_vector(
+            record,
+            context,
+            vector,
+            moved_b=moved_b,
+        )
+        if labels.relation in {Relation.INTERSECTING, Relation.CONTAINED}:
+            return None
+        final_center_b = _shape_center(moved_b)
+        final_relation = str(labels.relation)
+        final_clearance = labels.minimum_distance
+        verification_method = "exact_cadquery"
+    else:
+        final_center_b = tuple(center_b[index] + vector[index] for index in range(3))
+        final_relation = str(Relation.DISJOINT)
+        final_clearance = None
+        verification_method = "aabb_disjoint_certificate"
     final_distance = _distance(center_a, final_center_b)
     distance_error = abs(final_distance - target_distance)
     if distance_error > NUMERIC_ACCEPTANCE_TOLERANCE_MM:
@@ -481,10 +491,12 @@ def centroid_distance_move_metadata(record: GeometryRecord) -> dict[str, object]
             "translation": list(vector),
         },
         "verification": {
-            "final_relation": str(labels.relation),
+            "method": verification_method,
+            "final_relation": final_relation,
             "final_centroid_distance_mm": final_distance,
             "centroid_distance_error_mm": distance_error,
-            "final_clearance_mm": labels.minimum_distance,
+            "final_clearance_mm": final_clearance,
+            "aabb_clearance_lower_bound_mm": _bbox_distance(context.bbox_a, moved_bbox),
             "movement_magnitude": abs(signed_label_distance),
             "satisfies_target": True,
         },
@@ -515,20 +527,14 @@ def _axis_clearance_move_metadata(
     initial_clearance = float(record.labels.minimum_distance)
     signed_exact_distance = target_clearance_mm - initial_clearance
     signed_label_distance = _round_one_decimal(signed_exact_distance)
-    shape_a, shape_b = _placed_shapes(record)
+    context = _placed_repair_context(record)
     vector = _translation_vector(away_direction, signed_label_distance)
-    moved_b = apply_transform(
-        shape_b,
-        Transform(translation=vector, rotation_xyz_deg=(0.0, 0.0, 0.0)),
+    labels = _exact_labels_for_vector(
+        record,
+        context,
+        vector,
+        moved_bbox=_translated_bbox(context.bbox_b, vector),
     )
-    raw = measure_shape_pair(
-        shape_a,
-        moved_b,
-        IDENTITY_TRANSFORM,
-        IDENTITY_TRANSFORM,
-        record.label_policy,
-    )
-    labels, _ = derive_labels(raw, record.label_policy)
     final_clearance = labels.minimum_distance
     if labels.relation in {Relation.INTERSECTING, Relation.CONTAINED}:
         return None
@@ -1189,6 +1195,10 @@ def _move(direction: str, axis_index: int, delta: float) -> RepairMove:
 
 
 def _placed_shapes(record: GeometryRecord) -> tuple[Any, Any]:
+    cache_key = record.hashes.geometry_hash or record.geometry_id
+    cached = _PLACED_SHAPES_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     import cadquery as cq
 
     namespace: dict[str, Any] = {"cq": cq, "cadquery": cq, "__builtins__": __builtins__}
@@ -1197,19 +1207,41 @@ def _placed_shapes(record: GeometryRecord) -> tuple[Any, Any]:
     if not callable(assembly):
         raise ValueError("assembly script does not define assembly()")
     placed_a, placed_b = assembly()
-    return object_to_shape(placed_a), object_to_shape(placed_b)
+    shapes = object_to_shape(placed_a), object_to_shape(placed_b)
+    _PLACED_SHAPES_CACHE[cache_key] = shapes
+    return shapes
 
 
 def _placed_repair_context(record: GeometryRecord) -> _RepairShapeContext:
+    cache_key = record.hashes.geometry_hash or record.geometry_id
+    cached = _REPAIR_CONTEXT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     shape_a, shape_b = _placed_shapes(record)
-    return _RepairShapeContext(
+    bbox_a_value = record.metadata.get("bbox_a")
+    bbox_b_value = record.metadata.get("bbox_b")
+    context = _RepairShapeContext(
         shape_a=shape_a,
         shape_b=shape_b,
-        bbox_a=bounding_box_from_shape(shape_a),
-        bbox_b=bounding_box_from_shape(shape_b),
-        volume_a=float(shape_a.Volume()),
-        volume_b=float(shape_b.Volume()),
+        bbox_a=(
+            BoundingBox.model_validate(bbox_a_value)
+            if bbox_a_value is not None
+            else bounding_box_from_shape(shape_a)
+        ),
+        bbox_b=(
+            BoundingBox.model_validate(bbox_b_value)
+            if bbox_b_value is not None
+            else bounding_box_from_shape(shape_b)
+        ),
+        volume_a=(
+            float(record.labels.volume_a) if record.labels.volume_a is not None else float(shape_a.Volume())
+        ),
+        volume_b=(
+            float(record.labels.volume_b) if record.labels.volume_b is not None else float(shape_b.Volume())
+        ),
     )
+    _REPAIR_CONTEXT_CACHE[cache_key] = context
+    return context
 
 
 def _repair_search_upper_bound(
@@ -1352,13 +1384,30 @@ def _exact_labels_for_translation(
     magnitude_mm: float,
     moved_bbox: BoundingBox | None = None,
 ) -> Any:
-    moved_b = apply_transform(
-        context.shape_b,
-        Transform(
-            translation=_translation_vector(direction, magnitude_mm),
-            rotation_xyz_deg=(0.0, 0.0, 0.0),
-        ),
+    return _exact_labels_for_vector(
+        record,
+        context,
+        _translation_vector(direction, magnitude_mm),
+        moved_bbox=moved_bbox,
     )
+
+
+def _exact_labels_for_vector(
+    record: GeometryRecord,
+    context: _RepairShapeContext,
+    vector: tuple[float, float, float],
+    *,
+    moved_b: Any | None = None,
+    moved_bbox: BoundingBox | None = None,
+) -> Any:
+    if moved_b is None:
+        moved_b = apply_transform(
+            context.shape_b,
+            Transform(
+                translation=vector,
+                rotation_xyz_deg=(0.0, 0.0, 0.0),
+            ),
+        )
     if moved_bbox is None:
         moved_bbox = bounding_box_from_shape(moved_b)
     bbox_overlap = _boxes_overlap(context.bbox_a, moved_bbox)

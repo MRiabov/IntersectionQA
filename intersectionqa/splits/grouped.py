@@ -72,6 +72,8 @@ def assign_internal_train_eval_splits(
     seed: int,
     *,
     eval_fraction: float = 0.1,
+    balance_task_answers: bool = False,
+    max_stratified_answers_per_task: int = 12,
 ) -> dict[str, str]:
     """Assign row IDs to deterministic group-safe inner train/eval splits."""
     if not 0.0 < eval_fraction < 1.0:
@@ -83,11 +85,19 @@ def assign_internal_train_eval_splits(
     if not groups:
         return {}
 
-    eval_groups = {
-        group_id
-        for group_id in groups
-        if _stable_bucket(group_id, seed, 1_000_000) < int(eval_fraction * 1_000_000)
-    }
+    if balance_task_answers:
+        eval_groups = _balanced_internal_eval_groups(
+            groups,
+            seed,
+            eval_fraction=eval_fraction,
+            max_stratified_answers_per_task=max_stratified_answers_per_task,
+        )
+    else:
+        eval_groups = {
+            group_id
+            for group_id in groups
+            if _stable_bucket(group_id, seed, 1_000_000) < int(eval_fraction * 1_000_000)
+        }
     if not eval_groups and len(groups) > 1:
         eval_groups = {
             min(
@@ -114,9 +124,17 @@ def partition_internal_train_eval_rows(
     seed: int,
     *,
     eval_fraction: float = 0.1,
+    balance_task_answers: bool = False,
+    max_stratified_answers_per_task: int = 12,
 ) -> tuple[list[PublicTaskRow], list[PublicTaskRow], dict[str, object]]:
     rows = list(rows)
-    assignments = assign_internal_train_eval_splits(rows, seed, eval_fraction=eval_fraction)
+    assignments = assign_internal_train_eval_splits(
+        rows,
+        seed,
+        eval_fraction=eval_fraction,
+        balance_task_answers=balance_task_answers,
+        max_stratified_answers_per_task=max_stratified_answers_per_task,
+    )
     train_rows = [row for row in rows if assignments.get(row.id) == INTERNAL_TRAIN_SPLIT]
     eval_rows = [row for row in rows if assignments.get(row.id) == INTERNAL_EVAL_SPLIT]
     report = {
@@ -128,12 +146,65 @@ def partition_internal_train_eval_rows(
             INTERNAL_EVAL_SPLIT: len(eval_rows),
         },
         "group_counts": _counts(assignments[row.id] for row in _representative_group_rows(rows)),
+        "balance_task_answers": balance_task_answers,
+        "max_stratified_answers_per_task": max_stratified_answers_per_task,
         "group_field": (
             "metadata.edit_counterfactual_group_id || metadata.edit_split_group "
             "|| metadata.split_group || split_group(row)"
         ),
     }
     return train_rows, eval_rows, report
+
+
+def _balanced_internal_eval_groups(
+    groups: dict[str, list[PublicTaskRow]],
+    seed: int,
+    *,
+    eval_fraction: float,
+    max_stratified_answers_per_task: int,
+) -> set[str]:
+    target_rows = max(1, round(sum(len(group_rows) for group_rows in groups.values()) * eval_fraction))
+    task_answers: dict[TaskType, set[str]] = defaultdict(set)
+    for group_rows in groups.values():
+        for row in group_rows:
+            task_answers[row.task_type].add(row.answer)
+    stratified_tasks = {
+        task_type
+        for task_type, answers in task_answers.items()
+        if 1 < len(answers) <= max_stratified_answers_per_task
+    }
+    strata_to_groups: dict[tuple[TaskType, str], set[str]] = defaultdict(set)
+    for group_id, group_rows in groups.items():
+        for row in group_rows:
+            if row.task_type in stratified_tasks:
+                strata_to_groups[(row.task_type, row.answer)].add(group_id)
+
+    eval_groups: set[str] = set()
+    for stratum, candidate_groups in sorted(
+        strata_to_groups.items(),
+        key=lambda item: (len(item[1]), str(item[0][0]), item[0][1]),
+    ):
+        if any(group_id in eval_groups for group_id in candidate_groups):
+            continue
+        eval_groups.add(
+            min(
+                candidate_groups,
+                key=lambda group_id: (
+                    _stable_bucket(f"{stratum[0]}:{stratum[1]}:{group_id}", seed, 1_000_000),
+                    len(groups[group_id]),
+                    group_id,
+                ),
+            )
+        )
+
+    for group_id in sorted(
+        groups,
+        key=lambda value: (_stable_bucket(value, seed, 1_000_000), value),
+    ):
+        if sum(len(groups[selected]) for selected in eval_groups) >= target_rows:
+            break
+        eval_groups.add(group_id)
+    return eval_groups
 
 
 def _representative_group_rows(rows: list[PublicTaskRow]) -> list[PublicTaskRow]:

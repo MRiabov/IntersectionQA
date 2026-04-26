@@ -306,7 +306,7 @@ def build_dataset_card(dataset_dir: Path) -> str:
             ),
             *(
                 [
-                    "- `axis_aligned_repair`, `axis_aligned_repair_vector`, `axis_aligned_repair_program`, `target_clearance_repair`, `target_clearance_move`, `target_contact_move`, and `centroid_distance_move` use exact CadQuery checks, then publish one-decimal distance/vector labels with numeric tolerance metadata.",
+                    "- `axis_aligned_repair`, `axis_aligned_repair_vector`, `axis_aligned_repair_program`, `target_clearance_repair`, `target_clearance_move`, and `target_contact_move` use exact CadQuery checks, then publish one-decimal distance/vector labels with numeric tolerance metadata. `centroid_distance_move` exact-verifies centroid distance and preserves non-intersection by exact check or AABB-disjoint certificate.",
                     "- `edit_candidate_selection` and `edit_candidate_ranking` expose verifier-scored candidate edits for discrete evaluation and RL-style reward experiments.",
                 ]
                 if has_intersectionedit_exact

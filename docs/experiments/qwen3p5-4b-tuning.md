@@ -7,22 +7,22 @@ out of the general text fine-tuning runbook.
 
 ### April 25, 2026 GRPO/GSPO Pilot
 
-- Dataset: `data/intersectionedit_grpo_pilot_inner_all`
-- Source release candidate: `data/intersectionedit_grpo_pilot`
+- Dataset: `data/intersectionedit_grpo_pilot_balanced_inner_all`
+- Source release candidate: `data/intersectionedit_grpo_pilot_balanced`
 - Model: `unsloth/Qwen3.5-4B`
 - Method: Unsloth/TRL GRPO with sequence-level importance sampling
   (`--importance-sampling-level sequence`, GSPO-style) and DAPO loss
 - Training split hygiene: public `train` only, then group-safe
   `inner_train`/`inner_eval`
-- Internal rows: 1,627 train, 200 eval
-- Public release-candidate rows: 2,565 total from 500 CADEvolve-backed geometry
+- Internal rows: 1,956 train, 217 eval
+- Public release-candidate rows: 2,821 total from 500 CADEvolve-backed geometry
   records
 - Public validation: `scripts.validate_dataset` passed and leakage audit status
   is `pass`
 - Status: A100 canaries and stratified 50-step continuations completed, with
-  checkpointed artifacts. The 300-step pilot remains blocked because accuracy is
-  still concentrated in easy tolerance/relation rows and does not cover repair,
-  movement, or bucket tasks.
+  checkpointed artifacts. A rebuilt balanced-data canary also completed, but the
+  300-step pilot remains blocked because accuracy is still concentrated in easy
+  tolerance/bucket rows and does not cover repair or movement tasks.
 
 The initial `configs/repair_smoke.yaml` path was confirmed to be a tiny smoke
 configuration (`geometry_limit: 100`). Exact `axis_aligned_repair` and candidate
@@ -44,10 +44,11 @@ Prepared split report:
 
 ```json
 {
-  "input_rows": 1827,
-  "selected_rows": 1827,
-  "inner_train_rows": 1627,
-  "inner_eval_rows": 200,
+  "input_rows": 2173,
+  "selected_rows": 2173,
+  "inner_train_rows": 1956,
+  "inner_eval_rows": 217,
+  "balance_task_answers": true,
   "scope": "all"
 }
 ```
@@ -238,6 +239,56 @@ Stratified canary follow-up:
   `train_result.json`, `checkpoint-50`, final adapter, and the compressed
   remote artifact bundle.
 - Vast instance `35603017` was destroyed after artifact retrieval; `show
+  instances --raw` returned `[]`.
+
+Balanced-source canary follow-up:
+
+- The source-side repair-direction fix was carried into a fresh release
+  candidate at `data/intersectionedit_grpo_pilot_balanced`: 500
+  CADEvolve-backed geometries, 2,821 rows, leakage audit `pass`, and exact
+  stored-repair verification at `338/338` repaired rows. Public train contains
+  all six repair directions; the full dataset uses conservative repair rows
+  plus target-clearance/contact/centroid movement and QA rows.
+- Row materialization was profiled and sped up. The repair prompt materializer
+  now caches placed shape context, reuses stored world AABBs/volumes, and uses
+  an AABB-disjoint certificate for centroid-distance non-intersection when
+  possible. The 120-record edit-row probe dropped from about `69s` to `34.8s`;
+  the 500-geometry balanced release build completed in `211s` with warm caches.
+- Release-report generation was also sped up by avoiding redundant CAD replay:
+  tool-assisted upper-bound metrics use stored exact labels for label-derived
+  QA tasks, OBB baseline local object boxes are cached by source-code hash, and
+  conservative repair verification accepts moved AABB disjointness as an exact
+  non-intersection certificate before falling back to CadQuery.
+- Internal RL splits were rebuilt from public `train` only with group-safe
+  task/answer balancing for low-cardinality answers. The result is 1,956
+  `inner_train` rows and 217 `inner_eval` rows; inner eval now includes all six
+  repair directions instead of missing `-y`.
+- The balanced canary used Vast contract `35606811` on an
+  `NVIDIA A100-SXM4-80GB` at about `$1.09/hr`. Working stack: Torch
+  `2.10.0+cu128`, transformers `5.5.0`, TRL `0.24.0`, Unsloth `2026.4.8`.
+- The 20-step balanced canary used 128 train rows and 64 eval rows with
+  task-then-answer stratified caps. Train task counts were 12-13 rows per
+  family; eval task counts were 6-7 rows per family. It trained
+  `38,756,352` LoRA parameters.
+- Step 20 internal eval reward was `0.2646`, up slightly from step 10
+  `0.2464`, but the failure-focused quality reward fell from `0.3791` at step
+  10 to `0.3678` at step 20. Quality accuracy remained concentrated in
+  `clearance_bucket`, `tolerance_fit`, and `volume_bucket` (`1.0` on one-row
+  samples) plus partial binary/relation (`0.5`). Repair direction,
+  repair translation, centroid movement, target clearance, and target contact
+  were still `0.0` exact; target contact also had `0.5` invalid output rate at
+  step 20.
+- Stop decision: do not launch the 300-step pilot from the balanced canary.
+  The dataset balance issue is fixed, so the remaining blocker is learning
+  signal for repair/movement tasks. Next attempt should reduce eval cost
+  (`max_eval_rows` 16-32) and add supervised/bootstrap reasoning traces or
+  task-specific reward shaping before spending on a longer GRPO run.
+- Local artifact mirror:
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_balanced_canary20/`
+  contains the remote log, `train_metrics.jsonl`, `quality_metrics.jsonl`,
+  `train_result.json`, checkpoints/adapters, and the compressed remote artifact
+  bundle.
+- Vast instance `35606811` was destroyed after artifact retrieval; `show
   instances --raw` returned `[]`.
 
 Initial stratified canary command:

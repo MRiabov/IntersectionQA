@@ -21,6 +21,7 @@ _PLACE_RE = re.compile(
     r"(?P<rotation>\([^)]*\))\)",
     re.MULTILINE,
 )
+_LOCAL_BBOX_CACHE: dict[str, tuple[BoundingBox, BoundingBox]] = {}
 
 
 @dataclass(frozen=True)
@@ -58,13 +59,25 @@ def evaluate_obb_binary(rows: Iterable[PublicTaskRow]) -> BaselineResult:
 
 def obb_overlap_for_row(row: PublicTaskRow) -> bool:
     transforms = _transforms_from_script(row.script)
-    object_code = object_code_from_script(row.script)
-    bbox_a = bounding_box_from_shape(execute_object_code(object_code, "object_a"))
-    bbox_b = bounding_box_from_shape(execute_object_code(object_code, "object_b"))
+    bbox_a, bbox_b = _local_bboxes_for_row(row)
     return obb_overlap(
         obb_from_bbox(bbox_a, transforms["a"]),
         obb_from_bbox(bbox_b, transforms["b"]),
     )
+
+
+def _local_bboxes_for_row(row: PublicTaskRow) -> tuple[BoundingBox, BoundingBox]:
+    cache_key = row.hashes.source_code_hash or object_code_from_script(row.script)
+    cached = _LOCAL_BBOX_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    object_code = object_code_from_script(row.script)
+    bboxes = (
+        bounding_box_from_shape(execute_object_code(object_code, "object_a")),
+        bounding_box_from_shape(execute_object_code(object_code, "object_b")),
+    )
+    _LOCAL_BBOX_CACHE[cache_key] = bboxes
+    return bboxes
 
 
 def obb_from_bbox(bbox: BoundingBox, transform: Transform) -> OrientedBox:

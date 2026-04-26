@@ -442,3 +442,38 @@ loss_type = "dr_grpo"
   still the slow stage when target movement tasks are included. This is local
   CPU time, not GPU spend, but it remains a practical blocker for quickly
   rebuilding larger mixed datasets.
+- [x] Fixed the main local performance regressions found while rebuilding the
+  balanced pilot. Repair/movement row materialization now caches placed
+  shape/bbox/volume context, reuses stored geometry AABBs/volumes, and uses an
+  AABB-disjoint certificate for centroid-distance non-intersection. A 120-record
+  edit-row probe dropped from about `69s` to `34.8s`.
+- [x] Fixed release-report replay overhead. Tool-assisted label-derived metrics
+  now use stored exact labels, OBB baseline caches local object boxes by
+  source-code hash, and conservative repair verification accepts moved-AABB
+  disjointness as a proof before falling back to CadQuery.
+- [x] Built a fresh balanced IntersectionEdit/QA release candidate at
+  `data/intersectionedit_grpo_pilot_balanced`: 500 CADEvolve geometries, 2,821
+  rows, leakage `pass`, exact stored-repair verification `338/338`, and
+  repair-direction verifier success `169/169` with all six directions present.
+- [x] Rebuilt internal RL splits from public `train` only at
+  `data/intersectionedit_grpo_pilot_balanced_inner_all`, with group-safe
+  task/answer balancing for low-cardinality labels. The split has 1,956
+  `inner_train` rows and 217 `inner_eval` rows; inner eval now includes every
+  repair direction, including `-y`.
+- [x] Local GRPO smoke remains blocked on this laptop because the local
+  environment has no `torch`; GPU smoke was used instead.
+- [x] Rented A100 contract `35606811` for the balanced canary. Working stack:
+  Torch `2.10.0+cu128`, transformers `5.5.0`, TRL `0.24.0`, Unsloth
+  `2026.4.8`.
+- [x] Ran a 20-step balanced-data GRPO canary on 128 train rows and 64 eval
+  rows with task-then-answer stratified caps. Step 20 internal eval reward was
+  `0.2646`, and final failure-focused quality reward was `0.3678`, down from
+  `0.3791` at step 10. Repair direction, repair translation, centroid
+  movement, target clearance, and target contact remained `0.0` exact in the
+  quality sample, so the 300-step pilot is still stopped.
+- [x] Pulled balanced-canary artifacts into
+  `data/training_artifacts/grpo_qwen3p5_4b_intersectionqa_edit_balanced_canary20/`,
+  including remote logs, metrics JSONL files, `train_result.json`, checkpoints,
+  adapter files, and the compressed remote artifact bundle.
+- [x] Destroyed Vast instance `35606811`; `vastai show instances --raw`
+  returned `[]`.
