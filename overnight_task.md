@@ -285,6 +285,10 @@ loss_type = "dr_grpo"
   instance, and record the result.
 - [x] Add penalized signed-distance reward credit for bare one-decimal movement
   answers observed in the feature-canary failures.
+- [x] Continue the edit-geometry feature run with lenient signed-distance reward
+  to step 30, pull artifacts, destroy the H100 instance, and record the result.
+- [x] Stop before a 300-step pilot because checkpoint-20 was best and
+  repair-translation exact accuracy remained `0.0`.
 
 ## Done
 

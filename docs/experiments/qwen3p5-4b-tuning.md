@@ -423,6 +423,39 @@ Edit geometry feature-exposure H100 canary:
   `checkpoint-10`, and adapter files. Vast instance `35610089` was destroyed
   after artifact retrieval; `show instances --raw` returned `[]`.
 
+Feature + lenient signed-distance continuation:
+
+- Vast contract `35610767` resumed the edit-geometry feature run on an
+  `NVIDIA H100 NVL`, using Torch `2.10.0+cu128`, transformers `5.5.0`,
+  TRL `0.24.0`, and Unsloth `2026.4.8`.
+- The continuation resumed from
+  `/root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_feature_canary10/checkpoint-10`
+  with `--prompt-feature-mode edit_geometry`, penalized semantic reward credit
+  for bare one-decimal signed-distance answers, 128 train rows, 16 eval rows,
+  4 generations, and a 30-step cap.
+- Step-20 was the best checkpoint. Train reward rose to `0.7519`, internal eval
+  reward reached `0.5716`, and the 16-row quality reward improved to `0.7303`.
+  Tiny-sample exact accuracy by task at step 20 was: binary `0.5`,
+  centroid-distance move `1.0`, clearance bucket `1.0`, relation `0.5`,
+  repair direction `0.5`, repair translation `0.0`, target clearance move
+  `0.5`, target contact move `1.0`, tolerance fit `1.0`, and volume bucket
+  `1.0`.
+- Step-30 did not justify extension. The quality probe stayed at `0.7303`, but
+  train reward fell to `0.3800`, internal eval reward fell to `0.4412`, and
+  train loss ended at `0.0674`. This preserves checkpoint-20 as the best
+  checkpoint from the continuation rather than the final checkpoint.
+- Stop decision: do not launch the 300-step pilot from this run. Feature
+  exposure plus lenient signed-distance reward now gives strong movement-task
+  signal, especially target contact and target clearance, but repair
+  translation remains `0.0` exact. The next run should target
+  repair-translation curriculum or task-specific prompt/reward changes before a
+  longer GRPO spend.
+- Local artifact mirror:
+  `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_feature_lenient_continue30/feature_lenient_continue30_artifacts.tar.gz`
+  contains the remote log, train/quality metrics, `train_result.json`,
+  checkpoints 10/20/30, and adapter files. Vast instance `35610767` was
+  destroyed after artifact retrieval; `show instances --raw` returned `[]`.
+
 Reasoning-SFT bootstrap command:
 
 ```bash
