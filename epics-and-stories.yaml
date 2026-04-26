@@ -82,6 +82,7 @@ current_snapshot:
     - grpo_format_scaffold_reward
     - grpo_task_stratified_canary_sampling
     - grpo_failure_focused_quality_samples
+    - grpo_final_quality_eval_logging
     - grpo_text_tokenizer_training_path
     - qwen3p5_4b_intersectionedit_grpo_canary_checkpoint
     - qwen3p5_4b_intersectionedit_grpo_format_pilot50_artifact
@@ -1352,9 +1353,10 @@ epics:
           covered every task family under 128-row/32-row caps and saved
           `checkpoint-50` plus a final adapter, but final internal eval reward was only
           `0.3191` and failure-focused samples still showed wrong repair direction,
-          repair translation, movement distance, and volume-bucket answers. The 300-step
-          pilot remains stopped until the prompt, reward, or bootstrap data changes the
-          learning signal for those families.
+          repair translation, movement distance, and volume-bucket answers. The runner now
+          writes a final quality record after `trainer.train()` when the periodic callback
+          misses the final step after resume. The 300-step pilot remains stopped until the
+          prompt, reward, or bootstrap data changes the learning signal for those families.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit

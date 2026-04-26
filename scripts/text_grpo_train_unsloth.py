@@ -139,19 +139,21 @@ def main() -> None:
     checkpoint = resolve_checkpoint(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     trainer.add_callback(MetricsJsonlCallback(args.output_dir / args.metrics_log_file, append=checkpoint is not None))
+    quality_callback: ReasoningQualityCallback | None = None
     if args.quality_eval_steps > 0:
-        trainer.add_callback(
-            ReasoningQualityCallback(
-                path=args.output_dir / args.quality_metrics_log_file,
-                rows=eval_rows[: args.quality_eval_max_rows],
-                tokenizer=text_tokenizer,
-                every_steps=args.quality_eval_steps,
-                max_new_tokens=args.quality_max_new_tokens,
-                sample_count=args.quality_sample_count,
-                append=checkpoint is not None,
-            )
+        quality_callback = ReasoningQualityCallback(
+            path=args.output_dir / args.quality_metrics_log_file,
+            rows=eval_rows[: args.quality_eval_max_rows],
+            tokenizer=text_tokenizer,
+            every_steps=args.quality_eval_steps,
+            max_new_tokens=args.quality_max_new_tokens,
+            sample_count=args.quality_sample_count,
+            append=checkpoint is not None,
         )
+        trainer.add_callback(quality_callback)
     result = trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None)
+    if quality_callback is not None:
+        quality_callback.write_quality(trainer.model, trainer.state.global_step, phase="final")
     adapter_dir = args.output_dir / "adapter"
     trainer.save_model(str(adapter_dir))
     text_tokenizer.save_pretrained(adapter_dir)
@@ -357,7 +359,12 @@ class ReasoningQualityCallback(TrainerCallback):
             return
         if state.global_step == 0 or state.global_step % self.every_steps != 0:
             return
-        self._last_step = state.global_step
+        self.write_quality(model, state.global_step, phase="periodic")
+
+    def write_quality(self, model: Any, step: int, *, phase: str) -> None:
+        if not self.rows or step <= 0 or step == self._last_step:
+            return
+        self._last_step = step
         predictions = generate_predictions(
             model,
             self.tokenizer,
@@ -389,7 +396,8 @@ class ReasoningQualityCallback(TrainerCallback):
             )
         payload = {
             "timestamp": datetime.now(UTC).isoformat(),
-            "step": state.global_step,
+            "step": step,
+            "phase": phase,
             "rows": len(self.rows),
             "reward_mean": sum(reward_values) / len(reward_values) if reward_values else 0.0,
             "metrics": [metric.__dict__ for metric in metrics],

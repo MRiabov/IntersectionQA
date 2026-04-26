@@ -206,6 +206,9 @@ Stratified canary follow-up:
   eval reward was `0.3191` at step 50, down from `0.3475` at step 40. The
   quality callback logged step 30 only because the resumed trainer kept
   mismatched checkpoint/eval cadence; step 30 quality was `0.4031`.
+- The runner was patched after this run to always write a final quality record
+  after `trainer.train()` when quality eval is enabled, unless that same final
+  step was already logged by the periodic callback.
 - Failure-focused samples were stable and useful: repair direction still
   predicted `-z` for `+x`/`+z`, repair translation predicted
   `+y 34.000000` for `+z 120.000100`, target-clearance predicted

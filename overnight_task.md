@@ -406,6 +406,9 @@ loss_type = "dr_grpo"
   step-30 quality probe was only `0.4031`. The final quality callback did not
   log a step-50 record because the resumed trainer kept mismatched eval/save
   cadence, so the reliable final metric is the internal eval reward.
+- [x] Patched the GRPO runner to always write a final quality record after
+  `trainer.train()` when quality eval is enabled, unless the periodic callback
+  already logged that same final step.
 - [x] Preserved failure-focused samples from the stratified run. They show the
   same competence gap as before: repair direction predicts `-z` for `+x`/`+z`,
   repair translation predicts `+y 34.000000` for `+z 120.000100`, target
