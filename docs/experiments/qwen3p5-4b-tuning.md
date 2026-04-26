@@ -410,6 +410,13 @@ Edit geometry feature-exposure H100 canary:
   repair direction, but repair translation and target-clearance movement remain
   unsolved. The next spend should be a bounded continuation or 20-50 step
   canary from this checkpoint, not an overnight extension.
+- Follow-up reward prep: feature-canary samples showed target-movement answers
+  often had the right signed number but omitted the required `distance_mm=`
+  prefix. The reward path now gives penalized semantic credit for bare
+  one-decimal signed distances while reserving full credit for canonical
+  `distance_mm=<one decimal>` answers. This should reduce the all-or-nothing
+  invalid reward on target-clearance/contact movement without changing public
+  strict parsing.
 - Local artifact mirror:
   `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_feature_canary10/feature_canary10_artifacts.tar.gz`
   contains the remote log, train/quality metrics, `train_result.json`,

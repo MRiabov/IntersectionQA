@@ -283,6 +283,8 @@ loss_type = "dr_grpo"
   spending on another run.
 - [x] Run the edit-geometry feature canary, pull artifacts, destroy the H100
   instance, and record the result.
+- [x] Add penalized signed-distance reward credit for bare one-decimal movement
+  answers observed in the feature-canary failures.
 
 ## Done
 
@@ -553,6 +555,11 @@ loss_type = "dr_grpo"
   `data/training_artifacts/qwen3p5_4b_intersectionqa_edit_feature_canary10/feature_canary10_artifacts.tar.gz`
   and destroyed Vast instance `35610089`; `vastai show instances --raw`
   returned `[]`.
+- [x] Added reward-only leniency for bare signed-distance movement answers such
+  as `<answer>-1.5</answer>`. Full credit still requires the canonical
+  `distance_mm=<one decimal>` format, but target-movement samples with the right
+  number no longer collapse to format-scaffold reward only. Focused validation
+  passed with 31 tests.
 
 Successful GPU bootstrap command:
 

@@ -184,6 +184,27 @@ def test_target_clearance_move_reward_gives_signed_numeric_credit():
     assert invalid.reward == 0.0
 
 
+def test_target_clearance_move_reward_gives_partial_credit_for_bare_signed_number():
+    rows, _ = build_smoke_rows(
+        DatasetConfig(
+            smoke=SmokeConfig(
+                include_cadevolve_if_available=False,
+                geometry_limit=7,
+                task_types=[TaskType.TARGET_CLEARANCE_MOVE],
+            )
+        )
+    )
+    row = rows[0]
+    bare_value = row.answer.replace("distance_mm=", "")
+    exact = reward_prediction(row, row.answer)
+    bare = reward_prediction(row, f"<answer>{bare_value}</answer>")
+
+    assert bare.parsed_output == row.answer
+    assert bare.failure_reason == "noncanonical_signed_distance"
+    assert bare.components["bare_signed_distance"] == 1.0
+    assert 0.03 < bare.reward < exact.reward
+
+
 def test_target_contact_move_reward_uses_signed_distance():
     rows, _ = build_smoke_rows(
         DatasetConfig(

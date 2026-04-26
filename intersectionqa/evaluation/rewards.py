@@ -14,6 +14,7 @@ from intersectionqa.schema import PublicTaskRow
 AXIS_REPAIR_RE = re.compile(r"^direction=(\+x|-x|\+y|-y|\+z|-z), distance_mm=([0-9]+)\.([0-9])$")
 REPAIR_TRANSLATION_RE = re.compile(r"^(\+x|-x|\+y|-y|\+z|-z) ([0-9]+)\.([0-9]{6})$")
 SIGNED_DISTANCE_RE = re.compile(r"^distance_mm=(-?[0-9]+)\.([0-9])$")
+BARE_SIGNED_DISTANCE_RE = re.compile(r"^(-?[0-9]+)\.([0-9])$")
 TRANSLATION_VECTOR_RE = re.compile(
     r"^dx=(-?[0-9]+)\.([0-9]), dy=(-?[0-9]+)\.([0-9]), dz=(-?[0-9]+)\.([0-9])$"
 )
@@ -55,6 +56,22 @@ def reward_from_fields(
     candidate_output, format_components = canonical_answer_candidate(output)
     parsed = parse_answer(task_type, candidate_output)
     if parsed is None:
+        if task_type in {
+            TaskType.TARGET_CLEARANCE_MOVE,
+            TaskType.TARGET_CONTACT_MOVE,
+            TaskType.CENTROID_DISTANCE_MOVE,
+        }:
+            lenient_signed = _bare_signed_distance_answer(candidate_output)
+            if lenient_signed is not None:
+                return _lenient_signed_distance_result(
+                    row_id=row_id,
+                    task_type=task_type,
+                    answer=answer,
+                    metadata=metadata,
+                    output=output,
+                    parsed=lenient_signed,
+                    format_components=format_components,
+                )
         scaffold_reward = _format_scaffold_reward(format_components)
         return RewardResult(
             row_id=row_id,
@@ -116,6 +133,42 @@ def _format_scaffold_reward(format_components: dict[str, float]) -> float:
     if format_components.get("answer_tag", 0.0) <= 0.0:
         return 0.0
     return 0.03 + 0.02 * format_components.get("reasoning_format", 0.0)
+
+
+def _lenient_signed_distance_result(
+    *,
+    row_id: str,
+    task_type: TaskType,
+    answer: str,
+    metadata: dict[str, Any],
+    output: str,
+    parsed: str,
+    format_components: dict[str, float],
+) -> RewardResult:
+    reward, components = _signed_distance_reward(answer, parsed, metadata)
+    format_penalty = 0.75
+    answer_format_reward = 0.05 * format_components["format"]
+    final_reward = max(_clamp01(reward * format_penalty * format_components["format"]), answer_format_reward)
+    return RewardResult(
+        row_id=row_id,
+        task_type=task_type,
+        output=output,
+        parsed_output=parsed,
+        reward=final_reward,
+        components={
+            key: _clamp01(value)
+            for key, value in {
+                **format_components,
+                **components,
+                "answer_format": 0.0,
+                "canonical_format": 0.0,
+                "bare_signed_distance": 1.0,
+                "format_penalty": format_penalty,
+                "answer_format_reward": answer_format_reward,
+            }.items()
+        },
+        failure_reason="noncanonical_signed_distance",
+    )
 
 
 def _axis_repair_reward(
@@ -387,6 +440,16 @@ def _signed_distance_answer_part(value: str) -> float | None:
     if match is None:
         return None
     return float(f"{match.group(1)}.{match.group(2)}")
+
+
+def _bare_signed_distance_answer(value: str) -> str | None:
+    match = BARE_SIGNED_DISTANCE_RE.match(value.strip())
+    if match is None:
+        return None
+    magnitude = float(f"{match.group(1)}.{match.group(2)}")
+    if not math.isfinite(magnitude):
+        return None
+    return f"distance_mm={match.group(1)}.{match.group(2)}"
 
 
 def _repair_translation_parts(value: str) -> tuple[str, float] | None:
