@@ -12,6 +12,7 @@ from typing import Any
 
 from unsloth import FastModel
 from datasets import Dataset
+from peft import PeftModel
 import torch
 from transformers import TrainerCallback
 from trl import GRPOConfig, GRPOTrainer
@@ -58,6 +59,7 @@ def main() -> None:
     parser.add_argument("--save-total-limit", type=int, default=3)
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=16)
+    parser.add_argument("--adapter-init-dir", type=Path)
     parser.add_argument("--load-in-4bit", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--load-in-16bit", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--importance-sampling-level", choices=["token", "sequence"], default="sequence")
@@ -107,19 +109,22 @@ def main() -> None:
     text_tokenizer = text_tokenizer_from_processing_class(tokenizer)
     if text_tokenizer.pad_token is None:
         text_tokenizer.pad_token = text_tokenizer.eos_token
-    model = FastModel.get_peft_model(
-        model,
-        finetune_language_layers=True,
-        finetune_attention_modules=True,
-        finetune_mlp_modules=True,
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=0,
-        bias="none",
-        random_state=args.seed,
-        use_rslora=False,
-        loftq_config=None,
-    )
+    if args.adapter_init_dir:
+        model = PeftModel.from_pretrained(model, str(args.adapter_init_dir), is_trainable=True)
+    else:
+        model = FastModel.get_peft_model(
+            model,
+            finetune_language_layers=True,
+            finetune_attention_modules=True,
+            finetune_mlp_modules=True,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=0,
+            bias="none",
+            random_state=args.seed,
+            use_rslora=False,
+            loftq_config=None,
+        )
     FastModel.for_training(model)
     ensure_transformers_warning_state(model)
 
@@ -177,6 +182,7 @@ def main() -> None:
         "importance_sampling_level": args.importance_sampling_level,
         "loss_type": args.loss_type,
         "scale_rewards": args.scale_rewards,
+        "adapter_init_dir": str(args.adapter_init_dir) if args.adapter_init_dir else None,
         "train_loss": result.training_loss,
         "output_dir": str(args.output_dir),
         "resumed_from_checkpoint": str(checkpoint) if checkpoint else None,

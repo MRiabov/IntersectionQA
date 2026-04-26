@@ -253,13 +253,18 @@ def load_rows(
 
 
 def to_sft_example(tokenizer, row: dict) -> dict:
+    assistant_text = str(row.get("target_text", row["answer"]))
     messages = [
         {
             "role": "system",
-            "content": "Answer the IntersectionQA prompt with only the canonical answer token.",
+            "content": (
+                "Return the requested supervised target text."
+                if "target_text" in row
+                else "Answer the IntersectionQA prompt with only the canonical answer token."
+            ),
         },
         {"role": "user", "content": row["prompt"].rstrip()},
-        {"role": "assistant", "content": row["answer"]},
+        {"role": "assistant", "content": assistant_text},
     ]
     text = tokenizer.apply_chat_template(messages, tokenize=False)
     if tokenizer.eos_token and not text.endswith(tokenizer.eos_token):

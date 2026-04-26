@@ -291,6 +291,74 @@ Balanced-source canary follow-up:
 - Vast instance `35606811` was destroyed after artifact retrieval; `show
   instances --raw` returned `[]`.
 
+Reasoning-SFT bootstrap follow-up:
+
+- Added `scripts/prepare_reasoning_sft_dataset.py` and
+  `intersectionqa.training.reasoning_traces` to materialize internal supervised
+  completions in `<think>...</think><answer>...</answer>` format. The public
+  canonical `answer` field remains unchanged; the SFT-only completion is stored
+  in `target_text`, with `canonical_answer` copied for auditability.
+- Materialized `data/intersectionedit_grpo_pilot_balanced_reasoning_sft/` from
+  `data/intersectionedit_grpo_pilot_balanced_inner_all` using only public-train
+  internal splits: 1,956 `inner_train` rows and 217 `inner_eval` rows. The task
+  mix matches the balanced RL split, including all repair/movement families.
+- Updated SFT runners to train on `target_text` when present while evaluating
+  canonical answers, and updated `scripts/text_grpo_train_unsloth.py` with
+  `--adapter-init-dir` so GRPO can initialize from the short reasoning-SFT
+  adapter.
+- This is the next compute path before any 300-step GRPO run: run a short SFT
+  bootstrap canary, then a 20-step GRPO canary from that adapter. Extend only if
+  repair direction, repair translation, and movement exact/within-tolerance
+  metrics improve over the balanced canary.
+
+Reasoning-SFT bootstrap command:
+
+```bash
+python scripts/text_sft_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_grpo_pilot_balanced_reasoning_sft \
+  --model unsloth/Qwen3.5-4B \
+  --output-dir /root/outputs/sft_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap \
+  --train-splits inner_train \
+  --eval-splits inner_eval \
+  --task-types binary_interference centroid_distance_move clearance_bucket relation_classification repair_direction repair_translation target_clearance_move target_contact_move tolerance_fit volume_bucket \
+  --max-train-rows 512 \
+  --max-eval-rows 64 \
+  --max-steps 100 \
+  --max-seq-length 2048 \
+  --gradient-accumulation-steps 8 \
+  --learning-rate 2e-4 \
+  --quality-eval-steps 50 \
+  --quality-eval-max-rows 32 \
+  --quality-max-new-tokens 128
+```
+
+GRPO-from-bootstrap canary command:
+
+```bash
+python scripts/text_grpo_train_unsloth.py \
+  --dataset-dir /root/intersectionedit_grpo_pilot_balanced_inner_all \
+  --model unsloth/Qwen3.5-4B \
+  --adapter-init-dir /root/outputs/sft_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap/adapter \
+  --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap_canary \
+  --train-splits inner_train \
+  --eval-splits inner_eval \
+  --max-train-rows 128 \
+  --max-eval-rows 32 \
+  --max-steps 20 \
+  --max-prompt-length 2048 \
+  --max-completion-length 256 \
+  --num-generations 4 \
+  --eval-steps 10 \
+  --save-steps 10 \
+  --quality-eval-steps 10 \
+  --quality-eval-max-rows 16 \
+  --quality-max-new-tokens 128 \
+  --quality-sample-count 16 \
+  --importance-sampling-level sequence \
+  --loss-type dapo \
+  --temperature 0.7
+```
+
 Initial stratified canary command:
 
 ```bash

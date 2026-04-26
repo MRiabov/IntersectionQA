@@ -18,6 +18,8 @@ from datasets import Dataset
 from trl import SFTConfig, SFTTrainer
 from transformers import Trainer, TrainerCallback
 
+from intersectionqa.evaluation.parsing import canonical_answer_candidate
+
 
 DEFAULT_TASK_TYPES = (
     "binary_interference",
@@ -480,7 +482,8 @@ def prompt_only_text(tokenizer: Any, row: dict) -> str:
 def normalize_answer(value: str) -> str:
     import re
 
-    text = value.strip().splitlines()[0].strip()
+    candidate, _format_components = canonical_answer_candidate(value)
+    text = candidate.strip().splitlines()[0].strip()
     text = re.sub(r"^['\"`]+|['\"`.,;:]+$", "", text)
     return text.strip().lower()
 
@@ -616,7 +619,8 @@ def load_rows(
 
 def to_sft_example(tokenizer: Any, row: dict) -> dict:
     user_message = {"role": "user", "content": row["prompt"]}
-    assistant_message = {"role": "assistant", "content": str(row["answer"])}
+    assistant_text = str(row.get("target_text", row["answer"]))
+    assistant_message = {"role": "assistant", "content": assistant_text}
     messages = [
         user_message,
         assistant_message,

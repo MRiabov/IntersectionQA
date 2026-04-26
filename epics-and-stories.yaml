@@ -30,7 +30,7 @@ ordering:
   rule: Epics and stories follow the matrix order; priority, complexity, recommendation, and MVP notes are copied from that matrix.
 current_snapshot:
   date: "2026-04-26"
-  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. CADEvolve gap placement now cycles object-pair placements across all six signed axes so new repair-direction/translation rows can include negative as well as positive directions. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Repair/movement materialization now reuses stored AABBs/volumes and AABB-disjoint centroid certificates, and release reports avoid redundant CAD replay for label-derived metrics, OBB local boxes, and conservative repair certificates. A fresh balanced release candidate has 2,821 rows from 500 geometries and all six repair directions, with group-safe task/answer-balanced internal RL splits. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; format-scaffold rewards fixed parse-invalid completions. Task-stratified and task-answer-stratified capped sampling fixed rare-family coverage for canaries, but balanced-data GRPO still fails repair/movement tasks, so the 300-step pilot remains stopped until the learning signal changes.
+  codebase_state: MVP vertical slice is implemented for schema/config, CadQuery-backed object validation and exact smoke geometry, prompt generation, JSONL export/validation, grouped splits, AABB diagnostics, metrics, and smoke dataset scripts. CADEvolve object ingestion is available from a local tar archive, and the smoke pipeline now generates CADEvolve-derived public task rows through bbox-guided two-object assemblies with exact CadQuery/OpenCASCADE labels. Synthetic fixtures remain fallback/golden rows only. Recent hardening fixes deterministic sorted CADEvolve member selection, isolated-worker result retrieval, cached-shape mutation, AABB-disjoint Boolean short-circuiting, label-consistency rejection for impossible overlap/touching states, optional topology/operation held-out split routing from stored metadata, and release-gated exact verification for IntersectionEdit repair rows. CADEvolve gap placement now cycles object-pair placements across all six signed axes so new repair-direction/translation rows can include negative as well as positive directions. A fresh CADEvolve smoke sample has been rendered and manually checked. IntersectionEdit now includes opt-in `repair_direction`, `repair_translation`, target-clearance movement, target-contact movement, and centroid-distance movement rows in a validated fast GRPO pilot release candidate. Exact axis-aligned repair and candidate rows are implemented and the label search has been sped up by caching shape context plus avoiding repeated CAD Boolean calls inside search predicates, but the exact family is still not included in the overnight CADEvolve training build. Repair/movement materialization now reuses stored AABBs/volumes and AABB-disjoint centroid certificates, and release reports avoid redundant CAD replay for label-derived metrics, OBB local boxes, and conservative repair certificates. A fresh balanced release candidate has 2,821 rows from 500 geometries and all six repair directions, with group-safe task/answer-balanced internal RL splits. Qwen3.5 4B GRPO canary infrastructure ran on Vast A100 with saved checkpoint artifacts; format-scaffold rewards fixed parse-invalid completions. Task-stratified and task-answer-stratified capped sampling fixed rare-family coverage for canaries, but balanced-data GRPO still fails repair/movement tasks, so the 300-step pilot remains stopped until the learning signal changes. The next path now has internal tagged-reasoning SFT bootstrap rows, SFT runners that train on `target_text` while preserving canonical answers, and GRPO adapter initialization from an SFT LoRA.
   stable_features:
     - package_structure
     - pydantic_schema_models
@@ -80,8 +80,11 @@ current_snapshot:
     - intersectionedit_balanced_grpo_pilot_release_candidate
     - intersectionedit_group_safe_mixed_grpo_splits
     - intersectionedit_group_safe_task_answer_balanced_grpo_splits
+    - intersectionedit_reasoning_sft_bootstrap_dataset
     - intersectionedit_reasoning_grpo_reward_runner
     - reasoning_answer_tag_eval_metrics
+    - sft_target_text_supervision
+    - grpo_adapter_init_from_sft
     - grpo_format_scaffold_reward
     - grpo_task_stratified_canary_sampling
     - grpo_task_answer_stratified_canary_sampling
@@ -1373,7 +1376,12 @@ epics:
           with final eval reward `0.2646` and final quality reward `0.3678`; repair and
           movement exact accuracy remained `0.0`, so the 300-step pilot remains stopped
           until the prompt, reward shaping, or supervised/bootstrap data changes the
-          learning signal for those families.
+          learning signal for those families. The supervised/bootstrap path now has
+          `data/intersectionedit_grpo_pilot_balanced_reasoning_sft`, which preserves
+          canonical `answer` fields and writes tagged reasoning completions to
+          `target_text` for 1,956 train rows and 217 eval rows; SFT runners consume
+          `target_text` when present, and the GRPO runner can initialize from the
+          resulting LoRA adapter via `--adapter-init-dir`.
       - id: "15.22"
         title: IntersectionEdit failure-mode analysis
         track: intersectionedit

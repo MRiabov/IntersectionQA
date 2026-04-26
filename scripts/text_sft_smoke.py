@@ -102,13 +102,18 @@ def _load_rows(dataset_dir: Path, *, limit: int) -> list[dict]:
 
 
 def _chat_text(tokenizer, row: dict) -> str:
+    assistant_text = str(row.get("target_text", row["answer"]))
     messages = [
         {
             "role": "system",
-            "content": "Answer the IntersectionQA prompt with only the canonical answer token.",
+            "content": (
+                "Return the requested supervised target text."
+                if "target_text" in row
+                else "Answer the IntersectionQA prompt with only the canonical answer token."
+            ),
         },
         {"role": "user", "content": row["prompt"]},
-        {"role": "assistant", "content": row["answer"]},
+        {"role": "assistant", "content": assistant_text},
     ]
     return tokenizer.apply_chat_template(messages, tokenize=False)
 
