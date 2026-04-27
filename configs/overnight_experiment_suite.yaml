@@ -186,7 +186,6 @@ runs:
       - answer_sft_full
     dataset_dir: data/IntersectionQA-90K
     model: unsloth/Qwen3.5-4B
-    adapter_init_dir: runs/answer_sft_full/adapter
     train_splits: [train]
     eval_splits: [validation]
     prompt_mode: public_reasoning
@@ -204,8 +203,6 @@ runs:
       - data/rejection_sampled_reasoning_sft
       - --model
       - unsloth/Qwen3.5-4B
-      - --adapter-dir
-      - "{run:answer_sft_full}/adapter"
       - --splits
       - train
       - validation
