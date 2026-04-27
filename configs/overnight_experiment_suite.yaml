@@ -1,7 +1,9 @@
 version: 1
 defaults:
   upload:
-    hf_repo_type: dataset
+    hf_bucket: hf://buckets/MRIabov/intersectionqa-qwen3p5-4b-grpo-artifacts
+    prefix: intersectionqa-overnight-2026-04-27/vast-35682721
+    required: true
     fallback_tarball_dir: data/training_artifacts
 runs:
   - name: download_intersectionqa_90k
@@ -445,5 +447,7 @@ runs:
       high_invalid_output_rate: soft
       budget_exhaustion: hard
     upload:
-      hf_bucket: hf://datasets/YOUR_ORG/intersectionqa-experiment-artifacts
+      hf_bucket: hf://buckets/MRIabov/intersectionqa-qwen3p5-4b-grpo-artifacts
+      prefix: intersectionqa-overnight-2026-04-27/vast-35682721
+      required: true
       fallback_tarball: data/training_artifacts/grpo_canary.tar.gz

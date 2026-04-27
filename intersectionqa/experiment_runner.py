@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from intersectionqa.experiments import (
     ExperimentRunSpec,
@@ -45,6 +45,7 @@ class ExperimentRunnerOptions:
     fail_fast: bool = True
     selection: ExperimentSelection = field(default_factory=ExperimentSelection)
     stop_signal_scanner: Callable[[Path], list[dict[str, object]]] = scan_stop_signals
+    bucket_syncer: Callable[[Path, str], dict[str, object]] | None = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +205,7 @@ class ExperimentRunner:
             if expected_artifacts_exist(run_dir, run.expected_artifacts):
                 manager = RunArtifactManager.create(run_dir, resume=True)
                 manager.write_status("skipped", reason="expected_artifacts_exist")
+                sync_run_to_hf_bucket(manager, self._context(run), self.options.bucket_syncer)
                 summary.append(_status(run, run_dir, "skipped"))
                 completed.add(run.name)
                 continue
@@ -286,6 +288,7 @@ class ExperimentRunner:
                 best = select_best_checkpoint(run_dir, run.checkpoint_selection)
                 if best is not None:
                     manager.add_artifact(kind="checkpoint", path=best["destination_path"], role="best", metadata=best)
+                sync_run_to_hf_bucket(manager, context, self.options.bucket_syncer)
                 manager.write_status("success")
                 summary.append(_status(run, run_dir, "success"))
                 completed.add(run.name)
@@ -360,6 +363,100 @@ def expand_command(command: list[str] | str | None, context: ExperimentContext) 
     if isinstance(command, str):
         return _expand_text(command, context)
     return [_expand_text(str(part), context) for part in command]
+
+
+def sync_run_to_hf_bucket(
+    manager: RunArtifactManager,
+    context: ExperimentContext,
+    bucket_syncer: Callable[[Path, str], dict[str, object]] | None = None,
+) -> dict[str, object] | None:
+    config = _upload_config(context)
+    target = config.get("hf_bucket")
+    if not target:
+        return None
+    target = _bucket_target(str(target), context)
+    started = datetime.now(UTC).isoformat()
+    record: dict[str, object] = {
+        "status": "started",
+        "started_at_utc": started,
+        "hf_bucket": target,
+    }
+    (context.run_dir / "bucket_upload.json").write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        syncer = bucket_syncer or _default_bucket_syncer
+        result = syncer(context.run_dir, target)
+        record.update(
+            {
+                "status": "uploaded",
+                "finished_at_utc": datetime.now(UTC).isoformat(),
+                "result": result,
+            }
+        )
+        (context.run_dir / "bucket_upload.json").write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        syncer(context.run_dir, target)
+    except Exception as exc:
+        record.update(
+            {
+                "status": "failed",
+                "finished_at_utc": datetime.now(UTC).isoformat(),
+                "error": str(exc),
+            }
+        )
+        (context.run_dir / "bucket_upload.json").write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        manager.add_artifact(kind="upload", path="bucket_upload.json", role="hf_bucket", metadata=record, checksum=False)
+        if config.get("required", True):
+            raise
+        return record
+
+    manager.add_artifact(kind="upload", path="bucket_upload.json", role="hf_bucket", metadata=record, checksum=False)
+    return record
+
+
+def _upload_config(context: ExperimentContext) -> dict[str, Any]:
+    defaults = context.manifest.defaults.get("upload", {})
+    config: dict[str, Any] = dict(defaults) if isinstance(defaults, dict) else {}
+    config.update(context.run.upload)
+    return config
+
+
+def _bucket_target(bucket: str, context: ExperimentContext) -> str:
+    base = bucket.rstrip("/")
+    if "{run" in base or "{manifest" in base:
+        base = _expand_text(base, context)
+    if "/runs/" in base or base.endswith(f"/{context.run.name}"):
+        return base
+    prefix = _upload_prefix(context)
+    return f"{base}/{prefix}/runs/{context.run.name}"
+
+
+def _upload_prefix(context: ExperimentContext) -> str:
+    configured = _upload_config(context).get("prefix")
+    if configured:
+        return _expand_text(str(configured).strip("/"), context)
+    if context.manifest_path is not None:
+        stem = context.manifest_path.stem
+    else:
+        stem = "experiment_suite"
+    return stem
+
+
+def _default_bucket_syncer(source: Path, target: str) -> dict[str, object]:
+    from huggingface_hub import sync_bucket
+
+    result = sync_bucket(str(source), target)
+    summary = getattr(result, "summary", None)
+    if callable(summary):
+        return dict(summary())
+    return {"target": target}
 
 
 def index_common_artifacts(manager: RunArtifactManager, run: ExperimentRunSpec) -> None:

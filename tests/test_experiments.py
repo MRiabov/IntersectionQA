@@ -147,6 +147,57 @@ def test_orchestrator_runs_and_skips_completed_manifest(tmp_path, monkeypatch):
     assert any(item["kind"] == "prediction" for item in artifacts["artifacts"])
 
 
+def test_orchestrator_syncs_completed_runs_to_hf_bucket(tmp_path, monkeypatch):
+    run_dir = tmp_path / "runs" / "smoke"
+    manifest = ExperimentSuiteManifest.model_validate(
+        {
+            "version": 1,
+            "defaults": {
+                "upload": {
+                    "hf_bucket": "hf://buckets/example/artifacts",
+                    "prefix": "nightly",
+                }
+            },
+            "runs": [
+                {
+                    "name": "smoke",
+                    "kind": "eval",
+                    "command": [
+                        "python",
+                        "-c",
+                        f"from pathlib import Path; Path({str(run_dir)!r}, 'metric.jsonl').write_text('{{}}\\n')",
+                    ],
+                    "output_dir": str(run_dir),
+                    "artifacts": ["metric.jsonl"],
+                }
+            ],
+        }
+    )
+    calls = []
+
+    monkeypatch.setattr("intersectionqa.experiment_runner.scan_stop_signals", lambda _run_dir: [])
+    runner = ExperimentRunner(
+        manifest,
+        options=ExperimentRunnerOptions(
+            runs_dir=tmp_path / "runs",
+            stop_signal_scanner=lambda _run_dir: [],
+            bucket_syncer=lambda source, target: calls.append((source, target)) or {"uploads": 1},
+        ),
+    )
+
+    summary = runner.run()
+
+    assert summary[0]["status"] == "success"
+    assert calls == [
+        (run_dir, "hf://buckets/example/artifacts/nightly/runs/smoke"),
+        (run_dir, "hf://buckets/example/artifacts/nightly/runs/smoke"),
+    ]
+    upload = json.loads((run_dir / "bucket_upload.json").read_text(encoding="utf-8"))
+    assert upload["status"] == "uploaded"
+    artifacts = json.loads((run_dir / "artifacts.json").read_text(encoding="utf-8"))
+    assert any(item["role"] == "hf_bucket" for item in artifacts["artifacts"])
+
+
 def test_orchestrator_selects_dependency_windows(tmp_path):
     manifest = ExperimentSuiteManifest.model_validate(
         {
