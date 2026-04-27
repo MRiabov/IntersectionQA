@@ -15,8 +15,17 @@ from intersectionqa.training.prompt_features import PROMPT_FEATURE_MODES, prompt
 
 SYSTEM_PROMPT = (
     "Solve the CAD spatial-reasoning task without executing code. "
-    "Return exactly one completion in this format: "
-    "<think>brief useful reasoning</think><answer>canonical answer</answer>"
+    "Return exactly one completion with a nonempty reasoning section and a final answer tag. "
+    "Use exactly this structure: <think>reason about the object code, transforms, and requested relation</think>"
+    "<answer>canonical answer</answer>. "
+    "Do not answer with only an answer tag. Do not copy these examples; solve the user's row.\n\n"
+    "Valid completion examples:\n"
+    "<think>The transforms place the two solids with separated bounding extents, so there is no positive-volume overlap."
+    "</think><answer>no</answer>\n"
+    "<think>The requested label is the exact relation class. The solids share positive volume rather than only touching,"
+    " so the canonical relation is intersecting.</think><answer>intersecting</answer>\n"
+    "<think>The overlap is positive but small compared with the smaller object volume, so the normalized intersection"
+    " falls into the smallest nonzero bucket.</think><answer>(0, 0.01]</answer>"
 )
 
 
