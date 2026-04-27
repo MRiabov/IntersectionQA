@@ -7,10 +7,13 @@ agents can resume without rediscovering the same failure modes.
 
 - Local 15K export: `data/IntersectionQA-15K`
 - Local 90K export: `data/IntersectionQA-90K`
-- 90K archive for remote transfer: `data/IntersectionQA-90K.tar.gz`
 - Hugging Face datasets:
   - `MRiabov/IntersectionQA-15K`
   - `MRiabov/IntersectionQA-90K`
+
+Remote GPU jobs should download `MRiabov/IntersectionQA-90K` from Hugging Face.
+Do not copy `data/IntersectionQA-90K.tar.gz` over SSH for normal Vast runs; it
+is slower, wastes paid setup time, and risks running stale local artifacts.
 
 The original 90K export had 90,000 final public rows. The current local
 `data/IntersectionQA-90K` export has 58,155 rows after April 25, 2026
@@ -217,29 +220,25 @@ rtk uv run python -m scripts.training.text_grpo_smoke \
 
 ## Remote Setup Template
 
-Upload files:
-
-```bash
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  -i <ssh_key> -P <ssh_port> \
-  data/IntersectionQA-90K.tar.gz \
-  scripts/training/text_sft_train.py \
-  scripts/training/text_sft_train_unsloth.py \
-  scripts/training/evaluate_text_model.py \
-  scripts/training/text_sft_smoke.py \
-  scripts/training/text_grpo_smoke.py \
-  root@<ssh_host>:/root/
-```
-
 Prepare the remote box:
 
 ```bash
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   -i <ssh_key> -p <ssh_port> root@<ssh_host>
+```
 
+Clone the code and download the public dataset from Hugging Face:
+
+```bash
 cd /root
-tar -xzf IntersectionQA-90K.tar.gz
-python -m pip install --upgrade transformers datasets "trl>=0.22.0" peft bitsandbytes accelerate huggingface_hub
+git clone https://github.com/MRiabov/IntersectionQA.git
+cd IntersectionQA
+python -m pip install --upgrade huggingface_hub hf_transfer
+hf download \
+  MRiabov/IntersectionQA-90K \
+  --repo-type dataset \
+  --local-dir data/IntersectionQA-90K
+python -m pip install --upgrade transformers datasets "trl>=0.22.0" peft bitsandbytes accelerate
 python -m pip install --upgrade unsloth
 ```
 

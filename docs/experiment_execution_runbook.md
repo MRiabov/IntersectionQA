@@ -136,10 +136,16 @@ Before renting GPU time:
 1. Run focused unit tests for touched code.
 2. Run dataset validation and leakage audits.
 3. Run a tiny CPU/local smoke suite where possible.
-4. Export or package the exact dataset directories needed on GPU.
+4. Confirm the exact dataset repositories and revisions to download on GPU.
 5. Confirm model/download/cache requirements.
 6. Confirm available disk size for model caches, checkpoints, and artifacts.
 7. Prepare upload/download paths for final artifacts.
+
+For IntersectionQA-90K, Vast/GPU jobs should download
+`MRiabov/IntersectionQA-90K` from Hugging Face into `data/IntersectionQA-90K`.
+Do not transfer `data/IntersectionQA-90K.tar.gz` from a local workstation over
+SSH for normal experiment runs; that path is slower, can waste rented GPU time,
+and can accidentally use a stale pre-balance archive.
 
 Tiny smoke defaults:
 
