@@ -215,7 +215,7 @@ runs:
       - --attempts-per-row
       - "1"
       - --batch-size
-      - "16"
+      - "64"
       - --max-new-tokens
       - "256"
       - --min-accepted-train-rows
