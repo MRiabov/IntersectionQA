@@ -96,6 +96,9 @@ runs:
       - --max-steps
       - "20"
       - --no-assistant-only-loss
+      - --final-adapter-save-mode
+      - checkpoint
+      - --resume
       - --quality-eval-steps
       - "10"
     output_dir: runs/answer_sft_canary
@@ -144,6 +147,9 @@ runs:
       - --output-dir
       - runs/answer_sft_full
       - --no-assistant-only-loss
+      - --final-adapter-save-mode
+      - checkpoint
+      - --resume
       - --quality-eval-steps
       - "100"
     output_dir: runs/answer_sft_full
@@ -238,6 +244,9 @@ runs:
       - --max-steps
       - "20"
       - --no-assistant-only-loss
+      - --final-adapter-save-mode
+      - checkpoint
+      - --resume
       - --quality-eval-steps
       - "10"
     output_dir: runs/reasoning_sft_canary
@@ -269,6 +278,9 @@ runs:
       - --output-dir
       - runs/reasoning_sft_full
       - --no-assistant-only-loss
+      - --final-adapter-save-mode
+      - checkpoint
+      - --resume
       - --quality-eval-steps
       - "100"
     output_dir: runs/reasoning_sft_full

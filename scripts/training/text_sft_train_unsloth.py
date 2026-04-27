@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import inspect
 import json
 import random
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -79,6 +80,7 @@ def main() -> None:
     parser.add_argument("--quality-metrics-log-file", default="quality_metrics.jsonl")
     parser.add_argument("--quality-predictions-dir", default="predictions")
     parser.add_argument("--quality-max-new-tokens", type=int, default=16)
+    parser.add_argument("--final-adapter-save-mode", choices=["trainer", "checkpoint"], default="trainer")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--resume-from-checkpoint", type=Path)
     args = parser.parse_args()
@@ -190,8 +192,16 @@ def main() -> None:
     result = trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None)
     eval_metrics = trainer.evaluate() if args.final_eval else {}
     adapter_dir = args.output_dir / "adapter"
-    trainer.save_model(str(adapter_dir))
-    tokenizer.save_pretrained(adapter_dir)
+    if args.final_adapter_save_mode == "checkpoint":
+        checkpoint_adapter = latest_checkpoint(args.output_dir)
+        if checkpoint_adapter is None:
+            raise RuntimeError("final adapter save mode 'checkpoint' requires at least one checkpoint")
+        if adapter_dir.exists():
+            shutil.rmtree(adapter_dir)
+        shutil.copytree(checkpoint_adapter, adapter_dir)
+    else:
+        trainer.save_model(str(adapter_dir))
+        tokenizer.save_pretrained(adapter_dir)
 
     payload = {
         "status": "ok",
@@ -226,6 +236,7 @@ def main() -> None:
         "quality_eval_max_rows": args.quality_eval_max_rows,
         "quality_metrics_log_file": args.quality_metrics_log_file,
         "quality_predictions_dir": args.quality_predictions_dir,
+        "final_adapter_save_mode": args.final_adapter_save_mode,
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "train_result.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -648,8 +659,12 @@ def resolve_checkpoint(args: argparse.Namespace) -> Path | None:
         return args.resume_from_checkpoint
     if not args.resume:
         return None
+    return latest_checkpoint(args.output_dir)
+
+
+def latest_checkpoint(output_dir: Path) -> Path | None:
     checkpoints = sorted(
-        args.output_dir.glob("checkpoint-*"),
+        output_dir.glob("checkpoint-*"),
         key=lambda path: int(path.name.split("-")[-1]) if path.name.split("-")[-1].isdigit() else -1,
     )
     return checkpoints[-1] if checkpoints else None
