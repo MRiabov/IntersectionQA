@@ -42,15 +42,49 @@ cd "$WORKDIR"
   peft \
   bitsandbytes \
   accelerate \
-  python-dotenv
+  python-dotenv \
+  pydantic \
+  PyYAML \
+  psutil
 
-# Install the repo package into the existing image env. This adds the project
-# package and lightweight runtime deps while preserving the image's Torch stack.
-"$PYTHON_BIN" -m pip install --no-build-isolation -e .
+# Install the repo package into the existing image env. Vast's PyTorch images
+# commonly use Python 3.11 even though local development targets Python 3.12.
+# Training/eval scripts used on these boxes are Python 3.11-compatible, so avoid
+# creating a second Torch env and avoid pulling heavyweight CAD deps.
+"$PYTHON_BIN" -m pip install \
+  --no-build-isolation \
+  --no-deps \
+  --ignore-requires-python \
+  -e .
 
-# Unsloth is installed after the project deps because it may pin auxiliary
-# training packages. It should not force a full environment clone.
-"$PYTHON_BIN" -m pip install --upgrade unsloth
+# Unsloth is installed after the project deps. Constrain Torch/Torchvision to
+# the image's existing major/minor stack so pip does not replace a working CUDA
+# runtime while resolving optional Unsloth accelerators.
+TORCH_MM="$("$PYTHON_BIN" - <<'PY'
+import torch
+
+major, minor, *_ = torch.__version__.split("+", 1)[0].split(".")
+print(f"{major}.{minor}")
+PY
+)"
+TORCHVISION_MM="$("$PYTHON_BIN" - <<'PY'
+try:
+    import torchvision
+except Exception:
+    print("")
+else:
+    major, minor, *_ = torchvision.__version__.split("+", 1)[0].split(".")
+    print(f"{major}.{minor}")
+PY
+)"
+if [ -n "$TORCHVISION_MM" ]; then
+  "$PYTHON_BIN" -m pip install --upgrade \
+    "torch~=$TORCH_MM.0" \
+    "torchvision~=$TORCHVISION_MM.0" \
+    unsloth
+else
+  "$PYTHON_BIN" -m pip install --upgrade "torch~=$TORCH_MM.0" unsloth
+fi
 
 "$PYTHON_BIN" - <<'PY'
 import sys
@@ -63,4 +97,3 @@ print("gpu", torch.cuda.get_device_name(0) if torch.cuda.is_available() else Non
 PY
 
 echo "Bootstrap complete: $WORKDIR"
-
