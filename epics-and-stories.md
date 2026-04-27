@@ -1045,9 +1045,9 @@ Dataset card includes:
 Repository includes commands like:
 
 ```bash
-python scripts/generate_dataset.py --config configs/intersectionqa_v1.yaml
-python scripts/validate_dataset.py --input data/intersectionqa_v1
-python scripts/evaluate_baseline.py --baseline aabb
+python scripts/dataset/generate_dataset.py --config configs/intersectionqa_v1.yaml
+python scripts/dataset/validate_dataset.py --input data/intersectionqa_v1
+python scripts/evaluation/evaluate_baseline.py --baseline aabb
 ```
 
 ---
@@ -1454,7 +1454,7 @@ Tests cover:
 Command generates 100 examples.
 
 ```bash
-python scripts/generate_dataset.py --config configs/smoke.yaml
+python scripts/dataset/generate_dataset.py --config configs/smoke.yaml
 ```
 
 CI validates schema and label consistency.

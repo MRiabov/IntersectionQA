@@ -80,7 +80,7 @@ analysis, and comparison-table reports in one place:
 
 ```bash
 SOURCE_DIR=$(find data/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
-rtk uv run python -m scripts.build_release_candidate \
+rtk uv run python -m scripts.dataset.build_release_candidate \
   --config configs/smoke.yaml \
   --cadevolve-source-dir "$SOURCE_DIR" \
   --output-dir data/intersectionqa_rc
@@ -90,7 +90,7 @@ For source-window sharding:
 
 ```bash
 SOURCE_DIR=$(find data/cadevolve_sources -name extraction_manifest.json -printf '%h\n' | sort | head -1)
-rtk uv run python -m scripts.build_release_candidate \
+rtk uv run python -m scripts.dataset.build_release_candidate \
   --config configs/smoke.yaml \
   --cadevolve-source-dir "$SOURCE_DIR" \
   --output-dir data/intersectionqa_rc_sharded \
@@ -106,7 +106,7 @@ target-contact movement, centroid-distance movement, and candidate edit
 export/validation paths:
 
 ```bash
-rtk uv run python -m scripts.build_release_candidate \
+rtk uv run python -m scripts.dataset.build_release_candidate \
   --config configs/repair_smoke.yaml \
   --output-dir data/intersectionedit_repair_smoke
 ```
@@ -119,14 +119,14 @@ and `reports/baseline_comparison.md`. The standard
 `reports/failure_analysis.json` also includes a `repair_prediction_verifier`
 block when repair rows and predictions are available, plus an
 `intersectionedit_prediction_failures` block with edit-specific failure modes for
-prediction reports. `reports/dataset_stats.json` and `scripts.dataset_stats` include repair summaries with policy,
+prediction reports. `reports/dataset_stats.json` and `scripts.dataset.dataset_stats` include repair summaries with policy,
 selected-direction, selected-magnitude, ambiguity, edit-difficulty tags,
 candidate-answer, and ranking metric counts.
 
 IntersectionEdit rows also carry `metadata.edit_counterfactual_group_id` and
 `metadata.edit_counterfactual_variant` so SFT/GRPO splits can keep related source
 variants and target-family variants together. Use
-`scripts.prepare_intersectionedit_training_splits` to write group-safe
+`scripts.training.prepare_intersectionedit_training_splits` to write group-safe
 `inner_train.jsonl` and `inner_eval.jsonl` files for SFT or reward-learning
 experiments.
 
@@ -134,7 +134,7 @@ experiments.
 and rejection-sampling experiments. The rewards preserve strict parser checks,
 then add partial credit for exact repair distance tolerance, target satisfaction,
 movement minimality, candidate selection quality, and candidate ranking pairwise
-accuracy. `scripts/text_grpo_smoke.py` uses these helpers instead of a plain
+accuracy. `scripts/training/text_grpo_smoke.py` uses these helpers instead of a plain
 exact-string reward.
 
 IntersectionEdit rows also carry `metadata.edit_split_group` and
@@ -150,7 +150,7 @@ Repair predictions can also be verifier-checked by applying the predicted move
 to `object_b` and remeasuring exact geometry:
 
 ```bash
-rtk uv run python -m scripts.evaluate_repair_predictions \
+rtk uv run python -m scripts.evaluation.evaluate_repair_predictions \
   data/intersectionedit_repair_smoke \
   predictions.jsonl
 ```
@@ -181,7 +181,7 @@ run. The current v0.1 target should stay bounded; generating more than roughly
 To extract a local source prefix explicitly:
 
 ```bash
-rtk uv run python -m scripts.prepare_cadevolve_sources \
+rtk uv run python -m scripts.dataset.prepare_cadevolve_sources \
   --cadevolve-archive data/cadevolve.tar \
   --limit 100000
 ```
@@ -197,13 +197,13 @@ Exported datasets are split JSONL files. Use the inspect utility for prompt and
 label review:
 
 ```bash
-rtk uv run python -m scripts.inspect_example data/intersectionqa_v0_1 intersectionqa_binary_000001 --show-prompt
+rtk uv run python -m scripts.dataset.inspect_example data/intersectionqa_v0_1 intersectionqa_binary_000001 --show-prompt
 ```
 
 For local CAD audit artifacts, export one row to a debug directory:
 
 ```bash
-rtk uv run python -m scripts.export_row_artifacts \
+rtk uv run python -m scripts.dataset.export_row_artifacts \
   data/intersectionqa_v0_1 \
   intersectionqa_binary_000001 \
   --output-dir data/debug/intersectionqa_row_debug
@@ -217,7 +217,7 @@ of the default public JSONL export.
 To render PNG previews for a row, use the PyVista-backed renderer:
 
 ```bash
-rtk uv run python -m scripts.render_row_artifacts \
+rtk uv run python -m scripts.dataset.render_row_artifacts \
   data/intersectionqa_v0_1 \
   intersectionqa_binary_000001 \
   --output-dir data/debug/intersectionqa_row_debug \
@@ -235,7 +235,7 @@ the versioned closed-book evaluation prompt, records decoding settings, writes
 raw predictions, and reports the strict parser invalid-output rate:
 
 ```bash
-rtk uv run python -m scripts.evaluate_zero_shot \
+rtk uv run python -m scripts.evaluation.evaluate_zero_shot \
   data/intersectionqa_v0_1 \
   --provider openai-chat \
   --model gpt-5.4 \
@@ -251,7 +251,7 @@ calls.
 To build a compact baseline/model comparison table from saved prediction JSONL:
 
 ```bash
-rtk uv run python -m scripts.baseline_comparison_table \
+rtk uv run python -m scripts.evaluation.baseline_comparison_table \
   data/intersectionqa_v0_1 \
   --prediction gpt_5_4=data/eval/intersectionqa_zero_shot_predictions.jsonl \
   --markdown-output data/eval/intersectionqa_comparison.md
@@ -260,7 +260,7 @@ rtk uv run python -m scripts.baseline_comparison_table \
 To summarize generation failures and optional model failure cases:
 
 ```bash
-rtk uv run python -m scripts.failure_case_analysis \
+rtk uv run python -m scripts.evaluation.failure_case_analysis \
   data/intersectionqa_v0_1 \
   --predictions-jsonl data/eval/intersectionqa_zero_shot_predictions.jsonl \
   --output data/eval/intersectionqa_failure_analysis.json
@@ -272,7 +272,7 @@ To compare two generated dataset directories for byte-identical release
 artifacts, run:
 
 ```bash
-rtk uv run python -m scripts.audit_reproducibility \
+rtk uv run python -m scripts.dataset.audit_reproducibility \
   data/intersectionqa_run_a \
   data/intersectionqa_run_b
 ```

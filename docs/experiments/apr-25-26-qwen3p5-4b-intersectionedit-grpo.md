@@ -16,7 +16,7 @@ in `docs/qwen3p5-4b-tuning.md`.
 - Internal rows: 1,956 train, 217 eval
 - Public release-candidate rows: 2,821 total from 500 CADEvolve-backed geometry
   records
-- Public validation: `scripts.validate_dataset` passed and leakage audit status
+- Public validation: `scripts.dataset.validate_dataset` passed and leakage audit status
   is `pass`
 - Status: completed through the H100 candidate-feature 300-step run. The final
   adapter and checkpoints were backed up to the HF bucket, but checkpoint
@@ -69,7 +69,7 @@ First canary command:
 
 ```bash
 cd /root/IntersectionQA
-nohup python scripts/text_grpo_train_unsloth.py \
+nohup python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_inner_all \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_canary \
@@ -95,7 +95,7 @@ to the 300-step pilot:
 
 ```bash
 cd /root/IntersectionQA
-nohup python scripts/text_grpo_train_unsloth.py \
+nohup python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_inner_all \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_pilot \
@@ -293,7 +293,7 @@ Balanced-source canary follow-up:
 
 Reasoning-SFT bootstrap follow-up:
 
-- Added `scripts/prepare_reasoning_sft_dataset.py` and
+- Added `scripts/training/prepare_reasoning_sft_dataset.py` and
   `intersectionqa.training.reasoning_traces` to materialize internal supervised
   completions in `<think>...</think><answer>...</answer>` format. The public
   canonical `answer` field remains unchanged; the SFT-only completion is stored
@@ -303,7 +303,7 @@ Reasoning-SFT bootstrap follow-up:
   internal splits: 1,956 `inner_train` rows and 217 `inner_eval` rows. The task
   mix matches the balanced RL split, including all repair/movement families.
 - Updated SFT runners to train on `target_text` when present while evaluating
-  canonical answers, and updated `scripts/text_grpo_train_unsloth.py` with
+  canonical answers, and updated `scripts/training/text_grpo_train_unsloth.py` with
   `--adapter-init-dir` so GRPO can initialize from the short reasoning-SFT
   adapter.
 - Vast contract `35608197` ran the bootstrap canary on an
@@ -490,7 +490,7 @@ Repair-translation candidate-feature prep:
 Efficient GRPO candidate-feature resume command:
 
 ```bash
-python scripts/text_grpo_train_unsloth.py \
+python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/IntersectionQA/data/intersectionedit_grpo_pilot_balanced_inner_all \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_feature_candidate_adapter300 \
@@ -574,7 +574,7 @@ Candidate-feature post-mortem:
 Reasoning-SFT bootstrap command:
 
 ```bash
-python scripts/text_sft_train_unsloth.py \
+python scripts/training/text_sft_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_balanced_reasoning_sft \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/sft_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap \
@@ -599,7 +599,7 @@ python scripts/text_sft_train_unsloth.py \
 GRPO-from-bootstrap canary command:
 
 ```bash
-python scripts/text_grpo_train_unsloth.py \
+python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_balanced_inner_all \
   --model unsloth/Qwen3.5-4B \
   --adapter-init-dir /root/outputs/sft_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap/adapter \
@@ -626,7 +626,7 @@ python scripts/text_grpo_train_unsloth.py \
 Initial stratified canary command:
 
 ```bash
-python scripts/text_grpo_train_unsloth.py \
+python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_inner_all \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_stratified_canary \

@@ -114,6 +114,43 @@ Use three priority levels:
 - **P2 expanded-budget**: run only with the expanded budget or after P0/P1 are
   complete.
 
+## Experiment Matrix
+
+The default-budget execution plan below is an ordering of work, not the complete
+scientific matrix. Several plan items expand into multiple experimental
+conditions. Treat the matrix below as the paper-facing inventory of experiment
+families, with each row producing one or more concrete runs.
+
+| Priority | Experiment family | Default conditions | Primary question |
+| --- | --- | --- | --- |
+| P0 | Dataset reports, leakage, and balance | Full release plus split/task/answer/difficulty reports | What exactly is being measured, and are splits safe? |
+| P0 | Heuristic baselines | Majority, balanced random, AABB, OBB/bbox-derived when implemented | How much can shortcuts explain? |
+| P0 | Exact tool-assisted upper bound | CAD-kernel oracle/scripted verifier plus tool failure report | What is the achievable ceiling when exact geometry is available? |
+| P0 | Closed-book zero-shot suite | Small open, medium open, stronger open, frontier, CAD/code-specialized when available | What do current models know without tools or training? |
+| P0 | Practical instruct+tools baseline | Standard instruct/code model with verifier/tools; bounded subset if needed | How far does a current CAD-agent-style setup get without benchmark training? |
+| P0 | Prompting ablation | Direct answer, answer tags, concise reasoning, definitions, few-shot, no-execute instruction | Which prompt contract should be fixed for the main benchmark? |
+| P0 | Guided-decoding ablation | Unconstrained, answer-tag constrained, schema-constrained; bounded validation subset | Is formatting guidance hiding or exposing task competence? |
+| P0 | Completion-length diagnostic | 256 versus 512 tokens, with 1,024-token subset only if justified | Are short completions limiting reasoning? |
+| P0 | Answer-only SFT | Qwen3.5 4B, public train only, one epoch or equivalent | What does cheap supervised answer training buy? |
+| P0 | Deterministic reasoning-SFT | Tool/label-derived traces with canonical final answers | Do explicit reasoning traces improve generalization and hard splits? |
+| P0 | Rejection-sampled reasoning-SFT | Accepted parse-valid, answer-correct, non-filler traces | Does a filtered reasoning initializer improve later GRPO? |
+| P0 | Data scaling SFT | 1k, 5k, 15k, 30k, full train | Does more CAD supervision continue to help? |
+| P0 | Counterfactual sensitivity | With/without counterfactual groups; pairwise/ranking rows when available | Does training teach sensitivity to small geometric changes? |
+| P0 | Generalization by split | Validation, random test, object-pair heldout, near-boundary, generator-heldout when populated | Where does performance transfer or fail? |
+| P0 | SFT+GRPO canary | 50-100 steps from best reasoning-SFT adapter | Is the RL recipe healthy enough for a main run? |
+| P0 | Main SFT+GRPO | 1,500-2,000 steps from best reasoning-SFT adapter | Does verifier-shaped RL improve strict held-out quality? |
+| P0 | Failure taxonomy and paper tables | Zero-shot, SFT, reasoning-SFT, best RL if present | What failure modes remain and how should results be reported? |
+| P1 | Task transfer matrix | Binary-only, relation-only, bucket-only, QA-only, edit-only, mixed, full | Which task families teach reusable CAD reasoning? |
+| P1 | IntersectionEdit verifier evaluation | Repair direction/translation, target moves, candidate tasks when available | Can models predict verified edits, not just labels? |
+| P1 | Feature exposure diagnostics | Public prompt, `edit_geometry`, `edit_geometry_with_candidates`, feature-exposed eval, code-only transfer | How much improvement comes from supplied geometry features? |
+| P1 | Reward ablation | Exact-only, format+exact, shaped numeric, verifier-style, candidate-aware, reasoning-length reward | Which reward components improve quality instead of gaming? |
+| P1 | Base-model GRPO diagnostic | Shorter GRPO from base model under the same reward/eval protocol | Is SFT+GRPO actually better than RL from scratch? |
+| P2 | Model-size scaling | 4B, 7-9B, 14B, 27B/larger or MoE when feasible | Do larger models improve hard CAD splits cost-effectively? |
+| P2 | Full RL variant comparison | GRPO, GSPO, Dr.GRPO, SFT+GRPO, SFT+GSPO | Which RL method is most stable and transferable? |
+| P2 | Synthetic-to-CADEvolve transfer | Synthetic-only, CADEvolve-only, mixed, curriculum | Do simple geometric curricula transfer to real generated CAD? |
+| P2 | Fine-tuned tool-using model | SFT/GRPO model with verifier/tools | Can training improve tool-using CAD behavior? |
+| P2 | Downstream CAD-agent evaluation | External CAD pipeline success, verifier iterations, final validity | Does IntersectionQA/Edit training improve an actual CAD-agent workflow? |
+
 ## P0: Dataset And Benchmark Characterization
 
 Before model comparisons, characterize the benchmark itself.

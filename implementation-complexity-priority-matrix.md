@@ -29,7 +29,7 @@ The specs imply this package structure:
 
 | Area | Proposed paths |
 | --- | --- |
-| CLI/scripts | `scripts/generate_dataset.py`, `scripts/validate_dataset.py`, `scripts/evaluate_baseline.py`, `scripts/inspect_example.py` |
+| CLI/scripts | `scripts/dataset/generate_dataset.py`, `scripts/dataset/validate_dataset.py`, `scripts/evaluation/evaluate_baseline.py`, `scripts/dataset/inspect_example.py` |
 | Package root | `intersectionqa/__init__.py`, `intersectionqa/config.py`, `intersectionqa/schema.py`, `intersectionqa/logging.py` |
 | Sources | `intersectionqa/sources/base.py`, `intersectionqa/sources/synthetic.py`, `intersectionqa/sources/cadevolve.py` |
 | Geometry | `intersectionqa/geometry/transforms.py`, `intersectionqa/geometry/cadquery_exec.py`, `intersectionqa/geometry/labels.py`, `intersectionqa/geometry/bbox.py`, `intersectionqa/geometry/repair.py` |
@@ -44,18 +44,18 @@ The specs imply this package structure:
 | Epic | Scope | P | Impl | Debug | Dependencies | Likely modules/files | Required checks | Key risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Research scope and paper framing | P0 | Low | Low | Existing specs | `specs/benchmark-task-spec.md`, `specs/label_rules.md`, `specs/paper-spec.md` | Reviewer-objection checklist, frozen task definitions | Scope creep | Build now |
-| 2 | Dataset source ingestion | P0 | Medium | Medium | Repo structure, schema | `sources/`, `schema.py`, `scripts/validate_sources.py` | Loader smoke tests, provenance checks, licensing notes | CADEvolve access/licensing, malformed scripts | Build now |
+| 2 | Dataset source ingestion | P0 | Medium | Medium | Repo structure, schema | `sources/`, `schema.py`, `scripts/dataset/validate_sources.py` | Loader smoke tests, provenance checks, licensing notes | CADEvolve access/licensing, malformed scripts | Build now |
 | 3 | Assembly generation | P0 | High | High | Source objects, transforms, labels | `generation/`, `geometry/transforms.py` | Golden primitive assemblies, deterministic seeds | Transform convention bugs, trivial class distribution | Build now |
 | 4 | Geometry labeling and verification | P0 | High | High | CadQuery/OpenCASCADE | `geometry/cadquery_exec.py`, `geometry/labels.py`, `geometry/bbox.py` | Box-box golden tests, boolean failure logging, epsilon policy checks | Kernel tolerance, invalid solids, distance API reliability | Build now |
 | 5 | Prompt and task generation | P0 | Medium | Medium | Schema, labels | `prompts/`, `schema.py` | Snapshot tests, parser tests, exact answer formats | Ambiguous prompts, label/prompt drift | Build now |
 | 6 | Dataset splits and balancing | P0 | Medium | Medium | Group metadata, export | `splits/grouped.py`, `export/jsonl.py` | No shared groups across splits, distribution reports | Leakage through counterfactual/object-pair groups | Build now |
-| 7 | Baselines and model evaluation | P0 | Medium | Medium | Dataset export, prompts | `evaluation/`, `scripts/evaluate_baseline.py` | AABB sanity checks, model-output parsing, invalid-rate report | API cost, baseline bugs hiding dataset flaws | Build now |
+| 7 | Baselines and model evaluation | P0 | Medium | Medium | Dataset export, prompts | `evaluation/`, `scripts/evaluation/evaluate_baseline.py` | AABB sanity checks, model-output parsing, invalid-rate report | API cost, baseline bugs hiding dataset flaws | Build now |
 | 8 | Rendering and multimodal extensions | P2 | High | Medium | Geometry pipeline, rendering deps | `rendering/`, `prompts/multimodal.py` | Manual render audit, file linkage checks | Rendering stack friction, low MVP value | Defer |
 | 9 | Dataset packaging and release | P0 | Medium | Low | Schema, splits, generation | `export/`, `README.md`, dataset card | JSONL schema validation, version/config hash checks | Schema churn if done too late | Build now |
 | 10 | Paper experiments | P0 | Medium | Medium | Dataset, baselines, model runs | `evaluation/metrics.py`, `paper/`, result tables | Reproducible runs, result table scripts | Results may reveal weak benchmark difficulty | Build now |
 | 11 | Paper writing | P0 | Low | Low | Scope, dataset stats, results | `paper/`, `specs/paper-spec.md` | Internal review, claims match evidence | Claims outrun implementation | Build now |
 | 12 | Repository and engineering infrastructure | P0 | Medium | Medium | None | package tree, `pyproject.toml`, `scripts/`, `tests/` | CI/smoke tests, import checks, lint if added | Overengineering before geometry works | Build now |
-| 13 | QA and review | P0 | Medium | Medium | Dataset export, diagnostics | `scripts/audit_dataset.py`, `tests/`, `docs/` | Manual audit sample, leakage audit, reproducibility audit | Hard examples mislabeled, silent leakage | Build now |
+| 13 | QA and review | P0 | Medium | Medium | Dataset export, diagnostics | `scripts/dataset/audit_dataset.py`, `tests/`, `docs/` | Manual audit sample, leakage audit, reproducibility audit | Hard examples mislabeled, silent leakage | Build now |
 
 ## Story and Feature Matrix
 
@@ -101,7 +101,7 @@ The specs imply this package structure:
 | 4.3 Relation classifier | P0 | Medium | Medium | Volumes, distance, thresholds | `geometry/relations.py`, `specs/label_rules.md` | Epsilon policy tests, relation snapshot tests | Ambiguous touching vs tiny overlap | Build now |
 | 4.4 Bounding-box diagnostics | P0 | Medium | Low | Valid solids, transforms | `geometry/bbox.py`, `evaluation/aabb.py` | AABB overlap golden tests | OBB can remain a separate P1 baseline | Build now |
 | 4.5 Containment detection | P1 | High | High | Exact boolean labels | `geometry/labels.py` | Fully-contained primitive tests | Boolean classification edge cases | Build later |
-| 4.6 Label consistency validation | P0 | Medium | Medium | All raw label fields | `scripts/validate_dataset.py`, `geometry/validation.py` | Contradiction checks, schema checks | Silent mislabels if checks are weak | Build now |
+| 4.6 Label consistency validation | P0 | Medium | Medium | All raw label fields | `scripts/dataset/validate_dataset.py`, `geometry/validation.py` | Contradiction checks, schema checks | Silent mislabels if checks are weak | Build now |
 
 ### Epic 5: Prompt and Task Generation
 
@@ -126,7 +126,7 @@ The specs imply this package structure:
 | 6.4 Topology-held-out split | P2 | Medium | Medium | Topology labels | `splits/grouped.py`, `sources/metadata.py` | Held-out labels absent from train | Requires reliable topology taxonomy | Defer |
 | 6.5 Operation-held-out split | P2 | Medium | Medium | Operation extraction | `sources/ops.py`, `splits/grouped.py` | Held-out ops absent from train | AST parsing complexity | Defer |
 | 6.6 Near-boundary hard split | P0 | Medium | Medium | Boundary examples, diagnostics | `splits/grouped.py` | Hard split contains targeted cases | Too small or too label-sensitive | Build now |
-| 6.7 Class balancing | P0 | Medium | Medium | Labels, split assignment | `splits/balance.py`, `scripts/dataset_stats.py` | Per-split label distribution reports | Balancing can bias generation | Build now |
+| 6.7 Class balancing | P0 | Medium | Medium | Labels, split assignment | `splits/balance.py`, `scripts/dataset/dataset_stats.py` | Per-split label distribution reports | Balancing can bias generation | Build now |
 
 ### Epic 7: Baselines and Model Evaluation
 
@@ -156,7 +156,7 @@ The specs imply this package structure:
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 9.1 Final dataset schema | P0 | Medium | Medium | Task, label, split definitions | `schema.py`, `specs/schema.md` | JSON schema/Pydantic validation | Schema churn if delayed | Build now |
-| 9.2 Export JSONL files | P0 | Medium | Low | Dataset records, splits | `export/jsonl.py`, `scripts/generate_dataset.py` | File counts, schema validation, stable IDs | Partial exports after failures | Build now |
+| 9.2 Export JSONL files | P0 | Medium | Low | Dataset records, splits | `export/jsonl.py`, `scripts/dataset/generate_dataset.py` | File counts, schema validation, stable IDs | Partial exports after failures | Build now |
 | 9.3 Dataset card | P1 | Low | Low | Data stats, sources, limitations | `dataset-card.md` | Matches released data and license | Missing limitation disclosure | Build later |
 | 9.4 Reproducibility scripts | P0 | Medium | Medium | Generation, validation, evaluation | `scripts/` | Commands work from clean checkout | Script/config drift | Build now |
 | 9.5 Versioning | P0 | Low | Low | Config system, git hash | `config.py`, `export/metadata.py` | Version/config hash in records | Hard to reproduce without this | Build now |
@@ -165,12 +165,12 @@ The specs imply this package structure:
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 10.1 Dataset statistics | P0 | Medium | Low | Exported dataset | `scripts/dataset_stats.py`, `evaluation/metrics.py` | Counts by task/split/label/source/difficulty | Missing metadata limits analysis | Build now |
+| 10.1 Dataset statistics | P0 | Medium | Low | Exported dataset | `scripts/dataset/dataset_stats.py`, `evaluation/metrics.py` | Counts by task/split/label/source/difficulty | Missing metadata limits analysis | Build now |
 | 10.2 Baseline comparison table | P0 | Medium | Medium | AABB, zero-shot eval | `evaluation/reports.py` | Table regenerates from result files | Inconsistent result formats | Build now |
 | 10.3 Task-family comparison | P0 | Medium | Medium | Multiple task prompts and eval | `evaluation/reports.py` | Per-task metrics | Too few tasks in MVP | Build now |
 | 10.4 Diagnostic subset analysis | P1 | Medium | Medium | Diagnostic tags, baselines | `evaluation/reports.py` | AABB-failing and near-boundary slices | Subsets may be too small | Build later |
 | 10.5 Training-data ablation | P1 | High | Medium | SFT/RL runs | `training/`, `evaluation/reports.py` | Same eval splits across runs | GPU budget and run variance | Build later |
-| 10.6 Failure-case analysis | P0 | Low | Medium | Model results, inspection tool | `scripts/inspect_example.py`, `paper/failures.md` | At least 10 audited examples | Cherry-picking accusations | Build now |
+| 10.6 Failure-case analysis | P0 | Low | Medium | Model results, inspection tool | `scripts/dataset/inspect_example.py`, `paper/failures.md` | At least 10 audited examples | Cherry-picking accusations | Build now |
 
 ### Epic 11: Paper Writing
 
@@ -191,15 +191,15 @@ The specs imply this package structure:
 | 12.2 Configuration system | P0 | Medium | Medium | Schema | `config.py`, `configs/*.yaml` | Config load tests, seed reproducibility | Config too flexible too early | Build now |
 | 12.3 Logging/failure tracking | P0 | Medium | Medium | Generation and labeling | `logging.py`, `scripts/` | Failure reasons counted and exported | Silent skips bias dataset | Build now |
 | 12.4 Unit tests | P0 | Medium | Medium | Core modules | `tests/` | `pytest`, golden geometry cases | CadQuery tests may be slow/flaky | Build now |
-| 12.5 Smoke-test dataset generation | P0 | Medium | Medium | Minimal generator, labels, prompts, export | `configs/smoke.yaml`, `scripts/generate_dataset.py` | Generate 100 examples and validate | Smoke set may miss hard failures | Build now |
+| 12.5 Smoke-test dataset generation | P0 | Medium | Medium | Minimal generator, labels, prompts, export | `configs/smoke.yaml`, `scripts/dataset/generate_dataset.py` | Generate 100 examples and validate | Smoke set may miss hard failures | Build now |
 
 ### Epic 13: Quality Assurance and Review
 
 | Story/feature | P | Impl | Debug | Depends on | Likely modules/files | Required checks | Risks/unknowns | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 13.1 Manual audit sample | P0 | Low | Medium | Exported examples, inspection tool | `scripts/inspect_example.py`, `docs/audit.md` | 100 random and 100 hard examples reviewed | Human audit is slow but necessary | Build now |
-| 13.2 Reproducibility audit | P0 | Medium | Medium | Config, versioning, deterministic IDs | `scripts/reproduce_dataset.py` | Same seed produces same IDs and labels | Nondeterministic geometry operations | Build now |
-| 13.3 Leakage audit | P0 | Medium | Medium | Split metadata | `scripts/audit_leakage.py`, `splits/grouped.py` | No shared generator/object-pair/assembly/counterfactual groups | Missing group IDs reduce credibility | Build now |
+| 13.1 Manual audit sample | P0 | Low | Medium | Exported examples, inspection tool | `scripts/dataset/inspect_example.py`, `docs/audit.md` | 100 random and 100 hard examples reviewed | Human audit is slow but necessary | Build now |
+| 13.2 Reproducibility audit | P0 | Medium | Medium | Config, versioning, deterministic IDs | `scripts/dataset/reproduce_dataset.py` | Same seed produces same IDs and labels | Nondeterministic geometry operations | Build now |
+| 13.3 Leakage audit | P0 | Medium | Medium | Split metadata | `scripts/dataset/audit_leakage.py`, `splits/grouped.py` | No shared generator/object-pair/assembly/counterfactual groups | Missing group IDs reduce credibility | Build now |
 | 13.4 Reviewer-readiness checklist | P0 | Low | Low | Specs, results, audits | `docs/reviewer_checklist.md` | Answers common objections | Checklist not backed by data | Build now |
 
 ## Recommended MVP Implementation Path
@@ -311,10 +311,10 @@ Do not debug this only at full dataset scale. Add these checkpoints as implement
 | Transform unit tests | `tests/test_transforms.py` | Stored metadata and executable script produce same placement |
 | Prompt snapshots | `tests/test_prompts.py` | Prompt text and final answer format are stable |
 | Smoke dataset | `data/smoke/*.jsonl` or temp output | 100 examples generate, validate, and export |
-| Label validation | `scripts/validate_dataset.py` | No contradictory raw labels |
-| Split audit | `scripts/audit_leakage.py` | No shared generator, object-pair, assembly, or counterfactual groups |
-| Baseline sanity | `scripts/evaluate_baseline.py --baseline aabb` | Reports overall and per-subset accuracy |
-| Manual inspection | `scripts/inspect_example.py --id ...` | Can inspect code, transforms, labels, and prompt together |
+| Label validation | `scripts/dataset/validate_dataset.py` | No contradictory raw labels |
+| Split audit | `scripts/dataset/audit_leakage.py` | No shared generator, object-pair, assembly, or counterfactual groups |
+| Baseline sanity | `scripts/evaluation/evaluate_baseline.py --baseline aabb` | Reports overall and per-subset accuracy |
+| Manual inspection | `scripts/dataset/inspect_example.py --id ...` | Can inspect code, transforms, labels, and prompt together |
 
 ## Practical Build/Defer Decision Rules
 

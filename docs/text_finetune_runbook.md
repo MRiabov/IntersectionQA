@@ -95,49 +95,49 @@ See `docs/dataset_split_framing.md` before interpreting evaluation numbers.
 
 ## Local Scripts
 
-- `scripts/text_sft_train.py`: generic Transformers/PEFT LoRA or QLoRA runner.
+- `scripts/training/text_sft_train.py`: generic Transformers/PEFT LoRA or QLoRA runner.
   Use this for dense 4-bit QLoRA models.
-- `scripts/text_sft_train_unsloth.py`: Unsloth bf16 LoRA runner. Use this for
+- `scripts/training/text_sft_train_unsloth.py`: Unsloth bf16 LoRA runner. Use this for
   the current Qwen3.5 text-only SFT path and for any future MoE bf16 LoRA
   experiments. Its default `--task-types` now includes all seven public text
   tasks, including `pairwise_interference` and
   `ranking_normalized_intersection`.
-- `scripts/evaluate_text_model.py`: exact-answer generation evaluator for a
+- `scripts/training/evaluate_text_model.py`: exact-answer generation evaluator for a
   base or adapter model. It reports exact-answer accuracy by split/task plus
   per-task label precision, recall, F1, and confusion counts.
-- `scripts/text_sft_smoke.py`: tiny local/remote SFT smoke test.
-- `scripts/text_grpo_smoke.py`: tiny RL/GRPO smoke test.
-- `scripts/prepare_intersectionedit_training_splits.py`: filters opt-in
+- `scripts/training/text_sft_smoke.py`: tiny local/remote SFT smoke test.
+- `scripts/training/text_grpo_smoke.py`: tiny RL/GRPO smoke test.
+- `scripts/training/prepare_intersectionedit_training_splits.py`: filters opt-in
   IntersectionEdit rows, applies `metadata.edit_counterfactual_group_id`-aware
   inner train/eval splitting, and writes `inner_train.jsonl`, `inner_eval.jsonl`,
   and `report.json` for SFT or GRPO staging.
-- `scripts/add_counterfactual_train_rows.py`: legacy deterministic in-place
+- `scripts/dataset/add_counterfactual_train_rows.py`: legacy deterministic in-place
   augmentation helper for moving leakage-safe counterfactual groups from
   `test_near_boundary` to `train`. Prefer
-  `scripts/redistribute_dataset_splits.py` for current exports. It creates
+  `scripts/dataset/redistribute_dataset_splits.py` for current exports. It creates
   `data/IntersectionQA-90K/pre_counterfactual_train_backup` before rewriting
   split files.
-- `scripts/rebalance_pairwise_rows.py`: deterministic in-place export rewrite
+- `scripts/dataset/rebalance_pairwise_rows.py`: deterministic in-place export rewrite
   that removes old pairwise rows and rebuilds balanced pairwise comparisons
   from already exported relation-classification rows. It creates
   `data/IntersectionQA-90K/pre_pairwise_rebalance_backup` before rewriting
   split files.
-- `scripts/redistribute_dataset_splits.py`: deterministic in-place export
+- `scripts/dataset/redistribute_dataset_splits.py`: deterministic in-place export
   rewrite that applies the current group-safe split policy to already exported
   rows, refreshes JSONL, metadata, Parquet, dataset card files, writes
   `split_redistribution_report.json`, and optionally reruns class balancing.
   It creates `data/IntersectionQA-90K/pre_split_redistribution_backup` before
   rewriting split files.
-- `scripts/balance_dataset_classes.py`: deterministic in-place export rewrite
+- `scripts/dataset/balance_dataset_classes.py`: deterministic in-place export rewrite
   that applies the release class-balancing policy, refreshes JSONL, metadata,
   Parquet, dataset card files, and writes `class_balance_report.json`. It
   creates `data/IntersectionQA-90K/pre_class_balance_backup` before rewriting
   split files.
-- `scripts/audit_answer_balance.py`: answer-distribution audit by split and
+- `scripts/dataset/audit_answer_balance.py`: answer-distribution audit by split and
   task. Use it before publishing a dataset or starting a new training run:
 
 ```bash
-rtk uv run python -m scripts.audit_answer_balance \
+rtk uv run python -m scripts.dataset.audit_answer_balance \
   --dataset-dir data/IntersectionQA-90K \
   --min-share 0.10 \
   --max-share 0.70 \
@@ -170,7 +170,7 @@ runbook.
 Build an opt-in edit dataset first:
 
 ```bash
-rtk uv run python -m scripts.build_release_candidate \
+rtk uv run python -m scripts.dataset.build_release_candidate \
   --config configs/repair_smoke.yaml \
   --output-dir data/intersectionedit_repair_smoke
 ```
@@ -178,7 +178,7 @@ rtk uv run python -m scripts.build_release_candidate \
 Prepare group-safe inner splits for supervised fine-tuning:
 
 ```bash
-rtk uv run python -m scripts.prepare_intersectionedit_training_splits \
+rtk uv run python -m scripts.training.prepare_intersectionedit_training_splits \
   --dataset-dir data/intersectionedit_repair_smoke \
   --output-dir data/intersectionedit_repair_smoke_sft \
   --mode sft \
@@ -188,7 +188,7 @@ rtk uv run python -m scripts.prepare_intersectionedit_training_splits \
 Prepare the same rows for reward-learning experiments:
 
 ```bash
-rtk uv run python -m scripts.prepare_intersectionedit_training_splits \
+rtk uv run python -m scripts.training.prepare_intersectionedit_training_splits \
   --dataset-dir data/intersectionedit_repair_smoke \
   --output-dir data/intersectionedit_repair_smoke_grpo \
   --mode rl \
@@ -208,7 +208,7 @@ clearance/contact/centroid movement, candidate selection, and candidate ranking.
 Smoke GRPO on the prepared edit dataset:
 
 ```bash
-rtk uv run python -m scripts.text_grpo_smoke \
+rtk uv run python -m scripts.training.text_grpo_smoke \
   --dataset-dir data/intersectionedit_repair_smoke_grpo \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --max-rows 16 \
@@ -223,11 +223,11 @@ Upload files:
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   -i <ssh_key> -P <ssh_port> \
   data/IntersectionQA-90K.tar.gz \
-  scripts/text_sft_train.py \
-  scripts/text_sft_train_unsloth.py \
-  scripts/evaluate_text_model.py \
-  scripts/text_sft_smoke.py \
-  scripts/text_grpo_smoke.py \
+  scripts/training/text_sft_train.py \
+  scripts/training/text_sft_train_unsloth.py \
+  scripts/training/evaluate_text_model.py \
+  scripts/training/text_sft_smoke.py \
+  scripts/training/text_grpo_smoke.py \
   root@<ssh_host>:/root/
 ```
 

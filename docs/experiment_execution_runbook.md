@@ -40,7 +40,7 @@ Use three layers:
 1. **Experiment manifest**
    A YAML or JSON file that lists the intended runs and their dependencies.
 2. **Orchestration script**
-   A script such as `scripts/run_experiment_suite.py` that executes the manifest
+   A script such as `scripts/experiments/run_experiment_suite.py` that executes the manifest
    in dependency order.
 3. **Run-specific training/evaluation scripts**
    Existing scripts such as SFT, GRPO, zero-shot evaluation, baseline tables,
@@ -52,6 +52,12 @@ duplicating their internals.
 ## Experiment Manifest
 
 The manifest should describe every run in a structured way.
+
+The manifest is an execution slice through the experiment matrix in
+`specs/research-experiment-spec.md`; it is not expected to contain every P0/P1/P2
+matrix cell at once. A default-budget manifest should cover the P0 cells needed
+for the current paper claim, while P1/P2 cells should be added only after their
+prerequisites and budget gates are satisfied.
 
 Recommended fields:
 
@@ -101,6 +107,27 @@ The orchestration script should:
 
 The script should be restartable. Re-running the same manifest should continue
 from completed or resumable runs instead of overwriting them blindly.
+
+### Selection Controls
+
+The orchestrator supports targeted local execution so long paper suites can be
+run in stages on Vast or resumed by an overseeing agent:
+
+- `--run NAME` runs one named manifest entry; repeat it to run a named set.
+- `--with-dependencies` expands `--run` to include transitive dependencies.
+- `--start-from NAME` runs the dependency-order suffix beginning at `NAME`.
+- `--run-until NAME` runs the dependency-order prefix ending at `NAME`.
+- `--start-from NAME --run-until OTHER` runs a closed dependency-order window.
+- `--skip-dependencies` bypasses dependency checks for manual recovery only.
+- `--list` and `--dry-run` show the selected plan without executing commands.
+
+Unselected dependencies are considered satisfied when their run directory already
+has expected artifacts or a `status.json` marked `success`/`skipped`. This is
+what makes one-by-one execution predictable after earlier stages finish.
+
+Manifest commands may reference run paths with placeholders. The most useful
+forms are `{run_dir}` for the current run directory and `{run:NAME}` for another
+run's output directory, for example `{run:reasoning_sft_full}/adapter`.
 
 ## Local Preparation Before Renting GPU
 

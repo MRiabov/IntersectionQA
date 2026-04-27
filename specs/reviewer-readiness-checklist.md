@@ -12,7 +12,7 @@ passing command, a generated artifact path, or a recorded exception.
 - Validate the exported dataset directory:
 
 ```bash
-rtk uv run python -m scripts.validate_dataset <dataset_dir>
+rtk uv run python -m scripts.dataset.validate_dataset <dataset_dir>
 ```
 
 - Confirm Parquet release files exist under `<dataset_dir>/parquet/` and match
@@ -36,7 +36,7 @@ rtk uv run python -m compileall -q intersectionqa scripts
 - Compare two independently generated dataset directories:
 
 ```bash
-rtk uv run python -m scripts.audit_reproducibility <run_a> <run_b>
+rtk uv run python -m scripts.dataset.audit_reproducibility <run_a> <run_b>
 ```
 
 - Confirm local-only cache paths and `data/cadevolve.tar` are not included in release artifacts.
@@ -52,8 +52,8 @@ rtk uv run python -m scripts.audit_reproducibility <run_a> <run_b>
   - boundary/tiny-overlap candidates
 
 ```bash
-rtk uv run python -m scripts.export_row_artifacts <dataset_dir> <row_id> --output-dir <debug_dir>
-rtk uv run python -m scripts.render_row_artifacts <dataset_dir> <row_id> --output-dir <debug_dir>
+rtk uv run python -m scripts.dataset.export_row_artifacts <dataset_dir> <row_id> --output-dir <debug_dir>
+rtk uv run python -m scripts.dataset.render_row_artifacts <dataset_dir> <row_id> --output-dir <debug_dir>
 ```
 
 ## Evaluation
@@ -61,19 +61,19 @@ rtk uv run python -m scripts.render_row_artifacts <dataset_dir> <row_id> --outpu
 - Run the AABB baseline:
 
 ```bash
-rtk uv run python -m scripts.evaluate_baseline <dataset_dir>
+rtk uv run python -m scripts.evaluation.evaluate_baseline <dataset_dir>
 ```
 
 - For saved model predictions, evaluate strict exact-answer metrics:
 
 ```bash
-rtk uv run python -m scripts.evaluate_predictions <dataset_dir> <predictions.jsonl>
+rtk uv run python -m scripts.evaluation.evaluate_predictions <dataset_dir> <predictions.jsonl>
 ```
 
 - Build a comparison table for paper/reporting:
 
 ```bash
-rtk uv run python -m scripts.baseline_comparison_table \
+rtk uv run python -m scripts.evaluation.baseline_comparison_table \
   <dataset_dir> \
   --prediction <system>=<predictions.jsonl> \
   --markdown-output <comparison.md>
@@ -82,7 +82,7 @@ rtk uv run python -m scripts.baseline_comparison_table \
 - Summarize generation and prediction failure cases:
 
 ```bash
-rtk uv run python -m scripts.failure_case_analysis \
+rtk uv run python -m scripts.evaluation.failure_case_analysis \
   <dataset_dir> \
   --predictions-jsonl <predictions.jsonl> \
   --output <failure_analysis.json>

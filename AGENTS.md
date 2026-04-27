@@ -55,7 +55,7 @@ The schema and implementation also include later/opt-in task types such as `clea
 - `intersectionqa/export/`: JSONL, metadata, schema, dataset card, balancing, and parquet writers.
 - `intersectionqa/evaluation/`: parsers, metrics, AABB/OBB baselines, tool-assisted upper bounds, failure analysis, edit/repair verification, and GRPO/reward helpers.
 - `intersectionqa/training/`: prompt features, reasoning-trace helpers, and sampling logic for SFT/GRPO data preparation.
-- `scripts/`: CLI entry points and reports around the package modules. Prefer changing package code first, then keep scripts thin.
+- `scripts/`: CLI entry points and reports around the package modules, grouped by `dataset/`, `evaluation/`, `training/`, `experiments/`, `publishing/`, and `devops/`; shared script-only helpers live in group-local `internal/` packages. Prefer changing package code first, then keep scripts thin.
 - `configs/`: reproducible smoke, repair smoke, validation, SFT, and GRPO configs.
 - `tests/`: pytest coverage for schema, labels, prompts, source loading/validation, generation, export, splits, metrics, scripts, rendering, rewards, and training helpers.
 
@@ -66,11 +66,11 @@ Run shell commands through `rtk` in this repo.
 ```bash
 rtk uv run pytest -q
 rtk uv run pytest tests/test_schema.py -q
-rtk uv run python -m scripts.build_release_candidate --config configs/smoke.yaml --output-dir data/intersectionqa_rc
-rtk uv run python -m scripts.build_release_candidate --config configs/repair_smoke.yaml --output-dir data/intersectionedit_repair_smoke
-rtk uv run python -m scripts.validate_dataset data/intersectionqa_v0_1
-rtk uv run python -m scripts.dataset_stats data/intersectionqa_v0_1
-rtk uv run python -m scripts.inspect_example data/intersectionqa_v0_1 intersectionqa_binary_000001 --show-prompt
+rtk uv run python -m scripts.dataset.build_release_candidate --config configs/smoke.yaml --output-dir data/intersectionqa_rc
+rtk uv run python -m scripts.dataset.build_release_candidate --config configs/repair_smoke.yaml --output-dir data/intersectionedit_repair_smoke
+rtk uv run python -m scripts.dataset.validate_dataset data/intersectionqa_v0_1
+rtk uv run python -m scripts.dataset.dataset_stats data/intersectionqa_v0_1
+rtk uv run python -m scripts.dataset.inspect_example data/intersectionqa_v0_1 intersectionqa_binary_000001 --show-prompt
 ```
 
 Use `data/cadevolve_sources/` as the hot path for local generation when available. `data/cadevolve.tar` is a bootstrap artifact for preparing that source tree, not the preferred repeated-run input.

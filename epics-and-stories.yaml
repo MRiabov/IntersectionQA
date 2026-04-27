@@ -1351,11 +1351,11 @@ epics:
           Added GRPO reward architecture by replacing the smoke script's exact string reward
           with row-aware rewards that score exact repair, full-vector/edit-program repair,
           target-clearance/contact/centroid movement, candidate-selection, and
-          candidate-ranking rows. Added `scripts.prepare_intersectionedit_training_splits`
+          candidate-ranking rows. Added `scripts.training.prepare_intersectionedit_training_splits`
           for edit-row filtering plus group-safe inner train/eval splits, updated the GRPO
           smoke loader to consume `inner_train`/`inner_eval`, and documented staged
           IntersectionEdit SFT/GRPO commands in `docs/text_finetune_runbook.md`. Added
-          `scripts/text_grpo_train_unsloth.py` for the production Qwen3.5 4B run, with
+          `scripts/training/text_grpo_train_unsloth.py` for the production Qwen3.5 4B run, with
           GSPO-style sequence importance sampling, Dr. GRPO/DAPO loss selection, periodic
           generation-quality eval, JSONL metrics, and adapter saving. The runner now uses
           the underlying text tokenizer for both quality generation and GRPOTrainer

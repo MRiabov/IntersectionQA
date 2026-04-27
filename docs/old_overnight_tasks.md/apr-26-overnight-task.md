@@ -175,13 +175,13 @@ Stabilize:
 
 ```bash
 rtk uv run pytest -q tests/test_rewards.py tests/test_splits.py tests/test_metrics.py tests/test_prompts.py tests/test_config.py
-rtk uv run python -m scripts.text_grpo_smoke --dataset-dir data/intersectionedit_repair_smoke --max-rows 8 --max-steps 1
+rtk uv run python -m scripts.training.text_grpo_smoke --dataset-dir data/intersectionedit_repair_smoke --max-rows 8 --max-steps 1
 ```
 
 Build IntersectionEdit release candidate:
 
 ```bash
-rtk uv run python -m scripts.build_release_candidate \
+rtk uv run python -m scripts.dataset.build_release_candidate \
   --config configs/repair_smoke.yaml \
   --output-dir data/intersectionedit_repair_rc
 ```
@@ -189,7 +189,7 @@ rtk uv run python -m scripts.build_release_candidate \
 GPU canary target:
 
 ```bash
-python scripts/text_grpo_train_unsloth.py \
+python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_repair_rc \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionedit_canary \
@@ -206,7 +206,7 @@ python scripts/text_grpo_train_unsloth.py \
 Pilot target if canary is healthy:
 
 ```bash
-python scripts/text_grpo_train_unsloth.py \
+python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_repair_rc \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/grpo_qwen3p5_4b_intersectionqa_edit_pilot \
@@ -301,7 +301,7 @@ loss_type = "dr_grpo"
 - [x] Added reasoning-compatible reward parsing for
   `<think>...</think><answer>...</answer>` completions while keeping canonical
   answer-only evaluation support.
-- [x] Added `scripts/text_grpo_train_unsloth.py` with GSPO/Dr-GRPO flags,
+- [x] Added `scripts/training/text_grpo_train_unsloth.py` with GSPO/Dr-GRPO flags,
   periodic generation-quality eval, JSONL metric logging, and adapter saving.
 - [x] Local focused tests passed:
   `rtk uv run python -m compileall -q intersectionqa scripts && rtk uv run pytest -q tests/test_rewards.py tests/test_splits.py tests/test_metrics.py tests/test_prompts.py tests/test_config.py`.
@@ -325,7 +325,7 @@ loss_type = "dr_grpo"
   plus repair direction/translation and target clearance/contact/centroid
   movement.
 - [x] Added `--scope all` to
-  `scripts.prepare_intersectionedit_training_splits` so GRPO can train on mixed
+  `scripts.training.prepare_intersectionedit_training_splits` so GRPO can train on mixed
   IntersectionQA + IntersectionEdit rows while preserving edit counterfactual
   groups and QA split groups.
 - [x] Re-ran focused validation after the mixed-scope split change:
@@ -587,7 +587,7 @@ loss_type = "dr_grpo"
 Successful GPU bootstrap command:
 
 ```bash
-python scripts/text_sft_train_unsloth.py \
+python scripts/training/text_sft_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_balanced_reasoning_sft \
   --model unsloth/Qwen3.5-4B \
   --output-dir /root/outputs/sft_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap \
@@ -612,7 +612,7 @@ python scripts/text_sft_train_unsloth.py \
 Successful GRPO canary from the SFT adapter:
 
 ```bash
-python scripts/text_grpo_train_unsloth.py \
+python scripts/training/text_grpo_train_unsloth.py \
   --dataset-dir /root/intersectionedit_grpo_pilot_balanced_inner_all \
   --model unsloth/Qwen3.5-4B \
   --adapter-init-dir /root/outputs/sft_qwen3p5_4b_intersectionqa_edit_reasoning_bootstrap/adapter \

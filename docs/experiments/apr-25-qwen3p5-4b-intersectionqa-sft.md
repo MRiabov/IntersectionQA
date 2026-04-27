@@ -76,11 +76,11 @@ Upload files:
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   -i ~/.ssh/vastai_wireseghr -P 13228 \
   data/IntersectionQA-90K.tar.gz \
-  scripts/text_sft_train.py \
-  scripts/text_sft_train_unsloth.py \
-  scripts/evaluate_text_model.py \
-  scripts/text_sft_smoke.py \
-  scripts/text_grpo_smoke.py \
+  scripts/training/text_sft_train.py \
+  scripts/training/text_sft_train_unsloth.py \
+  scripts/training/evaluate_text_model.py \
+  scripts/training/text_sft_smoke.py \
+  scripts/training/text_grpo_smoke.py \
   root@ssh7.vast.ai:/root/
 ```
 
@@ -179,7 +179,7 @@ nohup python text_sft_train_unsloth.py \
 ```
 
 This command disables in-training eval and final eval to keep the GPU focused on
-SFT during the time budget. Run `scripts/evaluate_text_model.py` afterward on a
+SFT during the time budget. Run `scripts/training/evaluate_text_model.py` afterward on a
 small held-out slice if time remains.
 
 Future runs write durable JSONL metrics to
