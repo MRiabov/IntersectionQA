@@ -24,7 +24,7 @@ def test_dataset_stats_script_reports_repair_direction_summary(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.dataset_stats",
+            "scripts.dataset.dataset_stats",
             str(dataset_dir),
         ],
         check=True,

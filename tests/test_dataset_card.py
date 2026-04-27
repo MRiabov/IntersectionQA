@@ -36,7 +36,7 @@ def test_dataset_card_cli_writes_custom_path(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.write_dataset_card",
+            "scripts.dataset.write_dataset_card",
             str(tmp_path / "dataset"),
             "--output",
             str(output),

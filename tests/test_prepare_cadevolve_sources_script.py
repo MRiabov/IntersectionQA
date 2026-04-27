@@ -24,7 +24,7 @@ def test_prepare_cadevolve_sources_script_materializes_prefix(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.prepare_cadevolve_sources",
+            "scripts.dataset.prepare_cadevolve_sources",
             "--cadevolve-archive",
             str(archive_path),
             "--cache-dir",

@@ -30,7 +30,7 @@ def test_baseline_comparison_table_writes_json_and_markdown(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.baseline_comparison_table",
+            "scripts.evaluation.baseline_comparison_table",
             str(dataset_dir),
             "--prediction",
             f"perfect={predictions_path}",
@@ -84,7 +84,7 @@ def test_baseline_comparison_table_includes_repair_verifier_rows(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.baseline_comparison_table",
+            "scripts.evaluation.baseline_comparison_table",
             str(dataset_dir),
             "--prediction",
             f"perfect={predictions_path}",

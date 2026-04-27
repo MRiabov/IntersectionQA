@@ -5,7 +5,7 @@ import sys
 from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.enums import TaskType
 from intersectionqa.pipeline import write_smoke_dataset
-from scripts.evaluate_zero_shot import _load_env_file
+from scripts.evaluation.evaluate_zero_shot import _load_env_file
 
 
 def test_load_env_file_preserves_existing_values(tmp_path, monkeypatch):
@@ -39,7 +39,7 @@ def test_evaluate_zero_shot_exports_few_shot_requests(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.evaluate_zero_shot",
+            "scripts.evaluation.evaluate_zero_shot",
             str(dataset_dir),
             "--model",
             "frontier-test",
@@ -80,7 +80,7 @@ def test_evaluate_zero_shot_exports_repair_direction_requests(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.evaluate_zero_shot",
+            "scripts.evaluation.evaluate_zero_shot",
             str(dataset_dir),
             "--model",
             "frontier-test",

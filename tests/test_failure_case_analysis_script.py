@@ -26,7 +26,7 @@ def test_failure_case_analysis_script_writes_prediction_failures(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.failure_case_analysis",
+            "scripts.evaluation.failure_case_analysis",
             str(dataset_dir),
             "--predictions-jsonl",
             str(predictions_path),
@@ -68,7 +68,7 @@ def test_failure_case_analysis_script_includes_repair_verifier(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.failure_case_analysis",
+            "scripts.evaluation.failure_case_analysis",
             str(dataset_dir),
             "--predictions-jsonl",
             str(predictions_path),

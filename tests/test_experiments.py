@@ -14,8 +14,14 @@ from intersectionqa.experiments import (
     select_best_checkpoint,
     topological_run_order,
 )
+from intersectionqa.experiment_runner import (
+    ExperimentRunner,
+    ExperimentRunnerOptions,
+    ExperimentSelection,
+    expand_command,
+)
 from intersectionqa.pipeline import build_smoke_rows
-from scripts.run_experiment_suite import main as run_suite_main
+from scripts.experiments.run_experiment_suite import main as run_suite_main
 
 
 def test_manifest_schema_validates_dependency_order(tmp_path):
@@ -129,7 +135,7 @@ def test_orchestrator_runs_and_skips_completed_manifest(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    import scripts.run_experiment_suite as run_suite
+    import scripts.experiments.run_experiment_suite as run_suite
 
     monkeypatch.setattr(run_suite, "scan_stop_signals", lambda _run_dir: [])
     run_suite_main([str(manifest), "--runs-dir", str(tmp_path / "runs")])
@@ -139,3 +145,77 @@ def test_orchestrator_runs_and_skips_completed_manifest(tmp_path, monkeypatch):
     assert status["status"] == "skipped"
     artifacts = json.loads((run_dir / "artifacts.json").read_text(encoding="utf-8"))
     assert any(item["kind"] == "prediction" for item in artifacts["artifacts"])
+
+
+def test_orchestrator_selects_dependency_windows(tmp_path):
+    manifest = ExperimentSuiteManifest.model_validate(
+        {
+            "runs": [
+                {"name": "dataset", "kind": "dataset_report"},
+                {"name": "sft", "kind": "sft", "depends_on": ["dataset"]},
+                {"name": "eval", "kind": "eval", "depends_on": ["sft"]},
+                {"name": "report", "kind": "analysis", "depends_on": ["eval"]},
+            ]
+        }
+    )
+
+    runner = ExperimentRunner(
+        manifest,
+        options=ExperimentRunnerOptions(
+            runs_dir=tmp_path / "runs",
+            dry_run=True,
+            selection=ExperimentSelection(start_from="sft", run_until="eval"),
+        ),
+    )
+
+    assert [run.name for run in runner.selected_runs()] == ["sft", "eval"]
+
+
+def test_orchestrator_can_include_named_run_dependencies(tmp_path):
+    manifest = ExperimentSuiteManifest.model_validate(
+        {
+            "runs": [
+                {"name": "dataset", "kind": "dataset_report"},
+                {"name": "sft", "kind": "sft", "depends_on": ["dataset"]},
+                {"name": "eval", "kind": "eval", "depends_on": ["sft"]},
+            ]
+        }
+    )
+
+    runner = ExperimentRunner(
+        manifest,
+        options=ExperimentRunnerOptions(
+            runs_dir=tmp_path / "runs",
+            dry_run=True,
+            selection=ExperimentSelection(names=("eval",), with_dependencies=True),
+        ),
+    )
+
+    assert [run.name for run in runner.selected_runs()] == ["dataset", "sft", "eval"]
+
+
+def test_command_expansion_can_reference_prior_run_outputs(tmp_path):
+    manifest = ExperimentSuiteManifest.model_validate(
+        {
+            "runs": [
+                {"name": "sft", "kind": "sft", "output_dir": str(tmp_path / "runs" / "sft")},
+                {
+                    "name": "eval",
+                    "kind": "eval",
+                    "command": ["python", "-m", "x", "--adapter", "{run:sft}/adapter", "--out", "{run_dir}"],
+                },
+            ]
+        }
+    )
+    runner = ExperimentRunner(manifest, options=ExperimentRunnerOptions(runs_dir=tmp_path / "runs"))
+    context = runner._context(manifest.runs[1])
+
+    assert expand_command(manifest.runs[1].command, context) == [
+        "python",
+        "-m",
+        "x",
+        "--adapter",
+        str(tmp_path / "runs" / "sft" / "adapter"),
+        "--out",
+        str(tmp_path / "runs" / "eval"),
+    ]

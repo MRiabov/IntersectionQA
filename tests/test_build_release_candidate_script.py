@@ -27,7 +27,7 @@ def test_build_release_candidate_writes_reports_and_parquet(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.build_release_candidate",
+            "scripts.dataset.build_release_candidate",
             "--config",
             str(config_path),
             "--output-dir",

@@ -3,7 +3,7 @@ from intersectionqa.enums import TaskType
 from intersectionqa.export.jsonl import write_split_files
 from intersectionqa.export.parquet import write_parquet_files
 from intersectionqa.prompts.materialize import materialize_rows
-from scripts.prepare_intersectionedit_training_splits import prepare_intersectionedit_training_splits
+from scripts.training.prepare_intersectionedit_training_splits import prepare_intersectionedit_training_splits
 from intersectionqa.sources.synthetic import fixture_geometry_records
 from intersectionqa.splits.grouped import (
     INTERNAL_EVAL_SPLIT,

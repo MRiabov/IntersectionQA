@@ -2,7 +2,7 @@ from pathlib import Path
 
 from intersectionqa.config import DatasetConfig, SmokeConfig
 from intersectionqa.pipeline import write_smoke_dataset
-from scripts.audit_reproducibility import compare_dataset_dirs
+from scripts.dataset.audit_reproducibility import compare_dataset_dirs
 
 
 def test_reproducibility_audit_passes_for_same_content_different_output_dirs(tmp_path):

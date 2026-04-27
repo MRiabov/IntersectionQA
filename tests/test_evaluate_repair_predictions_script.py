@@ -36,7 +36,7 @@ def test_evaluate_repair_predictions_script_reports_exact_repair_success(tmp_pat
         [
             sys.executable,
             "-m",
-            "scripts.evaluate_repair_predictions",
+            "scripts.evaluation.evaluate_repair_predictions",
             str(dataset_dir),
             str(predictions_path),
         ],

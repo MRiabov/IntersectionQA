@@ -2,7 +2,7 @@ from pathlib import Path
 
 from intersectionqa.config import DatasetConfig
 from intersectionqa.pipeline import validate_dataset_dir, write_smoke_dataset
-from scripts.render_row_artifacts import render_row_artifacts
+from scripts.dataset.render_row_artifacts import render_row_artifacts
 
 
 def test_render_row_artifacts_writes_png_previews(tmp_path):

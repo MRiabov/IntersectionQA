@@ -128,7 +128,7 @@ def test_evaluate_tool_assisted_script_handles_repair_direction_rows(tmp_path):
         [
             sys.executable,
             "-m",
-            "scripts.evaluate_tool_assisted",
+            "scripts.evaluation.evaluate_tool_assisted",
             str(dataset_dir),
         ],
         check=True,

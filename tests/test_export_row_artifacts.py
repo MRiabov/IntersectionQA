@@ -2,7 +2,7 @@ import json
 
 from intersectionqa.config import DatasetConfig
 from intersectionqa.pipeline import validate_dataset_dir, write_smoke_dataset
-from scripts.export_row_artifacts import export_row_artifacts
+from scripts.dataset.export_row_artifacts import export_row_artifacts
 
 
 def test_export_row_artifacts_writes_prompt_script_and_step_files(tmp_path):
