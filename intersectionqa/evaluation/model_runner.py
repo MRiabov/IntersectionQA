@@ -14,6 +14,7 @@ from typing import Any, Iterable, Protocol
 from intersectionqa.enums import Split, TaskType
 from intersectionqa.evaluation.metrics import Prediction, TaskMetrics, evaluate_predictions
 from intersectionqa.hashing import sha256_json
+from intersectionqa.experiments import prediction_record
 from intersectionqa.schema import PublicTaskRow
 
 ZERO_SHOT_EVAL_VERSION = "zero_shot_eval_v01"
@@ -527,12 +528,30 @@ def write_few_shot_request_jsonl(
     return count
 
 
-def write_predictions_jsonl(predictions: Iterable[ModelPrediction], path: Path) -> int:
+def write_predictions_jsonl(
+    predictions: Iterable[ModelPrediction],
+    path: Path,
+    *,
+    rows: Iterable[PublicTaskRow] | None = None,
+    include_prompt: bool = False,
+) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
+    rows_by_id = {row.id: row for row in rows} if rows is not None else {}
     count = 0
     with path.open("w", encoding="utf-8") as handle:
         for prediction in predictions:
-            handle.write(json.dumps(_json_ready(prediction.as_json_record()), sort_keys=True) + "\n")
+            record = prediction.as_json_record()
+            row = rows_by_id.get(prediction.row_id)
+            if row is not None:
+                record = {
+                    **record,
+                    **prediction_record(
+                        row,
+                        {"row_id": prediction.row_id, "output": prediction.output},
+                        prompt=include_prompt,
+                    ),
+                }
+            handle.write(json.dumps(_json_ready(record), sort_keys=True) + "\n")
             count += 1
     return count
 

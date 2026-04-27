@@ -36,9 +36,11 @@ def _read_predictions(path: Path) -> list[Prediction]:
             if not line.strip():
                 continue
             data = json.loads(line)
-            if not isinstance(data.get("id"), str) or not isinstance(data.get("output"), str):
-                raise ValueError(f"{path}:{line_number}: expected string id and output fields")
-            predictions.append(Prediction(row_id=data["id"], output=data["output"]))
+            row_id = data.get("id") or data.get("row_id")
+            output = data.get("output") or data.get("raw_completion")
+            if not isinstance(row_id, str) or not isinstance(output, str):
+                raise ValueError(f"{path}:{line_number}: expected string id/row_id and output/raw_completion fields")
+            predictions.append(Prediction(row_id=row_id, output=output))
     return predictions
 
 

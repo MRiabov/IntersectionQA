@@ -20,6 +20,7 @@ from intersectionqa.evaluation.model_runner import (
     write_report,
     write_request_jsonl,
 )
+from intersectionqa.experiments import RunArtifactManager
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
 
@@ -109,10 +110,23 @@ def main(argv: list[str] | None = None) -> None:
     artifact_stem = f"{args.provider}_{_path_token(args.model)}"
     if args.few_shot_count > 0:
         artifact_stem = f"{artifact_stem}_fewshot{args.few_shot_count}"
-    predictions_path = args.predictions_jsonl or args.output_dir / f"{artifact_stem}_predictions.jsonl"
-    report_path = args.report_json or args.output_dir / f"{artifact_stem}_report.json"
-    write_predictions_jsonl(result.predictions, predictions_path)
+    run_contract = (args.output_dir / "run_manifest.json").exists()
+    predictions_path = args.predictions_jsonl or (
+        args.output_dir / "predictions" / f"{artifact_stem}_predictions.jsonl"
+        if run_contract
+        else args.output_dir / f"{artifact_stem}_predictions.jsonl"
+    )
+    report_path = args.report_json or (
+        args.output_dir / "reports" / f"{artifact_stem}_report.json"
+        if run_contract
+        else args.output_dir / f"{artifact_stem}_report.json"
+    )
+    write_predictions_jsonl(result.predictions, predictions_path, rows=selected)
     write_report(result.report, report_path)
+    if run_contract:
+        manager = RunArtifactManager.create(args.output_dir, resume=True)
+        manager.add_artifact(kind="prediction", path=predictions_path.relative_to(args.output_dir), role="final_eval")
+        manager.add_artifact(kind="report", path=report_path.relative_to(args.output_dir), role="eval_report")
     print(report_path)
 
 
