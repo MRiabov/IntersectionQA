@@ -13,9 +13,11 @@ source_documents:
   - specs/schema.md
   - specs/generation_policy.md
   - specs/paper-spec.md
+  - specs/research-experiment-spec.md
   - specs/intersectionedit-task-spec.md
   - specs/intersectionedit-full-spec.md
   - specs/using-cadevolve-dataset-export.md
+  - docs/experiment_execution_runbook.md
 status_values:
   - planned
   - work-in-progress
@@ -1450,3 +1452,206 @@ epics:
         stable: false
         source_document: specs/intersectionedit-full-spec.md
         notes: Implemented prediction-side IntersectionEdit failure categories in `failure_case_analysis`, including invalid output, correct direction but wrong distance, wrong direction, excessive movement, insufficient movement, unresolved target clearance, centroid-distance error, non-minimal valid edit, wrong candidate, and candidate ranking error. Geometry-executed categories such as cavity AABB failures, rotation errors, movable-object errors, and multi-fixed-object failures remain planned for future verifier-backed tasks.
+
+  - id: epic-16
+    title: Experiment orchestration and run artifact contract
+    scope: Implement the experiment execution runbook so overnight paper runs are reproducible, restartable, auditable, and safe to monitor on rented GPUs.
+    priority: P0
+    implementation_complexity: Medium
+    debugging_difficulty: Medium
+    recommendation: Build before the next overnight GPU suite
+    status: implemented
+    stable: false
+    source_document: docs/experiment_execution_runbook.md
+    stories:
+      - id: "16.1"
+        title: Run artifact utility
+        track: shared_core
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build first
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Creates `runs/<run_id>/` without clobbering existing runs.
+          - Writes `run_manifest.json` with run ID, timestamp, model, dataset path, dataset manifest/hash when available, train/eval splits, task filters, prompt mode, decoding mode, seeds, row caps, hyperparameters, output paths, and checkpoint-selection rule.
+          - Writes `command.txt` with the exact launch command.
+          - Writes `environment.json` with Python, OS, CUDA, GPU name/count, torch, transformers, trl, unsloth, peft, bitsandbytes, vllm when present, and relevant environment variables.
+          - Writes `git_status.txt` and `git_diff.patch` for GPU runs from dirty or clean worktrees.
+          - Initializes `artifacts.json` as an index of produced metrics, predictions, checkpoints, adapters, reports, uploads, tarballs, and checksums.
+      - id: "16.2"
+        title: Experiment manifest format
+        track: shared_core
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Low
+        recommendation: Build before orchestration script
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Defines a YAML or JSON manifest schema for `dataset_report`, `baseline`, `zero_shot`, `sft`, `reasoning_sft`, `grpo`, `eval`, and `analysis` run kinds.
+          - Supports `depends_on`, dataset directory, model, adapter init directory, splits, task filters, prompt mode, decoding mode, row caps, training settings, budget settings, output directory, and expected artifacts.
+          - Separates canary runs from full runs so full runs can depend on successful canaries.
+          - Includes stop rules for NaN, repeated OOM, failed validation, high invalid-output rate, RL quality regression, disk pressure, and budget exhaustion.
+      - id: "16.3"
+        title: Experiment suite orchestrator
+        track: shared_core
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build before long GPU runs
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Executes manifest runs in dependency order.
+          - Skips completed runs when all expected artifacts exist.
+          - Validates datasets, split manifests, leakage audits, and answer-balance audits before optimizer updates.
+          - Captures stdout/stderr into per-run logs while preserving existing trainer metric files.
+          - Fails fast on missing inputs, invalid output files, NaN losses, repeated OOMs, or impossible metrics.
+          - Preserves partial artifacts on failure and records failed/deferred upload commands.
+          - Supports resuming or continuing a run without overwriting previous outputs.
+      - id: "16.4"
+        title: Standard prediction output contract
+        track: shared_core
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build before paper evaluation tables
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Final evaluations write raw prediction JSONL files under `runs/<run_id>/predictions/`.
+          - Quality evaluations write step-scoped prediction files such as `quality_step_<step>.jsonl` or an equivalent indexed path.
+          - Prediction rows include row ID, split, task type, prompt or prompt hash, raw completion, parsed answer, canonical answer, parse validity, and correctness fields where available.
+          - Aggregate metrics can be regenerated from prediction files.
+          - Existing `quality_metrics.jsonl` outputs are either copied or aliased into `eval_metrics.jsonl`, or the mapping is recorded in `artifacts.json`.
+      - id: "16.5"
+        title: Best-checkpoint preservation
+        track: shared_core
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build before GRPO continuation runs
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Defines a checkpoint-selection rule in `run_manifest.json`.
+          - Copies or symlinks the best checkpoint or adapter into `checkpoint-best/` or `adapter-best/`.
+          - Records the best step, metric name, metric value, and source checkpoint path in `artifacts.json`.
+          - Handles cases where the final checkpoint is worse than an earlier checkpoint.
+          - Does not rely only on trainer `save_total_limit` for preserving the best checkpoint.
+      - id: "16.6"
+        title: GRPO rollout and reward-component logging
+        track: intersectionedit
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: High
+        recommendation: Build before the next serious RL run
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Writes capped `rollout_samples.jsonl` for GRPO/RL runs.
+          - Logs 16-64 sampled completions per quality step by default, including representative low-reward and high-reward examples.
+          - Writes `reward_components.jsonl` with per-completion reward components for shaped rewards.
+          - Includes prompt length, completion length, truncation status, parsed answer, reward total, reward components, and group-relative rank where available.
+          - Avoids full logging of every rollout by default.
+      - id: "16.7"
+        title: Guided decoding execution policy
+        track: shared_core
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build for schema-constrained evaluation and training
+        status: implemented
+        stable: false
+        source_document: specs/research-experiment-spec.md
+        acceptance_criteria:
+          - Supports schema-constrained final-answer decoding when the backend provides guided generation or structured outputs.
+          - Labels schema-constrained runs clearly in manifests, metrics, and reports.
+          - Supports bounded unconstrained diagnostic evaluation on a fixed 256-1k row validation subset.
+          - Supports a short unconstrained RL rollout canary for parse-failure and policy-collapse diagnosis.
+          - Does not require full unconstrained duplicates of every default-budget run.
+      - id: "16.8"
+        title: Overnight experiment subset manifest
+        track: shared_core
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build before renting GPU
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Defines a concrete overnight run queue instead of the full paper experiment suite.
+          - Includes dataset reports, heuristic baselines, answer-SFT canary/full run, reasoning-SFT canary/full run, all-split evaluation, counterfactual/failure analysis, and one bounded GRPO canary only if supervised gates pass.
+          - Encodes budget limits and stop conditions directly in the manifest or launch note.
+          - Uses public `train` only for optimizer updates and group-safe internal train/eval splits.
+          - Documents expected HF Xet bucket target and fallback tarball/checksum path.
+      - id: "16.9"
+        title: Local smoke suite for orchestration
+        track: shared_core
+        priority: P0
+        implementation_complexity: Low
+        debugging_difficulty: Medium
+        recommendation: Build before renting GPU
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Runs the orchestration path with 8-32 rows, 1-5 optimizer steps, and one eval split.
+          - Verifies run directory creation, environment/git snapshots, command capture, metric writing, prediction writing, and artifact indexing.
+          - Exercises resume or skip-completed behavior.
+          - Confirms failure handling preserves partial artifacts.
+      - id: "16.10"
+        title: HF Xet bucket artifact upload
+        track: shared_core
+        priority: P0
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build before overnight GPU session
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Uploads compressed run artifacts to a configured Hugging Face Xet-backed bucket or repo path.
+          - Records uploaded paths, URLs, tarball names, and checksums in `artifacts.json`.
+          - Keeps local tarballs and checksums when upload is unavailable.
+          - Records exact deferred or failed upload commands for manual retry.
+          - Verifies artifact availability before rented GPU instances are destroyed.
+      - id: "16.11"
+        title: GPU monitoring and stop-rule helper
+        track: shared_core
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build after core artifact contract
+        status: implemented
+        stable: false
+        source_document: docs/experiment_execution_runbook.md
+        acceptance_criteria:
+          - Provides a simple monitor command or script that tails logs, latest metrics, disk usage, and GPU utilization.
+          - Surfaces hard-stop signals such as NaN, repeated OOM, disk pressure, missing artifacts, and budget exhaustion.
+          - Surfaces soft-stop signals such as high invalid-output rate, RL reward/eval divergence, answer collapse, filler reasoning, or unchanged edit MAE.
+          - Does not require full `gpu_metrics.csv` implementation before the first overnight suite.
+      - id: "16.12"
+        title: Paper experiment report generation
+        track: shared_core
+        priority: P1
+        implementation_complexity: Medium
+        debugging_difficulty: Medium
+        recommendation: Build after prediction contract
+        status: implemented
+        stable: false
+        source_document: specs/research-experiment-spec.md
+        acceptance_criteria:
+          - Builds comparison tables from saved predictions and metrics rather than manual spreadsheets.
+          - Produces dataset statistics, heuristic baseline, zero-shot, supervised training, counterfactual sensitivity, edit verifier, and failure taxonomy tables when inputs exist.
+          - Records which runs are schema-constrained versus unconstrained diagnostics.
+          - Includes links or paths to run directories and HF Xet bucket artifacts.

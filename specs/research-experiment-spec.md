@@ -38,6 +38,29 @@ budget should be enough for one well-instrumented 4B training stack plus
 diagnostic ablations. The expanded budget should be used for model-size scaling,
 fuller transfer matrices, and RL variant comparisons.
 
+Default step-count guidance for the Qwen3.5 4B stack:
+
+- answer-only SFT canary: 20-50 optimizer steps on 128-512 train rows;
+- answer-only full SFT: one epoch over public `train`; with the current 43,664
+  row IntersectionQA train split and effective batch 32, this is approximately
+  1,365 optimizer steps;
+- reasoning-SFT canary: 20-50 optimizer steps;
+- deterministic or rejection-sampled reasoning SFT: one epoch over the selected
+  trace set, normally 500-1,500 optimizer steps depending trace count and
+  packing;
+- supervised data-scaling runs: one epoch each at 1k, 5k, 15k, 30k, and full
+  train, roughly 3k total optimizer steps at effective batch 32 for the current
+  train split;
+- GRPO/GSPO canary: 50-100 optimizer steps;
+- bounded main GRPO/GSPO from the best reasoning-SFT adapter: 1,500-2,000
+  optimizer steps when the canary is healthy.
+
+The historical H100 GRPO datapoint is about 9 seconds per optimizer step under
+one candidate-feature configuration. Use that as an initial budget estimate,
+but always record actual step time, eval overhead, and checkpoint overhead. At
+9 seconds per step, 1,500-2,000 GRPO steps are roughly 3.75-5 raw GPU hours
+before periodic quality evaluation and artifact upload.
+
 All GPU experiments must record:
 
 - GPU type and count;
@@ -131,6 +154,18 @@ Required baselines:
 - OBB or bbox-derived baseline if implemented;
 - exact CAD-kernel oracle or tool-assisted upper bound where evaluation permits;
 - edit-policy oracle for stored IntersectionEdit repair rows.
+
+Tool-assisted results must be separated into three scientific categories:
+
+- **Exact CAD-kernel oracle / scripted verifier**: the true upper bound. It may
+  execute trusted dataset geometry or use stored exact labels where permitted,
+  and it must report tool failure rate and failure reasons.
+- **Standard instruct model plus tools**: the practical CAD-agent baseline. Use
+  an off-the-shelf instruct/code model with a verifier or geometry tool and no
+  IntersectionQA/IntersectionEdit fine-tuning. This answers how far current
+  general tool-using models get.
+- **Fine-tuned tool-using model**: a training experiment, not the baseline. This
+  answers whether SFT/GRPO improves verifier-using CAD behavior.
 
 Recommended diagnostic baselines:
 
@@ -253,6 +288,18 @@ Trace requirements:
 - traces must not reveal test labels during training;
 - traces must end in the canonical answer format;
 - traces should expose real geometry reasoning, not filler.
+
+If a main GRPO/GSPO run is planned for 1,500-2,000 optimizer steps, the
+preferred supervised initializer is not a tiny reasoning-SFT canary. Build a
+medium rejection-sampled reasoning trace set first:
+
+- generate candidate completions from a base or answer-SFT model;
+- accept only parse-valid completions with the correct canonical answer;
+- reject traces with obvious repetition, filler, or reasoning-answer mismatch;
+- keep reasoning length bounded, initially around 128-256 tokens for SFT when
+  the trace contains real geometry reasoning;
+- preserve the acceptance rate and rejection reasons as run artifacts;
+- train one SFT epoch over the accepted traces before GRPO.
 
 Report whether reasoning traces improve:
 
@@ -479,11 +526,19 @@ Required comparison:
 - base zero-shot;
 - answer-only SFT;
 - reasoning SFT;
+- rejection-sampled reasoning SFT when used;
 - RL final checkpoint;
 - RL best checkpoint.
 
 If RL improves reward but not strict held-out exact accuracy or verifier success,
 the paper should say so directly.
+
+For the default-budget RL result, the preferred serious condition is SFT+GRPO:
+initialize GRPO/GSPO from the best deterministic or rejection-sampled
+reasoning-SFT adapter, run a 50-100 step canary, and only then run the
+1,500-2,000 step main job. A base-model GRPO run is still useful as a diagnostic
+or ablation, but it should not replace the SFT+GRPO result when the paper claims
+that training improves CAD reasoning.
 
 ## P1: Guided Generation And Reasoning Preservation
 
@@ -517,6 +572,15 @@ that comparison scientifically necessary.
 
 Report strict accuracy, invalid output rate, reward, completion length,
 throughput, and whether the constraint hides or exposes task competence.
+
+Default completion-length policy:
+
+- 256 completion tokens is the efficient default for main closed-book
+  evaluations and bounded GRPO unless a task family clearly needs more room;
+- run a 256 versus 512 token validation diagnostic for reasoning-SFT and GRPO
+  checkpoints;
+- use 1,024 token completions only on a small subset unless the 512-token
+  diagnostic shows a material gain.
 
 Reasoning-preservation conditions:
 
@@ -634,20 +698,25 @@ answers whether the benchmark improves a real CAD-agent workflow.
 Under the default budget, run experiments in this order:
 
 1. Dataset and benchmark characterization.
-2. Heuristic and tool baselines.
+2. Heuristic baselines and the exact CAD-kernel/tool-assisted upper bound.
 3. Closed-book zero-shot model suite.
-4. Prompting ablation on a fixed validation subset.
-5. Answer-only Qwen3.5 4B SFT.
-6. Reasoning-SFT Qwen3.5 4B.
-7. Data scaling for the best supervised recipe.
-8. Counterfactual sensitivity.
-9. Generalization by split.
-10. Error taxonomy.
-11. One bounded RL run from the best reasoning-SFT checkpoint if SFT baselines
-    and reward smoke tests are healthy.
+4. Standard instruct-model-plus-tools baseline on the same evaluation protocol,
+   or on a bounded validation/test subset if full tool-use evaluation is too
+   expensive.
+5. Prompting and guided-decoding ablation on a fixed validation subset.
+6. Answer-only Qwen3.5 4B SFT.
+7. Deterministic reasoning-SFT Qwen3.5 4B.
+8. Rejection-sampled reasoning-SFT if a 1,500-2,000 step GRPO run is planned.
+9. Data scaling for the best supervised recipe.
+10. Counterfactual sensitivity.
+11. Generalization by split.
+12. Error taxonomy.
+13. One bounded SFT+GRPO run from the best reasoning-SFT checkpoint if SFT
+    baselines and reward smoke tests are healthy.
 
 If time or GPU budget is tight, prefer completing the supervised scaling and
-counterfactual experiments over launching a long RL run.
+counterfactual experiments over launching a long RL run. If GRPO is launched,
+prefer SFT+GRPO over base-model GRPO for the main claim.
 
 ## Expanded-Budget Execution Plan
 
@@ -664,12 +733,16 @@ With roughly 3x compute, add:
 
 ## Artifact Requirements
 
-Every experiment should write or preserve:
+Every experiment should follow the run artifact contract in
+`docs/experiment_execution_runbook.md`. At minimum, every run should write or
+preserve:
 
-- command log;
+- run manifest;
+- exact command;
 - environment summary;
+- git status and diff for GPU runs;
 - metrics JSONL;
-- final summary JSON;
+- artifact index;
 - prediction JSONL for evaluated rows;
 - selected checkpoint or adapter;
 - best checkpoint or adapter when different from final;
@@ -677,9 +750,14 @@ Every experiment should write or preserve:
 - failure-case analysis report;
 - dataset manifest or release-candidate report used for the run.
 
-Training artifacts should be uploadable to a durable store such as a Hugging
-Face dataset/model repository or bucket. Paper tables should be reproducible
-from checked-in scripts and saved prediction files, not from manual spreadsheet
+GRPO/RL runs should additionally preserve capped rollout samples and reward
+component logs. Full logging of every rollout is not required and should not be
+the default.
+
+Training artifacts should be uploadable to durable storage. Prefer Hugging Face
+Xet-backed buckets for run artifacts because they fit ML artifact workflows
+better than standard S3-style storage. Paper tables should be reproducible from
+checked-in scripts and saved prediction files, not from manual spreadsheet
 edits.
 
 ## Main Paper Tables
@@ -687,14 +765,16 @@ edits.
 Recommended table set:
 
 - dataset statistics and split table;
-- heuristic/tool baseline table;
+- heuristic/tool baseline table, separating exact oracle, instruct+tools, and
+  trained tool-using conditions;
 - closed-book zero-shot model table;
-- supervised training table: zero-shot versus answer-SFT versus reasoning-SFT;
+- supervised training table: zero-shot versus answer-SFT versus reasoning-SFT
+  versus rejection-sampled reasoning-SFT when used;
 - data scaling table or curve;
 - counterfactual sensitivity table;
 - task transfer matrix;
 - IntersectionEdit verifier table;
-- RL/reward ablation table if RL is included;
+- SFT+GRPO and RL/reward ablation table if RL is included;
 - failure taxonomy table.
 
 ## Main Paper Figures
