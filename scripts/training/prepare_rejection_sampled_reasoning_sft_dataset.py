@@ -31,6 +31,7 @@ def main() -> None:
     parser.add_argument("--prompt-feature-mode", choices=PROMPT_FEATURE_MODES, default="none")
     parser.add_argument("--max-rows-per-split", type=int)
     parser.add_argument("--attempts-per-row", type=int, default=1)
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.95)
@@ -41,6 +42,8 @@ def main() -> None:
 
     if args.attempts_per_row <= 0:
         raise ValueError("--attempts-per-row must be positive")
+    if args.batch_size <= 0:
+        raise ValueError("--batch-size must be positive")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     import torch
@@ -50,6 +53,7 @@ def main() -> None:
     tokenizer = _load_tokenizer(args.model, args.adapter_dir)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
     quantization = None
     if not args.no_4bit:
         quantization = BitsAndBytesConfig(
@@ -78,6 +82,7 @@ def main() -> None:
         "model": args.model,
         "adapter_dir": str(args.adapter_dir) if args.adapter_dir else None,
         "attempts_per_row": args.attempts_per_row,
+        "batch_size": args.batch_size,
         "max_new_tokens": args.max_new_tokens,
         "temperature": args.temperature,
         "top_p": args.top_p,
@@ -93,40 +98,47 @@ def main() -> None:
         rejection_reasons: Counter[str] = Counter()
         trace_path = args.output_dir / f"{split}_trace_samples.jsonl"
         with trace_path.open("w", encoding="utf-8") as trace_handle:
-            for row in rows:
-                accepted = None
-                for attempt_index in range(args.attempts_per_row):
-                    completion = _generate_reasoning_completion(
+            remaining = list(rows)
+            for attempt_index in range(args.attempts_per_row):
+                next_remaining: list[dict[str, Any]] = []
+                for batch in _batched(remaining, args.batch_size):
+                    completions = _generate_reasoning_completions(
                         model,
                         tokenizer,
-                        row,
+                        batch,
                         max_new_tokens=args.max_new_tokens,
                         temperature=args.temperature,
                         top_p=args.top_p,
                         seed=args.seed + attempt_index,
                         prompt_feature_mode=args.prompt_feature_mode,
                     )
-                    accepted = accepted_reasoning_payload(row, completion)
-                    trace_handle.write(
-                        json.dumps(
-                            {
-                                "id": row["id"],
-                                "split": split,
-                                "attempt_index": attempt_index,
-                                "accepted": accepted is not None,
-                                "raw_completion": completion,
-                                "rejection_reason": None if accepted else rejection_reason(row, completion),
-                            },
-                            sort_keys=True,
+                    for row, completion in zip(batch, completions, strict=True):
+                        accepted = accepted_reasoning_payload(row, completion)
+                        reason = None if accepted else rejection_reason(row, completion)
+                        trace_handle.write(
+                            json.dumps(
+                                {
+                                    "id": row["id"],
+                                    "split": split,
+                                    "attempt_index": attempt_index,
+                                    "accepted": accepted is not None,
+                                    "raw_completion": completion,
+                                    "rejection_reason": reason,
+                                },
+                                sort_keys=True,
+                            )
+                            + "\n"
                         )
-                        + "\n"
-                    )
-                    if accepted is not None:
-                        break
-                if accepted is not None:
-                    accepted_rows.append(accepted)
-                else:
-                    rejection_reasons[rejection_reason(row, completion)] += 1
+                        trace_handle.flush()
+                        if accepted is not None:
+                            accepted_rows.append(accepted)
+                        elif attempt_index + 1 < args.attempts_per_row:
+                            next_remaining.append(row)
+                        else:
+                            rejection_reasons[reason or "unknown"] += 1
+                remaining = next_remaining
+                if not remaining:
+                    break
 
         output_path = args.output_dir / f"{split}.jsonl"
         with output_path.open("w", encoding="utf-8") as handle:
@@ -222,30 +234,22 @@ def _load_rows(path: Path, *, task_types: set[str] | None) -> list[dict[str, Any
     return rows
 
 
-def _generate_reasoning_completion(
+def _generate_reasoning_completions(
     model: Any,
     tokenizer: Any,
-    row: dict[str, Any],
+    rows: list[dict[str, Any]],
     *,
     max_new_tokens: int,
     temperature: float,
     top_p: float,
     seed: int,
     prompt_feature_mode: str,
-) -> str:
+) -> list[str]:
     import torch
 
     torch.manual_seed(seed)
-    prompt = prompt_for_mapping(row, mode=prompt_feature_mode).rstrip()
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": prompt},
-    ]
-    if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
-        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    else:
-        text = f"### System:\n{SYSTEM_PROMPT}\n\n### User:\n{prompt}\n\n### Assistant:\n"
-    encoded = tokenizer(text, return_tensors="pt").to(model.device)
+    texts = [_reasoning_prompt_text(tokenizer, row, prompt_feature_mode=prompt_feature_mode) for row in rows]
+    encoded = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
     with torch.no_grad():
         output = model.generate(
             **encoded,
@@ -256,10 +260,25 @@ def _generate_reasoning_completion(
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
-    completion = output[0, encoded["input_ids"].shape[-1] :]
-    return tokenizer.decode(completion, skip_special_tokens=True).strip()
+    prompt_width = encoded["input_ids"].shape[-1]
+    completions = output[:, prompt_width:]
+    return [completion.strip() for completion in tokenizer.batch_decode(completions, skip_special_tokens=True)]
+
+
+def _reasoning_prompt_text(tokenizer: Any, row: dict[str, Any], *, prompt_feature_mode: str) -> str:
+    prompt = prompt_for_mapping(row, mode=prompt_feature_mode).rstrip()
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+    if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
+        return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    return f"### System:\n{SYSTEM_PROMPT}\n\n### User:\n{prompt}\n\n### Assistant:\n"
+
+
+def _batched(rows: list[dict[str, Any]], batch_size: int) -> list[list[dict[str, Any]]]:
+    return [rows[index : index + batch_size] for index in range(0, len(rows), batch_size)]
 
 
 if __name__ == "__main__":
     main()
-
