@@ -770,8 +770,8 @@ With roughly 3x compute, add:
 
 ## Artifact Requirements
 
-Every experiment should follow the run artifact contract in
-`docs/experiment_execution_runbook.md`. At minimum, every run should write or
+Every experiment should follow the run artifact contract in the repo-specific
+skill at `.agents/skills/run-experiments/`. At minimum, every run should write or
 preserve:
 
 - run manifest;
