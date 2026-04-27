@@ -231,6 +231,8 @@ def main() -> None:
         "packing": args.packing,
         "pack_tokenized": args.pack_tokenized,
         "assistant_only_loss": args.assistant_only_loss,
+        "trl_assistant_only_loss": trl_assistant_only_loss(args),
+        "loss_masking": loss_masking_mode(args),
         "metrics_log_file": args.metrics_log_file,
         "quality_eval_steps": args.quality_eval_steps,
         "quality_eval_max_rows": args.quality_eval_max_rows,
@@ -268,7 +270,7 @@ def build_sft_config(args: argparse.Namespace) -> SFTConfig:
         "weight_decay": 0.001,
         "lr_scheduler_type": "linear",
         "packing": args.packing,
-        "assistant_only_loss": args.assistant_only_loss,
+        "assistant_only_loss": trl_assistant_only_loss(args),
     }
     signature = inspect.signature(SFTConfig.__init__).parameters
     if "eval_strategy" in signature:
@@ -276,6 +278,20 @@ def build_sft_config(args: argparse.Namespace) -> SFTConfig:
     elif "evaluation_strategy" in signature:
         kwargs["evaluation_strategy"] = args.eval_strategy
     return SFTConfig(**{key: value for key, value in kwargs.items() if key in signature})
+
+
+def trl_assistant_only_loss(args: argparse.Namespace) -> bool:
+    if args.pack_tokenized:
+        return False
+    return bool(args.assistant_only_loss)
+
+
+def loss_masking_mode(args: argparse.Namespace) -> str:
+    if args.pack_tokenized:
+        return "packed_assistant_tokens_only"
+    if args.assistant_only_loss:
+        return "trl_assistant_only_loss"
+    return "full_sequence_prompt_and_answer"
 
 
 def pack_tokenized_examples(tokenizer: Any, examples: list[dict], max_seq_length: int) -> list[dict]:

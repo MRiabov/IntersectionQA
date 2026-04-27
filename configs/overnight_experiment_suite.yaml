@@ -91,6 +91,7 @@ runs:
       - data/IntersectionQA-90K
       - --output-dir
       - runs/answer_sft_canary
+      - --pack-tokenized
       - --max-train-rows
       - "256"
       - --max-eval-rows
@@ -98,10 +99,12 @@ runs:
       - --max-steps
       - "20"
       - --per-device-train-batch-size
-      - "8"
+      - "32"
       - --gradient-accumulation-steps
       - "1"
-      - --no-assistant-only-loss
+      - --eval-strategy
+      - "no"
+      - --no-final-eval
       - --final-adapter-save-mode
       - checkpoint
       - --resume
@@ -152,11 +155,14 @@ runs:
       - data/IntersectionQA-90K
       - --output-dir
       - runs/answer_sft_full
+      - --pack-tokenized
       - --per-device-train-batch-size
-      - "8"
+      - "32"
       - --gradient-accumulation-steps
       - "1"
-      - --no-assistant-only-loss
+      - --eval-strategy
+      - "no"
+      - --no-final-eval
       - --final-adapter-save-mode
       - checkpoint
       - --resume
@@ -247,6 +253,7 @@ runs:
       - data/rejection_sampled_reasoning_sft
       - --output-dir
       - runs/reasoning_sft_canary
+      - --pack-tokenized
       - --max-train-rows
       - "256"
       - --max-eval-rows
@@ -257,7 +264,9 @@ runs:
       - "8"
       - --gradient-accumulation-steps
       - "1"
-      - --no-assistant-only-loss
+      - --eval-strategy
+      - "no"
+      - --no-final-eval
       - --final-adapter-save-mode
       - checkpoint
       - --resume
@@ -291,11 +300,14 @@ runs:
       - data/rejection_sampled_reasoning_sft
       - --output-dir
       - runs/reasoning_sft_full
+      - --pack-tokenized
       - --per-device-train-batch-size
       - "8"
       - --gradient-accumulation-steps
       - "1"
-      - --no-assistant-only-loss
+      - --eval-strategy
+      - "no"
+      - --no-final-eval
       - --final-adapter-save-mode
       - checkpoint
       - --resume
