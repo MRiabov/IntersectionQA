@@ -95,6 +95,7 @@ runs:
       - "64"
       - --max-steps
       - "20"
+      - --no-assistant-only-loss
       - --quality-eval-steps
       - "10"
     output_dir: runs/answer_sft_canary
@@ -142,6 +143,7 @@ runs:
       - data/IntersectionQA-90K
       - --output-dir
       - runs/answer_sft_full
+      - --no-assistant-only-loss
       - --quality-eval-steps
       - "100"
     output_dir: runs/answer_sft_full
@@ -235,6 +237,7 @@ runs:
       - "64"
       - --max-steps
       - "20"
+      - --no-assistant-only-loss
       - --quality-eval-steps
       - "10"
     output_dir: runs/reasoning_sft_canary
@@ -265,6 +268,7 @@ runs:
       - data/rejection_sampled_reasoning_sft
       - --output-dir
       - runs/reasoning_sft_full
+      - --no-assistant-only-loss
       - --quality-eval-steps
       - "100"
     output_dir: runs/reasoning_sft_full
@@ -431,4 +435,3 @@ runs:
     upload:
       hf_bucket: hf://datasets/YOUR_ORG/intersectionqa-experiment-artifacts
       fallback_tarball: data/training_artifacts/grpo_canary.tar.gz
-
