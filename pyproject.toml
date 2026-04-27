@@ -16,6 +16,7 @@ dependencies = [
     "psutil>=7.2.2",
     "pyarrow>=24.0.0",
     "pydantic>=2.0",
+    "pydantic-ai>=1.87.0",
     "python-dotenv>=1.2.2",
     "pyvista>=0.47.3",
     "pyyaml>=6.0",
