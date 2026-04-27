@@ -144,7 +144,7 @@ Required outputs:
 
 ## P0: Heuristic And Tool Baselines
 
-Run non-LLM baselines to calibrate the benchmark.
+Run heuristic, oracle, and tool-use baselines to calibrate the benchmark.
 
 Required baselines:
 
