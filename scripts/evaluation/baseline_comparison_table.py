@@ -19,7 +19,7 @@ from intersectionqa.evaluation.obb import evaluate_obb_binary
 from intersectionqa.evaluation.repair import verify_repair_predictions
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
-from scripts.evaluate_predictions import _read_predictions
+from scripts.evaluation.internal.predictions import read_predictions
 
 
 def main() -> None:
@@ -43,7 +43,7 @@ def main() -> None:
         comparison_rows_from_aabb(evaluate_obb_binary(rows), system="obb_overlap")
     )
     for system, path in [_parse_named_path(item) for item in args.prediction]:
-        predictions = _read_predictions(path)
+        predictions = read_predictions(path)
         metrics = evaluate_predictions(rows, predictions)
         comparison_rows.extend(comparison_rows_from_metrics(metrics, system=system))
         comparison_rows.extend(

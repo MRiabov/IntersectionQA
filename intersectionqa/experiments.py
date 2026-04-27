@@ -29,15 +29,40 @@ from intersectionqa.schema import PublicTaskRow
 RUN_KINDS = {
     "dataset_report",
     "baseline",
+    "tool_assisted",
+    "tool_use_baseline",
     "zero_shot",
+    "prompt_ablation",
+    "guided_decoding",
     "sft",
     "reasoning_sft",
+    "rejection_sampled_reasoning_sft",
+    "data_scaling_sft",
     "grpo",
+    "gspo",
+    "dr_grpo",
+    "task_transfer",
+    "reward_ablation",
+    "model_scaling",
+    "source_transfer",
     "eval",
     "analysis",
+    "publishing",
 }
 DECODING_MODES = {"schema_constrained", "unconstrained_diagnostic"}
-TRAINING_KINDS = {"sft", "reasoning_sft", "grpo"}
+TRAINING_KINDS = {
+    "sft",
+    "reasoning_sft",
+    "rejection_sampled_reasoning_sft",
+    "data_scaling_sft",
+    "grpo",
+    "gspo",
+    "dr_grpo",
+    "task_transfer",
+    "reward_ablation",
+    "model_scaling",
+    "source_transfer",
+}
 ENVIRONMENT_VARIABLES = (
     "CUDA_VISIBLE_DEVICES",
     "HF_HOME",
@@ -82,6 +107,7 @@ class ExperimentRunSpec(BaseModel):
     prompt_mode: str | None = None
     decoding_mode: str | None = None
     row_caps: dict[str, int] = Field(default_factory=dict)
+    inputs: dict[str, Any] = Field(default_factory=dict)
     training: dict[str, Any] = Field(default_factory=dict)
     budget: dict[str, Any] = Field(default_factory=dict)
     output_dir: Path | None = None
@@ -303,6 +329,7 @@ def build_run_manifest(
             "decoding_mode": spec.decoding_mode if spec else None,
             "seeds": _extract_seeds(spec),
             "row_caps": spec.row_caps if spec else {},
+            "inputs": spec.inputs if spec else {},
             "hyperparameters": spec.training if spec else {},
             "budget": spec.budget if spec else {},
             "output_paths": {

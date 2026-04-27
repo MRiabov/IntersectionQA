@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
 from intersectionqa.schema import PublicTaskRow
-from scripts.export_row_artifacts import execute_row_assembly, export_row_artifacts
+from scripts.dataset.internal.row_artifacts import execute_row_assembly, export_row_artifacts
 
 COLORS = {
     "object_a": "#2f66d0",

@@ -10,7 +10,7 @@ from intersectionqa.evaluation.failure_analysis import failure_case_analysis
 from intersectionqa.export.jsonl import read_failure_manifest, read_object_validation_manifest
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
-from scripts.evaluate_predictions import _read_predictions
+from scripts.evaluation.internal.predictions import read_predictions
 
 
 def main() -> None:
@@ -23,7 +23,7 @@ def main() -> None:
 
     configure_logging()
     rows = validate_dataset_dir(args.dataset_dir)
-    predictions = _read_predictions(args.predictions_jsonl) if args.predictions_jsonl else None
+    predictions = read_predictions(args.predictions_jsonl) if args.predictions_jsonl else None
     report = failure_case_analysis(
         rows,
         read_object_validation_manifest(args.dataset_dir / "object_validation_manifest.jsonl"),

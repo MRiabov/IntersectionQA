@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
 from pathlib import Path
 from typing import Any
 
 from intersectionqa.geometry.cadquery_exec import object_to_shape
-from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
 from intersectionqa.schema import PublicTaskRow
 
@@ -138,25 +136,3 @@ def _write_json(path: Path, value: object, artifacts: dict[str, Any]) -> None:
 
 def _safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("dataset_dir", type=Path)
-    parser.add_argument("row_id")
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--no-step", action="store_true", help="write text/JSON artifacts only")
-    args = parser.parse_args()
-
-    configure_logging()
-    manifest = export_row_artifacts(
-        args.dataset_dir,
-        args.row_id,
-        args.output_dir,
-        write_step=not args.no_step,
-    )
-    print(json.dumps(manifest, indent=2, sort_keys=True))
-
-
-if __name__ == "__main__":
-    main()

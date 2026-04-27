@@ -15,7 +15,7 @@ from pathlib import Path
 from intersectionqa.evaluation.repair import verify_repair_predictions
 from intersectionqa.logging import configure_logging
 from intersectionqa.pipeline import validate_dataset_dir
-from scripts.evaluate_predictions import _read_predictions
+from scripts.evaluation.internal.predictions import read_predictions
 
 
 def main() -> None:
@@ -26,7 +26,7 @@ def main() -> None:
 
     configure_logging()
     rows = validate_dataset_dir(args.dataset_dir)
-    predictions = _read_predictions(args.predictions_jsonl)
+    predictions = read_predictions(args.predictions_jsonl)
     result = verify_repair_predictions(rows, predictions)
     payload = {
         "report": result.report,

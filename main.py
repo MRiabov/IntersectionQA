@@ -1,4 +1,4 @@
-from scripts.generate_dataset import main
+from scripts.dataset.generate_dataset import main
 
 
 if __name__ == "__main__":

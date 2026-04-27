@@ -13,7 +13,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.dataset_stats
+      - scripts.dataset.dataset_stats
       - data/IntersectionQA-90K
     output_dir: runs/dataset_reports
     artifacts:
@@ -34,7 +34,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.evaluate_baseline
+      - scripts.evaluation.evaluate_baseline
       - data/IntersectionQA-90K
       - --baseline
       - aabb
@@ -74,7 +74,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.text_sft_train_unsloth
+      - scripts.training.text_sft_train_unsloth
       - --dataset-dir
       - data/IntersectionQA-90K
       - --output-dir
@@ -130,7 +130,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.text_sft_train_unsloth
+      - scripts.training.text_sft_train_unsloth
       - --dataset-dir
       - data/IntersectionQA-90K
       - --output-dir
@@ -172,7 +172,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.text_sft_train_unsloth
+      - scripts.training.text_sft_train_unsloth
       - --dataset-dir
       - data/intersectionqa_edit_reasoning_sft
       - --output-dir
@@ -211,7 +211,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.text_sft_train_unsloth
+      - scripts.training.text_sft_train_unsloth
       - --dataset-dir
       - data/intersectionqa_edit_reasoning_sft
       - --output-dir
@@ -259,7 +259,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.failure_case_analysis
+      - scripts.evaluation.failure_case_analysis
       - data/IntersectionQA-90K
       - runs/all_split_eval/predictions/final_eval.jsonl
     output_dir: runs/counterfactual_failure_analysis
@@ -293,7 +293,7 @@ runs:
       - run
       - python
       - -m
-      - scripts.text_grpo_train_unsloth
+      - scripts.training.text_grpo_train_unsloth
       - --dataset-dir
       - data/intersectionqa_edit_reasoning_sft
       - --adapter-init-dir

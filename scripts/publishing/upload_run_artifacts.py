@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> None:
 def _deferred_command(run_dir: Path, tarball: Path | None, repo_id: str | None, hf_path: str | None) -> str | None:
     if not repo_id:
         return None
-    pieces = ["rtk", "uv", "run", "python", "-m", "scripts.upload_run_artifacts", str(run_dir), "--hf-repo-id", repo_id]
+    pieces = ["rtk", "uv", "run", "python", "-m", "scripts.publishing.upload_run_artifacts", str(run_dir), "--hf-repo-id", repo_id]
     if tarball:
         pieces.extend(["--tarball", str(tarball)])
     if hf_path:
