@@ -147,6 +147,20 @@ Do not transfer `data/IntersectionQA-90K.tar.gz` from a local workstation over
 SSH for normal experiment runs; that path is slower, can waste rented GPU time,
 and can accidentally use a stale pre-balance archive.
 
+When renting Vast A100 capacity, select offers in this order:
+
+1. Search with hard filters first: `gpu_name in [A100_SXM4,A100_PCIE]`,
+   `num_gpus=1`, `gpu_ram>=70`, enough disk for the run, direct SSH ports,
+   compatible CUDA, and acceptable reliability.
+2. Sort the filtered offers by total hourly price ascending, not by raw GPU
+   type or anecdotal host quality.
+3. Prefer spot only when it is actually available near the target budget; if
+   no suitable spot exists, take the cheapest matching on-demand offer.
+4. After creation, immediately verify the live instance still reports the
+   expected GPU class, VRAM, and `dph_total`. Vast can return or reprice an
+   unexpectedly expensive contract. Destroy and recreate before bootstrapping
+   if an A100 shows H100-class pricing.
+
 Tiny smoke defaults:
 
 - 8-32 rows;

@@ -220,6 +220,17 @@ rtk uv run python -m scripts.training.text_grpo_smoke \
 
 ## Remote Setup Template
 
+Before creating a Vast instance, filter and sort offers in that order. For an
+A100 run, search only A100 75GB+ offers first, then sort those filtered offers
+by total hourly price ascending. A typical query should constrain
+`gpu_name in [A100_SXM4,A100_PCIE]`, `num_gpus=1`, `gpu_ram>=70`, required
+disk, direct SSH ports, CUDA compatibility, and reliability. Do not pick an
+overpriced A100 just because it appears first in an unfiltered list; `$1.50/hr`
+is H100-class pricing for this workflow. After the instance is created, verify
+the live `gpu_name`, `gpu_ram`, and `dph_total`; if Vast returns an unexpectedly
+expensive contract, destroy it before bootstrapping and recreate from the
+cheapest matching offer.
+
 Prepare the remote box:
 
 ```bash
