@@ -227,29 +227,52 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   -i <ssh_key> -p <ssh_port> root@<ssh_host>
 ```
 
-Clone the code and download the public dataset from Hugging Face:
+Initialize the box with the reproducible Vast bootstrap script. The PyTorch
+Vast image already contains a CUDA-enabled Python/Torch environment, so do not
+run `uv sync` and do not create a second project venv on the machine. Install
+only the missing project and training packages into the image Python:
 
 ```bash
-cd /root
-git clone https://github.com/MRiabov/IntersectionQA.git
-cd IntersectionQA
-python -m pip install --upgrade huggingface_hub hf_transfer
-hf download \
-  MRiabov/IntersectionQA-90K \
-  --repo-type dataset \
-  --local-dir data/IntersectionQA-90K
-python -m pip install --upgrade transformers datasets "trl>=0.22.0" peft bitsandbytes accelerate
-python -m pip install --upgrade unsloth
+curl -fsSL \
+  https://raw.githubusercontent.com/MRiabov/IntersectionQA/main/scripts/devops/bootstrap_vast_instance.sh \
+  -o /root/bootstrap_vast_instance.sh
+chmod +x /root/bootstrap_vast_instance.sh
+BRANCH=main /root/bootstrap_vast_instance.sh
 ```
 
-Unsloth may replace Torch with its pinned CUDA build. After installation,
-confirm CUDA:
+The experiment suite downloads the public dataset from Hugging Face as its
+first data-prep stage:
+
+```bash
+cd /root/IntersectionQA
+python -m scripts.experiments.run_experiment_suite \
+  configs/overnight_experiment_suite.yaml \
+  --run grpo_canary \
+  --with-dependencies
+```
+
+If you need the dataset outside the suite, use the same thin CLI rather than
+copying local artifacts:
+
+```bash
+python -m scripts.dataset.download_hf_dataset \
+  --repo-id MRIabov/IntersectionQA-90K \
+  --output-dir data/IntersectionQA-90K
+```
+
+After bootstrap, confirm CUDA from the image Python:
 
 ```bash
 python - <<'PY'
 import torch
 print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))
 PY
+```
+
+Run long jobs under `tmux` or `nohup`:
+
+```bash
+tmux new -d -s iqa 'cd /root/IntersectionQA && python -m scripts.experiments.run_experiment_suite configs/overnight_experiment_suite.yaml --run grpo_canary --with-dependencies > overnight.log 2>&1'
 ```
 
 Monitor remote training:

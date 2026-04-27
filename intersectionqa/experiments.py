@@ -28,6 +28,7 @@ from intersectionqa.schema import PublicTaskRow
 
 RUN_KINDS = {
     "dataset_report",
+    "data_prep",
     "baseline",
     "tool_assisted",
     "tool_use_baseline",

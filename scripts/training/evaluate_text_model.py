@@ -9,6 +9,9 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from intersectionqa.evaluation.parsing import canonical_answer_candidate, parse_answer
+from intersectionqa.training.prompt_features import PROMPT_FEATURE_MODES, prompt_for_mapping
+
 
 def main() -> None:
     import torch
@@ -23,7 +26,11 @@ def main() -> None:
     parser.add_argument("--max-rows-per-split", type=int, default=200)
     parser.add_argument("--max-rows-per-task-per-split", type=int)
     parser.add_argument("--max-new-tokens", type=int, default=16)
+    parser.add_argument("--prompt-feature-mode", choices=PROMPT_FEATURE_MODES, default="none")
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--output-json", type=Path)
+    parser.add_argument("--predictions-jsonl", type=Path)
+    parser.add_argument("--metrics-jsonl", type=Path)
     parser.add_argument("--no-4bit", action="store_true")
     parser.add_argument("--seed", type=int, default=3407)
     args = parser.parse_args()
@@ -67,11 +74,20 @@ def main() -> None:
     labels_by_task: dict[str, set[str]] = defaultdict(set)
     confusion_by_task: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
     examples = []
+    prediction_records = []
     for row in rows:
-        prediction = generate_answer(model, tokenizer, row, max_new_tokens=args.max_new_tokens)
+        prediction = generate_answer(
+            model,
+            tokenizer,
+            row,
+            max_new_tokens=args.max_new_tokens,
+            prompt_feature_mode=args.prompt_feature_mode,
+        )
+        candidate, _format_components = canonical_answer_candidate(prediction)
+        parsed = parse_answer(row["task_type"], candidate)
         normalized_prediction = normalize_answer(prediction)
         normalized_answer = normalize_answer(row["answer"])
-        exact = normalized_prediction == normalized_answer
+        exact = parsed == row["answer"]
         by_split[row["split"]]["total"] += 1
         by_split[row["split"]]["correct"] += int(exact)
         by_task[row["task_type"]]["total"] += 1
@@ -79,6 +95,21 @@ def main() -> None:
         labels_by_task[row["task_type"]].add(normalized_answer)
         labels_by_task[row["task_type"]].add(normalized_prediction)
         confusion_by_task[row["task_type"]][(normalized_answer, normalized_prediction)] += 1
+        prediction_records.append(
+            {
+                "id": row["id"],
+                "row_id": row["id"],
+                "split": row["split"],
+                "task_type": row["task_type"],
+                "prompt_hash": (row.get("hashes") or {}).get("prompt_hash"),
+                "raw_completion": prediction,
+                "output": prediction,
+                "parsed_answer": parsed,
+                "canonical_answer": row["answer"],
+                "parse_valid": parsed is not None,
+                "correct": exact,
+            }
+        )
         if len(examples) < 50 and not exact:
             examples.append(
                 {
@@ -99,11 +130,55 @@ def main() -> None:
         "by_task": summarize(by_task),
         "classification_by_task": classification_summary(confusion_by_task, labels_by_task),
         "mismatches": examples,
+        "prompt_feature_mode": args.prompt_feature_mode,
     }
+    output_json = args.output_json
+    predictions_jsonl = args.predictions_jsonl
+    metrics_jsonl = args.metrics_jsonl
+    if args.output_dir is not None:
+        output_json = output_json or args.output_dir / "eval_report.json"
+        predictions_jsonl = predictions_jsonl or args.output_dir / "predictions" / "final_eval.jsonl"
+        metrics_jsonl = metrics_jsonl or args.output_dir / "eval_metrics.jsonl"
+    if predictions_jsonl is not None:
+        predictions_jsonl.parent.mkdir(parents=True, exist_ok=True)
+        with predictions_jsonl.open("w", encoding="utf-8") as handle:
+            for record in prediction_records:
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+    if metrics_jsonl is not None:
+        metrics_jsonl.parent.mkdir(parents=True, exist_ok=True)
+        with metrics_jsonl.open("w", encoding="utf-8") as handle:
+            for split, counts in sorted(by_split.items()):
+                handle.write(
+                    json.dumps(
+                        {
+                            "scope": "split",
+                            "split": split,
+                            "correct": counts["correct"],
+                            "total": counts["total"],
+                            "accuracy": counts["correct"] / counts["total"] if counts["total"] else 0.0,
+                        },
+                        sort_keys=True,
+                    )
+                    + "\n"
+                )
+            for task_type, counts in sorted(by_task.items()):
+                handle.write(
+                    json.dumps(
+                        {
+                            "scope": "task_type",
+                            "task_type": task_type,
+                            "correct": counts["correct"],
+                            "total": counts["total"],
+                            "accuracy": counts["correct"] / counts["total"] if counts["total"] else 0.0,
+                        },
+                        sort_keys=True,
+                    )
+                    + "\n"
+                )
     text = json.dumps(payload, indent=2, sort_keys=True)
-    if args.output_json:
-        args.output_json.parent.mkdir(parents=True, exist_ok=True)
-        args.output_json.write_text(text, encoding="utf-8")
+    if output_json:
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        output_json.write_text(text, encoding="utf-8")
     print(text)
 
 
@@ -143,7 +218,14 @@ def load_rows(
     return rows
 
 
-def generate_answer(model, tokenizer, row: dict, *, max_new_tokens: int) -> str:
+def generate_answer(
+    model,
+    tokenizer,
+    row: dict,
+    *,
+    max_new_tokens: int,
+    prompt_feature_mode: str = "none",
+) -> str:
     import torch
 
     messages = [
@@ -151,7 +233,7 @@ def generate_answer(model, tokenizer, row: dict, *, max_new_tokens: int) -> str:
             "role": "system",
             "content": "Answer the IntersectionQA prompt with only the canonical answer token.",
         },
-        {"role": "user", "content": row["prompt"].rstrip()},
+        {"role": "user", "content": prompt_for_mapping(row, mode=prompt_feature_mode).rstrip()},
     ]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     encoded = tokenizer(prompt, return_tensors="pt").to(model.device)

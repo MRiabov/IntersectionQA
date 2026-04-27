@@ -166,6 +166,7 @@ Run expensive work in gates.
 
 Run:
 
+- Hugging Face dataset snapshot download to `data/IntersectionQA-90K`;
 - dataset statistics;
 - leakage audit;
 - answer-balance audit;
@@ -202,13 +203,19 @@ rejection-sampled reasoning-SFT jobs. Prefer these over RL if the GPU budget is
 tight.
 
 Use rejection-sampled reasoning SFT before any serious 1,500-2,000 step GRPO
-run. Accepted traces should be parse-valid, answer-correct, bounded in
-reasoning length, and free of obvious filler or repetition. Preserve acceptance
-rates and rejection reasons as artifacts.
+run. Generate candidate `<think>...</think><answer>...</answer>` completions
+from the current supervised checkpoint on public train rows, and train the
+reasoning-SFT stage only on accepted traces. Accepted traces should be
+parse-valid, answer-correct, bounded in reasoning length, and free of obvious
+filler or repetition. Preserve acceptance rates and rejection reasons as
+artifacts.
 
 Required after each run:
 
-- evaluate all official splits;
+- evaluate all official splits. In manifests this should be named explicitly,
+  for example `answer_sft_all_split_eval` or `reasoning_sft_all_split_eval`;
+  it means `validation`, `test_random`, `test_object_pair_heldout`,
+  `test_generator_heldout`, and `test_near_boundary` when populated;
 - write prediction JSONL;
 - build comparison tables;
 - run failure-case analysis;
