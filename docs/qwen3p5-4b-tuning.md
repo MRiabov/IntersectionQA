@@ -20,14 +20,9 @@ runs. The 9B path is viable but was still too slow for the original time budget.
 ## Hardware
 
 Use an A100 80GB-class or H100-class instance for meaningful runs. Small 16GB
-instances are useful only for smoke tests. For Vast instances, destroy failed or
-finished contracts after artifacts are uploaded and verified.
-
-Typical teardown command:
-
-```bash
-printf 'y\n' | rtk uv run vastai destroy instance <contract_id>
-```
+instances are useful only for smoke tests. Vast.ai selection, bootstrap,
+monitoring, artifact upload, and teardown procedure lives in the repo-specific
+skill at `.agents/skills/run-experiments/`.
 
 ## Runtime Stack
 

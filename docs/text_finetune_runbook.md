@@ -220,79 +220,10 @@ rtk uv run python -m scripts.training.text_grpo_smoke \
 
 ## Remote Setup Template
 
-Before creating a Vast instance, filter and sort offers in that order. For an
-A100 run, search only A100 75GB+ offers first, then sort those filtered offers
-by total hourly price ascending. A typical query should constrain
-`gpu_name in [A100_SXM4,A100_PCIE]`, `num_gpus=1`, `gpu_ram>=70`, required
-disk, direct SSH ports, CUDA compatibility, and reliability. Do not pick an
-overpriced A100 just because it appears first in an unfiltered list; `$1.50/hr`
-is H100-class pricing for this workflow. After the instance is created, verify
-the live `gpu_name`, `gpu_ram`, and `dph_total`; if Vast returns an unexpectedly
-expensive contract, destroy it before bootstrapping and recreate from the
-cheapest matching offer.
-
-Prepare the remote box:
-
-```bash
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  -i <ssh_key> -p <ssh_port> root@<ssh_host>
-```
-
-Initialize the box with the reproducible Vast bootstrap script. The PyTorch
-Vast image already contains a CUDA-enabled Python/Torch environment, so do not
-run `uv sync` and do not create a second project venv on the machine. Install
-only the missing project and training packages into the image Python:
-
-```bash
-curl -fsSL \
-  https://raw.githubusercontent.com/MRiabov/IntersectionQA/main/scripts/devops/bootstrap_vast_instance.sh \
-  -o /root/bootstrap_vast_instance.sh
-chmod +x /root/bootstrap_vast_instance.sh
-BRANCH=main /root/bootstrap_vast_instance.sh
-```
-
-The experiment suite downloads the public dataset from Hugging Face as its
-first data-prep stage:
-
-```bash
-cd /root/IntersectionQA
-python -m scripts.experiments.run_experiment_suite \
-  configs/overnight_experiment_suite.yaml \
-  --run grpo_canary \
-  --with-dependencies
-```
-
-If you need the dataset outside the suite, use the same thin CLI rather than
-copying local artifacts:
-
-```bash
-python -m scripts.dataset.download_hf_dataset \
-  --repo-id MRIabov/IntersectionQA-90K \
-  --output-dir data/IntersectionQA-90K
-```
-
-After bootstrap, confirm CUDA from the image Python:
-
-```bash
-python - <<'PY'
-import torch
-print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))
-PY
-```
-
-Run long jobs under `tmux` or `nohup`:
-
-```bash
-tmux new -d -s iqa 'cd /root/IntersectionQA && python -m scripts.experiments.run_experiment_suite configs/overnight_experiment_suite.yaml --run grpo_canary --with-dependencies > overnight.log 2>&1'
-```
-
-Monitor remote training:
-
-```bash
-tail -n 160 <log_path>
-nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader
-df -h /root
-```
+Reusable Vast.ai instance selection, bootstrap, launch, monitoring, artifact,
+and teardown procedure now lives in the repo-specific skill at
+`.agents/skills/run-experiments/`. Keep this runbook focused on dataset and
+training-state facts that are specific to the current text fine-tuning path.
 
 ## Known Failure Modes
 

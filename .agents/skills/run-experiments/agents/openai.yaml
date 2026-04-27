@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Experiments"
+  short_description: "Run IntersectionQA GPU experiments"
+  default_prompt: "Use $run-experiments to prepare, launch, monitor, and preserve an IntersectionQA experiment."

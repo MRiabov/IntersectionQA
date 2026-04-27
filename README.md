@@ -37,7 +37,8 @@ Use these documents in `specs/` as the source of truth:
 | `specs/research-experiment-spec.md` | Paper experiment suite, budgets, baselines, ablations, metrics, artifact requirements, and priority order; informative unless it conflicts with the canonical specs above. |
 | `epics-and-stories.md` and `epics-and-stories.yaml` | Planning backlog generated from the specs and implementation matrix. |
 | `implementation-complexity-priority-matrix.md` | Build/defer decisions, suggested module map, and risk-ranked implementation order. |
-| `docs/text_finetune_runbook.md` | Current text-only dataset, HF upload, Vast/A100, Qwen3.5 SFT commands, and known training failure modes. |
+| `.agents/skills/run-experiments/` | Repo-specific Codex skill for local preflight, experiment manifests, Vast.ai GPU setup, SFT/GRPO launch, monitoring, artifacts, and teardown. |
+| `docs/text_finetune_runbook.md` | Current text-only dataset, HF upload state, Qwen3.5 SFT staging, and known training failure modes. |
 | `docs/dataset_split_framing.md` | Practical interpretation of `train`, `validation`, `test_random`, and the named challenge splits. |
 
 If two documents disagree, reconcile in this order:

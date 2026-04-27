@@ -57,6 +57,9 @@ The schema and implementation also include later/opt-in task types such as `clea
 - `intersectionqa/training/`: prompt features, reasoning-trace helpers, and sampling logic for SFT/GRPO data preparation.
 - `scripts/`: CLI entry points and reports around the package modules, grouped by `dataset/`, `evaluation/`, `training/`, `experiments/`, `publishing/`, and `devops/`; shared script-only helpers live in group-local `internal/` packages. Prefer changing package code first, then keep scripts thin.
 - `configs/`: reproducible smoke, repair smoke, validation, SFT, and GRPO configs.
+- `.agents/skills/run-experiments/`: repo-specific skill for experiment
+  execution, including manifests, local preflight, Vast.ai instance selection,
+  remote bootstrap, SFT/GRPO launch, monitoring, artifacts, and teardown.
 - `tests/`: pytest coverage for schema, labels, prompts, source loading/validation, generation, export, splits, metrics, scripts, rendering, rewards, and training helpers.
 
 ## Important Commands
