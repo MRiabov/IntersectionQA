@@ -40,6 +40,10 @@ intersectionqa-prepare-cadevolve-sources = "scripts.prepare_cadevolve_sources:ma
 intersectionqa-baseline-comparison-table = "scripts.baseline_comparison_table:main"
 intersectionqa-failure-case-analysis = "scripts.failure_case_analysis:main"
 intersectionqa-build-release-candidate = "scripts.build_release_candidate:main"
+intersectionqa-run-experiment-suite = "scripts.run_experiment_suite:main"
+intersectionqa-upload-run-artifacts = "scripts.upload_run_artifacts:main"
+intersectionqa-monitor-experiment-run = "scripts.monitor_experiment_run:main"
+intersectionqa-build-experiment-report = "scripts.build_experiment_report:main"
 
 [tool.setuptools.packages.find]
 include = ["intersectionqa*", "scripts*"]

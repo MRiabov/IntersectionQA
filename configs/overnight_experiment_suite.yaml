@@ -1,0 +1,326 @@
+version: 1
+defaults:
+  upload:
+    hf_repo_type: dataset
+    fallback_tarball_dir: data/training_artifacts
+runs:
+  - name: dataset_reports
+    kind: dataset_report
+    dataset_dir: data/IntersectionQA-90K
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.dataset_stats
+      - data/IntersectionQA-90K
+    output_dir: runs/dataset_reports
+    artifacts:
+      - logs/stdout.log
+    stop_rules:
+      failed_validation: hard
+      leakage_audit: hard
+      disk_pressure: hard
+
+  - name: heuristic_baselines
+    kind: baseline
+    depends_on:
+      - dataset_reports
+    dataset_dir: data/IntersectionQA-90K
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.evaluate_baseline
+      - data/IntersectionQA-90K
+      - --baseline
+      - aabb
+    output_dir: runs/heuristic_baselines
+    artifacts:
+      - logs/stdout.log
+    stop_rules:
+      impossible_metrics: hard
+
+  - name: answer_sft_canary
+    kind: sft
+    canary: true
+    depends_on:
+      - heuristic_baselines
+    dataset_dir: data/IntersectionQA-90K
+    model: unsloth/Qwen3.5-4B
+    train_splits: [train]
+    eval_splits: [validation]
+    task_types: [binary_interference, relation_classification, volume_bucket]
+    prompt_mode: public
+    decoding_mode: schema_constrained
+    row_caps:
+      train: 256
+      eval: 64
+    training:
+      max_steps: 20
+      per_device_train_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.0002
+      seed: 3407
+    budget:
+      max_wall_clock_hours: 1
+      max_gpu_hours: 1
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.text_sft_train_unsloth
+      - --dataset-dir
+      - data/IntersectionQA-90K
+      - --output-dir
+      - runs/answer_sft_canary
+      - --max-train-rows
+      - "256"
+      - --max-eval-rows
+      - "64"
+      - --max-steps
+      - "20"
+      - --quality-eval-steps
+      - "10"
+    output_dir: runs/answer_sft_canary
+    artifacts:
+      - train_metrics.jsonl
+      - quality_metrics.jsonl
+      - train_result.json
+      - adapter
+    stop_rules:
+      nan_loss: hard
+      repeated_oom: hard
+      failed_validation: hard
+      high_invalid_output_rate: soft
+      disk_pressure: hard
+      budget_exhaustion: hard
+    checkpoint_selection:
+      metric: accuracy
+      mode: max
+      metrics_file: quality_metrics.jsonl
+      source_glob: checkpoint-{step}
+      destination: checkpoint-best
+
+  - name: answer_sft_full
+    kind: sft
+    depends_on:
+      - answer_sft_canary
+    dataset_dir: data/IntersectionQA-90K
+    model: unsloth/Qwen3.5-4B
+    train_splits: [train]
+    eval_splits: [validation]
+    prompt_mode: public
+    decoding_mode: schema_constrained
+    row_caps:
+      eval: 512
+    training:
+      num_train_epochs: 1.0
+      seed: 3407
+    budget:
+      max_wall_clock_hours: 8
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.text_sft_train_unsloth
+      - --dataset-dir
+      - data/IntersectionQA-90K
+      - --output-dir
+      - runs/answer_sft_full
+      - --quality-eval-steps
+      - "100"
+    output_dir: runs/answer_sft_full
+    artifacts:
+      - train_metrics.jsonl
+      - quality_metrics.jsonl
+      - train_result.json
+      - adapter
+    stop_rules:
+      nan_loss: hard
+      repeated_oom: hard
+      disk_pressure: hard
+      budget_exhaustion: hard
+
+  - name: reasoning_sft_canary
+    kind: reasoning_sft
+    canary: true
+    depends_on:
+      - answer_sft_canary
+    dataset_dir: data/intersectionqa_edit_reasoning_sft
+    model: unsloth/Qwen3.5-4B
+    train_splits: [train]
+    eval_splits: [validation]
+    prompt_mode: edit_geometry_with_candidates
+    decoding_mode: schema_constrained
+    row_caps:
+      train: 256
+      eval: 64
+    training:
+      max_steps: 20
+      seed: 3407
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.text_sft_train_unsloth
+      - --dataset-dir
+      - data/intersectionqa_edit_reasoning_sft
+      - --output-dir
+      - runs/reasoning_sft_canary
+      - --prompt-feature-mode
+      - edit_geometry_with_candidates
+      - --max-train-rows
+      - "256"
+      - --max-eval-rows
+      - "64"
+      - --max-steps
+      - "20"
+    output_dir: runs/reasoning_sft_canary
+    artifacts:
+      - train_result.json
+      - adapter
+    stop_rules:
+      nan_loss: hard
+      high_invalid_output_rate: soft
+
+  - name: reasoning_sft_full
+    kind: reasoning_sft
+    depends_on:
+      - reasoning_sft_canary
+    dataset_dir: data/intersectionqa_edit_reasoning_sft
+    model: unsloth/Qwen3.5-4B
+    train_splits: [train]
+    eval_splits: [validation]
+    prompt_mode: edit_geometry_with_candidates
+    decoding_mode: schema_constrained
+    training:
+      seed: 3407
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.text_sft_train_unsloth
+      - --dataset-dir
+      - data/intersectionqa_edit_reasoning_sft
+      - --output-dir
+      - runs/reasoning_sft_full
+      - --prompt-feature-mode
+      - edit_geometry_with_candidates
+    output_dir: runs/reasoning_sft_full
+    artifacts:
+      - train_result.json
+      - adapter
+    stop_rules:
+      nan_loss: hard
+      disk_pressure: hard
+
+  - name: all_split_eval
+    kind: eval
+    depends_on:
+      - answer_sft_full
+      - reasoning_sft_full
+    dataset_dir: data/IntersectionQA-90K
+    model: runs/answer_sft_full/adapter
+    prompt_mode: public
+    decoding_mode: schema_constrained
+    eval_splits:
+      - validation
+      - test_object_pair_heldout
+      - test_generator_heldout
+      - test_near_boundary
+    output_dir: runs/all_split_eval
+    artifacts:
+      - predictions
+      - eval_metrics.jsonl
+    stop_rules:
+      missing_artifacts: hard
+      high_invalid_output_rate: soft
+
+  - name: counterfactual_failure_analysis
+    kind: analysis
+    depends_on:
+      - all_split_eval
+    dataset_dir: data/IntersectionQA-90K
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.failure_case_analysis
+      - data/IntersectionQA-90K
+      - runs/all_split_eval/predictions/final_eval.jsonl
+    output_dir: runs/counterfactual_failure_analysis
+    artifacts:
+      - logs/stdout.log
+
+  - name: grpo_canary
+    kind: grpo
+    canary: true
+    depends_on:
+      - reasoning_sft_full
+    dataset_dir: data/intersectionqa_edit_reasoning_sft
+    model: unsloth/Qwen3.5-4B
+    adapter_init_dir: runs/reasoning_sft_full/adapter
+    train_splits: [train]
+    eval_splits: [validation]
+    prompt_mode: edit_geometry_with_candidates
+    decoding_mode: schema_constrained
+    row_caps:
+      train: 256
+      eval: 64
+    training:
+      max_steps: 50
+      num_generations: 4
+      seed: 3407
+    budget:
+      max_wall_clock_hours: 2
+    command:
+      - rtk
+      - uv
+      - run
+      - python
+      - -m
+      - scripts.text_grpo_train_unsloth
+      - --dataset-dir
+      - data/intersectionqa_edit_reasoning_sft
+      - --adapter-init-dir
+      - runs/reasoning_sft_full/adapter
+      - --output-dir
+      - runs/grpo_canary
+      - --prompt-feature-mode
+      - edit_geometry_with_candidates
+      - --max-train-rows
+      - "256"
+      - --max-eval-rows
+      - "64"
+      - --max-steps
+      - "50"
+    output_dir: runs/grpo_canary
+    artifacts:
+      - train_metrics.jsonl
+      - quality_metrics.jsonl
+      - rollout_samples.jsonl
+      - reward_components.jsonl
+      - adapter
+    stop_rules:
+      nan_loss: hard
+      repeated_oom: hard
+      rl_quality_regression: soft
+      high_invalid_output_rate: soft
+      budget_exhaustion: hard
+    upload:
+      hf_bucket: hf://datasets/YOUR_ORG/intersectionqa-experiment-artifacts
+      fallback_tarball: data/training_artifacts/grpo_canary.tar.gz

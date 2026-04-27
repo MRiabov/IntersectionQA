@@ -1,0 +1,45 @@
+version: 1
+runs:
+  - name: smoke_dataset_report
+    kind: dataset_report
+    canary: true
+    command:
+      - python
+      - -c
+      - |
+        from pathlib import Path
+        Path("runs/smoke_dataset_report/reports").mkdir(parents=True, exist_ok=True)
+        Path("runs/smoke_dataset_report/reports/dataset_stats.json").write_text('{"status":"ok"}\n')
+    output_dir: runs/smoke_dataset_report
+    artifacts:
+      - reports/dataset_stats.json
+    stop_rules:
+      failed_validation: hard
+      disk_pressure: hard
+
+  - name: smoke_eval
+    kind: eval
+    depends_on:
+      - smoke_dataset_report
+    canary: true
+    model: smoke-model
+    decoding_mode: schema_constrained
+    prompt_mode: public
+    row_caps:
+      eval: 8
+    command:
+      - python
+      - -c
+      - |
+        from pathlib import Path
+        root = Path("runs/smoke_eval")
+        (root / "predictions").mkdir(parents=True, exist_ok=True)
+        (root / "predictions" / "quality_step_1.jsonl").write_text('{"id":"smoke","output":"yes"}\n')
+        (root / "eval_metrics.jsonl").write_text('{"step":1,"accuracy":1.0,"invalid_output_rate":0.0}\n')
+    output_dir: runs/smoke_eval
+    artifacts:
+      - predictions/quality_step_1.jsonl
+      - eval_metrics.jsonl
+    stop_rules:
+      invalid_output_rate: soft
+      disk_pressure: hard
