@@ -18,6 +18,7 @@ from datasets import Dataset
 from trl import SFTConfig, SFTTrainer
 from transformers import Trainer, TrainerCallback
 
+from intersectionqa.evaluation.parsing import parse_answer
 from intersectionqa.evaluation.parsing import canonical_answer_candidate
 from intersectionqa.training.prompt_features import PROMPT_FEATURE_MODES, prompt_for_mapping
 
@@ -76,6 +77,7 @@ def main() -> None:
     parser.add_argument("--quality-eval-steps", type=int, default=0)
     parser.add_argument("--quality-eval-max-rows", type=int, default=64)
     parser.add_argument("--quality-metrics-log-file", default="quality_metrics.jsonl")
+    parser.add_argument("--quality-predictions-dir", default="predictions")
     parser.add_argument("--quality-max-new-tokens", type=int, default=16)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--resume-from-checkpoint", type=Path)
@@ -175,6 +177,7 @@ def main() -> None:
         trainer.add_callback(
             GenerationQualityCallback(
                 path=args.output_dir / args.quality_metrics_log_file,
+                predictions_dir=args.output_dir / args.quality_predictions_dir,
                 rows=quality_rows,
                 tokenizer=tokenizer,
                 every_steps=args.quality_eval_steps,
@@ -222,6 +225,7 @@ def main() -> None:
         "quality_eval_steps": args.quality_eval_steps,
         "quality_eval_max_rows": args.quality_eval_max_rows,
         "quality_metrics_log_file": args.quality_metrics_log_file,
+        "quality_predictions_dir": args.quality_predictions_dir,
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "train_result.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -370,6 +374,7 @@ class GenerationQualityCallback(TrainerCallback):
     def __init__(
         self,
         path: Path,
+        predictions_dir: Path,
         *,
         rows: list[dict],
         tokenizer: Any,
@@ -382,6 +387,7 @@ class GenerationQualityCallback(TrainerCallback):
         if every_steps <= 0:
             raise ValueError("every_steps must be positive")
         self.path = path
+        self.predictions_dir = predictions_dir
         self.rows = rows
         self.tokenizer = tokenizer
         self.every_steps = every_steps
@@ -390,6 +396,7 @@ class GenerationQualityCallback(TrainerCallback):
         self.print_metrics = print_metrics
         self._seen_steps: set[int] = set()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.predictions_dir.mkdir(parents=True, exist_ok=True)
         if not append and self.path.exists():
             self.path.unlink()
 
@@ -407,6 +414,7 @@ class GenerationQualityCallback(TrainerCallback):
             self.rows,
             max_new_tokens=self.max_new_tokens,
             prompt_feature_mode=self.prompt_feature_mode,
+            prediction_path=self.predictions_dir / f"quality_step_{step}.jsonl",
         )
         payload.update(
             {
@@ -430,12 +438,14 @@ def evaluate_generation_quality(
     *,
     max_new_tokens: int,
     prompt_feature_mode: str = "none",
+    prediction_path: Path | None = None,
 ) -> dict:
     by_split: dict[str, Counter] = defaultdict(Counter)
     by_task: dict[str, Counter] = defaultdict(Counter)
     labels_by_task: dict[str, set[str]] = defaultdict(set)
     confusion_by_task: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
     examples = []
+    prediction_records = []
     was_training = bool(getattr(model, "training", False))
     FastModel.for_inference(model)
     model.eval()
@@ -451,6 +461,23 @@ def evaluate_generation_quality(
             normalized_prediction = normalize_answer(prediction)
             normalized_answer = normalize_answer(str(row["answer"]))
             exact = normalized_prediction == normalized_answer
+            candidate, _format_components = canonical_answer_candidate(prediction)
+            parsed = parse_answer(row["task_type"], candidate)
+            prediction_records.append(
+                {
+                    "id": row["id"],
+                    "row_id": row["id"],
+                    "split": row["split"],
+                    "task_type": row["task_type"],
+                    "prompt_hash": (row.get("hashes") or {}).get("prompt_hash"),
+                    "raw_completion": prediction,
+                    "output": prediction,
+                    "parsed_answer": parsed,
+                    "canonical_answer": row["answer"],
+                    "parse_valid": parsed is not None,
+                    "correct": parsed == row["answer"],
+                }
+            )
             by_split[row["split"]]["total"] += 1
             by_split[row["split"]]["correct"] += int(exact)
             by_task[row["task_type"]]["total"] += 1
@@ -473,8 +500,14 @@ def evaluate_generation_quality(
         if was_training:
             FastModel.for_training(model)
             model.train()
+    if prediction_path is not None:
+        prediction_path.parent.mkdir(parents=True, exist_ok=True)
+        with prediction_path.open("w", encoding="utf-8") as handle:
+            for record in prediction_records:
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
     return {
         "row_count": len(rows),
+        "prediction_file": str(prediction_path) if prediction_path is not None else None,
         "by_split": summarize_accuracy(by_split),
         "by_task": summarize_accuracy(by_task),
         "classification_by_task": classification_summary(confusion_by_task, labels_by_task),

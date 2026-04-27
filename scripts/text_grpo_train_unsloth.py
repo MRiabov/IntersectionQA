@@ -18,6 +18,7 @@ from transformers import TrainerCallback
 from trl import GRPOConfig, GRPOTrainer
 
 from intersectionqa.evaluation.metrics import Prediction, evaluate_predictions
+from intersectionqa.evaluation.parsing import canonical_answer_candidate, parse_answer
 from intersectionqa.evaluation.rewards import reward_from_fields
 from intersectionqa.schema import PublicTaskRow
 from intersectionqa.training.prompt_features import PROMPT_FEATURE_MODES, prompt_for_row
@@ -29,6 +30,7 @@ SYSTEM_PROMPT = (
     "only the canonical answer string requested by the user prompt. Do not write "
     "anything after </answer>."
 )
+_REWARD_TRACE_LOGGER: "RewardTraceLogger | None" = None
 
 
 def main() -> None:
@@ -83,11 +85,15 @@ def main() -> None:
     parser.add_argument("--torch-compile-mode")
     parser.add_argument("--metrics-log-file", default="train_metrics.jsonl")
     parser.add_argument("--quality-metrics-log-file", default="quality_metrics.jsonl")
+    parser.add_argument("--quality-predictions-dir", default="predictions")
     parser.add_argument("--quality-eval-steps", type=int, default=50)
     parser.add_argument("--quality-eval-max-rows", type=int, default=16)
     parser.add_argument("--quality-generation-batch-size", type=int, default=8)
     parser.add_argument("--quality-max-new-tokens", type=int, default=128)
     parser.add_argument("--quality-sample-count", type=int, default=16)
+    parser.add_argument("--rollout-samples-log-file", default="rollout_samples.jsonl")
+    parser.add_argument("--reward-components-log-file", default="reward_components.jsonl")
+    parser.add_argument("--max-rollout-samples", type=int, default=512)
     parser.add_argument("--seed", type=int, default=3407)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--resume-from-checkpoint", type=Path)
@@ -167,11 +173,19 @@ def main() -> None:
 
     checkpoint = resolve_checkpoint(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    global _REWARD_TRACE_LOGGER
+    _REWARD_TRACE_LOGGER = RewardTraceLogger(
+        rollout_path=args.output_dir / args.rollout_samples_log_file,
+        reward_components_path=args.output_dir / args.reward_components_log_file,
+        max_rollout_samples=args.max_rollout_samples,
+        append=checkpoint is not None,
+    )
     trainer.add_callback(MetricsJsonlCallback(args.output_dir / args.metrics_log_file, append=checkpoint is not None))
     quality_callback: ReasoningQualityCallback | None = None
     if args.quality_eval_steps > 0:
         quality_callback = ReasoningQualityCallback(
             path=args.output_dir / args.quality_metrics_log_file,
+            predictions_dir=args.output_dir / args.quality_predictions_dir,
             rows=eval_rows[: args.quality_eval_max_rows],
             tokenizer=text_tokenizer,
             every_steps=args.quality_eval_steps,
@@ -211,6 +225,10 @@ def main() -> None:
         "quality_generation_batch_size": args.quality_generation_batch_size,
         "quality_max_new_tokens": args.quality_max_new_tokens,
         "quality_sample_count": args.quality_sample_count,
+        "quality_predictions_dir": args.quality_predictions_dir,
+        "rollout_samples_log_file": args.rollout_samples_log_file,
+        "reward_components_log_file": args.reward_components_log_file,
+        "max_rollout_samples": args.max_rollout_samples,
         "row_sampling_strategy": args.row_sampling_strategy,
         "prompt_feature_mode": args.prompt_feature_mode,
         "importance_sampling_level": args.importance_sampling_level,
@@ -293,6 +311,7 @@ def ensure_transformers_warning_state(model: Any) -> None:
 
 def row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list[float]:
     rewards: list[float] = []
+    trace_items: list[dict[str, Any]] = []
     for completion, expected, row_id, row_task_type, row_metadata in zip(
         completions,
         answer,
@@ -310,6 +329,25 @@ def row_reward(completions, answer, id, task_type, metadata, **_kwargs) -> list[
             output=text,
         )
         rewards.append(result.reward)
+        trace_items.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "row_id": row_id,
+                "task_type": str(row_task_type),
+                "canonical_answer": expected,
+                "raw_completion": text,
+                "parsed_answer": result.parsed_output,
+                "parse_valid": result.parsed_output is not None,
+                "reward_total": result.reward,
+                "reward_components": result.components,
+                "failure_reason": result.failure_reason,
+                "completion_length_chars": len(text),
+                "prompt_length_chars": None,
+                "truncated": None,
+            }
+        )
+    if _REWARD_TRACE_LOGGER is not None:
+        _REWARD_TRACE_LOGGER.log(trace_items)
     return rewards
 
 
@@ -368,6 +406,52 @@ def resolve_checkpoint(args: argparse.Namespace) -> Path | None:
     return checkpoints[-1] if checkpoints else None
 
 
+class RewardTraceLogger:
+    def __init__(
+        self,
+        *,
+        rollout_path: Path,
+        reward_components_path: Path,
+        max_rollout_samples: int,
+        append: bool,
+    ) -> None:
+        self.rollout_path = rollout_path
+        self.reward_components_path = reward_components_path
+        self.max_rollout_samples = max_rollout_samples
+        self._rollout_count = 0
+        for path in (self.rollout_path, self.reward_components_path):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not append:
+                path.write_text("", encoding="utf-8")
+
+    def log(self, items: list[dict[str, Any]]) -> None:
+        if not items:
+            return
+        ranked = sorted(
+            enumerate(items),
+            key=lambda pair: float(pair[1].get("reward_total") or 0.0),
+            reverse=True,
+        )
+        ranks = {index: rank for rank, (index, _item) in enumerate(ranked, start=1)}
+        with self.reward_components_path.open("a", encoding="utf-8") as handle:
+            for index, item in enumerate(items):
+                record = {**item, "group_relative_rank": ranks[index], "group_size": len(items)}
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+        if self._rollout_count >= self.max_rollout_samples:
+            return
+        sample_slots = min(len(items), self.max_rollout_samples - self._rollout_count)
+        selected = ranked[: max(1, sample_slots // 2)] + ranked[-max(1, sample_slots - max(1, sample_slots // 2)) :]
+        seen: set[int] = set()
+        with self.rollout_path.open("a", encoding="utf-8") as handle:
+            for index, item in selected:
+                if index in seen or self._rollout_count >= self.max_rollout_samples:
+                    continue
+                seen.add(index)
+                record = {**item, "group_relative_rank": ranks[index], "group_size": len(items)}
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+                self._rollout_count += 1
+
+
 class MetricsJsonlCallback(TrainerCallback):
     def __init__(self, path: Path, *, append: bool) -> None:
         self.path = path
@@ -395,6 +479,7 @@ class ReasoningQualityCallback(TrainerCallback):
         self,
         *,
         path: Path,
+        predictions_dir: Path,
         rows: list[PublicTaskRow],
         tokenizer: Any,
         every_steps: int,
@@ -405,6 +490,7 @@ class ReasoningQualityCallback(TrainerCallback):
         append: bool,
     ) -> None:
         self.path = path
+        self.predictions_dir = predictions_dir
         self.rows = rows
         self.tokenizer = tokenizer
         self.every_steps = every_steps
@@ -417,6 +503,7 @@ class ReasoningQualityCallback(TrainerCallback):
 
     def on_train_begin(self, args, state, control, **kwargs):  # noqa: ANN001
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.predictions_dir.mkdir(parents=True, exist_ok=True)
         if not self.append:
             self.path.write_text("", encoding="utf-8")
 
@@ -440,6 +527,8 @@ class ReasoningQualityCallback(TrainerCallback):
             prompt_feature_mode=self.prompt_feature_mode,
         )
         metrics = evaluate_predictions(self.rows, predictions)
+        prediction_path = self.predictions_dir / f"quality_step_{step}.jsonl"
+        write_quality_predictions(self.rows, predictions, prediction_path)
         reward_values = []
         sample_candidates: list[dict[str, Any]] = []
         for row, prediction in zip(self.rows, predictions, strict=True):
@@ -467,6 +556,7 @@ class ReasoningQualityCallback(TrainerCallback):
             "step": step,
             "phase": phase,
             "rows": len(self.rows),
+            "prediction_file": str(prediction_path),
             "reward_mean": sum(reward_values) / len(reward_values) if reward_values else 0.0,
             "metrics": [metric.__dict__ for metric in metrics],
             "samples": select_diverse_low_reward_samples(sample_candidates, self.sample_count),
@@ -525,6 +615,30 @@ def generate_predictions(
         if was_training:
             model.train()
     return predictions
+
+
+def write_quality_predictions(rows: list[PublicTaskRow], predictions: list[Prediction], path: Path) -> None:
+    rows_by_id = {row.id: row for row in rows}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for prediction in predictions:
+            row = rows_by_id[prediction.row_id]
+            candidate, _format_components = canonical_answer_candidate(prediction.output)
+            parsed = parse_answer(row.task_type, candidate)
+            record = {
+                "id": row.id,
+                "row_id": row.id,
+                "split": str(row.split),
+                "task_type": str(row.task_type),
+                "prompt_hash": row.hashes.prompt_hash,
+                "raw_completion": prediction.output,
+                "output": prediction.output,
+                "parsed_answer": parsed,
+                "canonical_answer": row.answer,
+                "parse_valid": parsed is not None,
+                "correct": parsed == row.answer,
+            }
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def text_tokenizer_from_processing_class(processing_class: Any) -> Any:
