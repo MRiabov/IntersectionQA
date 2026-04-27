@@ -47,6 +47,14 @@ cd "$WORKDIR"
   PyYAML \
   psutil
 
+# Qwen3.5 uses gated-delta/linear-attention kernels. Without these packages,
+# Unsloth falls back to a very slow Torch implementation that under-utilizes an
+# A100 badly. Install them without dependency resolution so pip cannot replace
+# the Vast image's working Torch/CUDA stack.
+"$PYTHON_BIN" -m pip install --upgrade --no-deps flash-linear-attention einops
+TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0}" MAX_JOBS="${MAX_JOBS:-4}" \
+  "$PYTHON_BIN" -m pip install --upgrade --no-build-isolation --no-deps causal-conv1d
+
 # Install the repo package into the existing image env. Vast's PyTorch images
 # commonly use Python 3.11 even though local development targets Python 3.12.
 # Training/eval scripts used on these boxes are Python 3.11-compatible, so avoid

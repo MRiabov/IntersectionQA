@@ -97,6 +97,10 @@ runs:
       - "64"
       - --max-steps
       - "20"
+      - --per-device-train-batch-size
+      - "8"
+      - --gradient-accumulation-steps
+      - "1"
       - --no-assistant-only-loss
       - --final-adapter-save-mode
       - checkpoint
@@ -148,6 +152,10 @@ runs:
       - data/IntersectionQA-90K
       - --output-dir
       - runs/answer_sft_full
+      - --per-device-train-batch-size
+      - "8"
+      - --gradient-accumulation-steps
+      - "1"
       - --no-assistant-only-loss
       - --final-adapter-save-mode
       - checkpoint
@@ -245,6 +253,10 @@ runs:
       - "64"
       - --max-steps
       - "20"
+      - --per-device-train-batch-size
+      - "8"
+      - --gradient-accumulation-steps
+      - "1"
       - --no-assistant-only-loss
       - --final-adapter-save-mode
       - checkpoint
@@ -279,6 +291,10 @@ runs:
       - data/rejection_sampled_reasoning_sft
       - --output-dir
       - runs/reasoning_sft_full
+      - --per-device-train-batch-size
+      - "8"
+      - --gradient-accumulation-steps
+      - "1"
       - --no-assistant-only-loss
       - --final-adapter-save-mode
       - checkpoint
