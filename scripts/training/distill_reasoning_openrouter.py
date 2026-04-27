@@ -24,6 +24,15 @@ DEFAULT_SYSTEM_PROMPT = (
 ANSWER_TAG_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", re.DOTALL)
 ALLOWED_BY_TASK = {
     "binary_interference": {"yes", "no"},
+    "clearance_bucket": {
+        "intersecting",
+        "touching",
+        "(0, 0.1]",
+        "(0.1, 1]",
+        "(1, 5]",
+        ">5",
+    },
+    "pairwise_interference": {"A", "B", "both", "neither"},
     "relation_classification": {
         "disjoint",
         "touching",
@@ -32,6 +41,7 @@ ALLOWED_BY_TASK = {
         "contained",
         "invalid",
     },
+    "tolerance_fit": {"yes", "no"},
     "volume_bucket": {
         "0",
         "(0, 0.01]",
@@ -59,6 +69,7 @@ def main() -> None:
     parser.add_argument("--splits", nargs="+", default=["train"])
     parser.add_argument("--task-types", nargs="+", default=DEFAULT_TASK_TYPES)
     parser.add_argument("--max-rows", type=int, default=20)
+    parser.add_argument("--rows-per-task", type=int)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=3407)
     parser.add_argument("--temperature", type=float, default=0.2)
@@ -95,6 +106,7 @@ def main() -> None:
         splits=args.splits,
         task_types=set(args.task_types),
         max_rows=args.max_rows,
+        rows_per_task=args.rows_per_task,
         seed=args.seed,
     )
     request_config = {
@@ -104,6 +116,9 @@ def main() -> None:
         "temperature": args.temperature,
         "top_p": args.top_p,
         "max_tokens": args.max_tokens,
+        "batch_size": args.batch_size,
+        "max_rows": args.max_rows,
+        "rows_per_task": args.rows_per_task,
         "reasoning": _reasoning_config(args.reasoning_max_tokens),
         "provider": None if args.no_provider_routing else _provider_routing(args.provider_sort),
         "json_schema": args.json_schema,
@@ -322,9 +337,10 @@ def _sample_rows(
     splits: list[str],
     task_types: set[str],
     max_rows: int,
+    rows_per_task: int | None,
     seed: int,
 ) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+    rows_by_task: dict[str, list[dict[str, Any]]] = {task_type: [] for task_type in sorted(task_types)}
     for split in splits:
         path = dataset_dir / f"{split}.jsonl"
         if not path.exists():
@@ -335,14 +351,34 @@ def _sample_rows(
                     continue
                 row = json.loads(line)
                 if row.get("task_type") in task_types:
-                    rows.append(row)
+                    rows_by_task[row["task_type"]].append(row)
     rng = random.Random(seed)
-    rng.shuffle(rows)
-    return rows[:max_rows]
+    if rows_per_task is None:
+        rows = [row for task_rows in rows_by_task.values() for row in task_rows]
+        rng.shuffle(rows)
+        return rows[:max_rows]
+    if rows_per_task <= 0:
+        raise ValueError("--rows-per-task must be positive")
+    selected_by_task: dict[str, list[dict[str, Any]]] = {}
+    for task_type, task_rows in rows_by_task.items():
+        rng.shuffle(task_rows)
+        selected_by_task[task_type] = task_rows[:rows_per_task]
+    return _round_robin_rows(selected_by_task)
 
 
 def _batched(items: list[Any], batch_size: int) -> list[list[Any]]:
     return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
+
+
+def _round_robin_rows(rows_by_task: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    ordered: list[dict[str, Any]] = []
+    max_len = max((len(rows) for rows in rows_by_task.values()), default=0)
+    for index in range(max_len):
+        for task_type in sorted(rows_by_task):
+            task_rows = rows_by_task[task_type]
+            if index < len(task_rows):
+                ordered.append(task_rows[index])
+    return ordered
 
 
 def _request_completion(
@@ -687,10 +723,20 @@ def _final_answer_from_content(content: str) -> str:
 
 def _parse_answer(task_type: str, output: str) -> str | None:
     stripped = output.strip(" \t\r\n")
+    if task_type == "ranking_normalized_intersection":
+        return stripped if _is_valid_ranking_answer(stripped) else None
     allowed = ALLOWED_BY_TASK.get(task_type)
     if allowed is None:
         raise ValueError(f"unsupported task type for this self-contained distill script: {task_type}")
     return stripped if stripped in allowed else None
+
+
+def _is_valid_ranking_answer(output: str) -> bool:
+    if len(output) not in {3, 4, 5}:
+        return False
+    if any(char not in "ABCDE" for char in output):
+        return False
+    return len(set(output)) == len(output)
 
 
 def _canonical_answer_candidate(output: str) -> str:
