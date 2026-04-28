@@ -13,6 +13,32 @@ def test_prompt_feature_mode_none_preserves_prompt():
     )
 
 
+def test_reasoning_format_mode_appends_response_contract():
+    prompt = augment_prompt(
+        prompt="QA prompt\n",
+        task_type="binary_interference",
+        metadata={},
+        mode="reasoning_format",
+    )
+
+    assert prompt.startswith("QA prompt\n\n")
+    assert "<think>...</think>" in prompt
+    assert "<answer>...</answer>" in prompt
+
+
+def test_strict_reasoning_format_mode_requires_exact_scaffold():
+    prompt = augment_prompt(
+        prompt="QA prompt",
+        task_type="binary_interference",
+        metadata={},
+        mode="strict_reasoning_format",
+    )
+
+    assert prompt.startswith("QA prompt\n\n")
+    assert "must start exactly with <think>" in prompt
+    assert "Do not write any text before <think> or after </answer>" in prompt
+
+
 def test_edit_geometry_repair_features_expose_aabbs_without_direct_answer():
     prompt = augment_prompt(
         prompt="Repair prompt",

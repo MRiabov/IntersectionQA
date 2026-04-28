@@ -227,9 +227,15 @@ def shorten_reasoning(
 ) -> str:
     candidates = candidate_segments(reasoning)
     selected: list[str] = []
+    bucket_limits = {"shape": 3, "transform": 4, "decision": 8}
     for bucket in ("shape", "transform", "decision"):
+        added = 0
         for segment in ranked_segments(candidates, task_type=task_type, bucket=bucket):
             add_segment(selected, segment, max_tokens=max_tokens)
+            if segment in selected:
+                added += 1
+            if added >= bucket_limits[bucket]:
+                break
             if token_count(" ".join(selected)) >= min_tokens and bucket == "decision":
                 break
         if token_count(" ".join(selected)) >= min_tokens and any(decision_score(s, task_type) > 0 for s in selected):
@@ -254,7 +260,30 @@ def candidate_segments(reasoning: str) -> list[str]:
         if len(words) < 6 or len(words) > 70:
             continue
         lower = segment.lower()
-        if any(marker in lower for marker in ("wait,", "wait ", "double check", "final check", "one more check", "i need", "i should", "i am", "i'm", "the user wants")):
+        if any(
+            marker in lower
+            for marker in (
+                "wait,",
+                "wait ",
+                "double check",
+                "final check",
+                "one more check",
+                "i need",
+                "i should",
+                "i am",
+                "i'm",
+                "i must",
+                "the user wants",
+                "is there any",
+                "could ",
+                "might ",
+                "maybe",
+                "assume",
+                "suspicious",
+            )
+        ):
+            continue
+        if "?" in segment:
             continue
         if "<answer>" in lower or "answer:" in lower:
             continue

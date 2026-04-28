@@ -7,7 +7,22 @@ from typing import Any, Mapping
 from intersectionqa.enums import TaskType
 from intersectionqa.schema import PublicTaskRow
 
-PROMPT_FEATURE_MODES = ("none", "edit_geometry", "edit_geometry_with_candidates")
+PROMPT_FEATURE_MODES = (
+    "none",
+    "reasoning_format",
+    "strict_reasoning_format",
+    "edit_geometry",
+    "edit_geometry_with_candidates",
+)
+REASONING_FORMAT_INSTRUCTION = (
+    "Respond with concise reasoning inside <think>...</think>, immediately followed by "
+    "the final canonical answer inside <answer>...</answer>."
+)
+STRICT_REASONING_FORMAT_INSTRUCTION = (
+    "Your response must start exactly with <think>, include concise geometry reasoning, "
+    "then close </think> and immediately provide the final canonical answer inside "
+    "<answer>...</answer>. Do not write any text before <think> or after </answer>."
+)
 _EDIT_TASKS = {
     TaskType.REPAIR_DIRECTION.value,
     TaskType.REPAIR_TRANSLATION.value,
@@ -65,6 +80,10 @@ def augment_prompt(
 ) -> str:
     if mode == "none":
         return prompt
+    if mode == "reasoning_format":
+        return f"{prompt.rstrip()}\n\n{REASONING_FORMAT_INSTRUCTION}"
+    if mode == "strict_reasoning_format":
+        return f"{prompt.rstrip()}\n\n{STRICT_REASONING_FORMAT_INSTRUCTION}"
     if mode not in {"edit_geometry", "edit_geometry_with_candidates"}:
         raise ValueError(f"Unsupported prompt feature mode: {mode}")
     if task_type not in _EDIT_TASKS:

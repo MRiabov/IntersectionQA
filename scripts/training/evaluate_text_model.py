@@ -71,6 +71,7 @@ def main() -> None:
     )
     by_split = defaultdict(Counter)
     by_task = defaultdict(Counter)
+    format_totals: Counter[str] = Counter()
     labels_by_task: dict[str, set[str]] = defaultdict(set)
     confusion_by_task: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
     examples = []
@@ -83,11 +84,17 @@ def main() -> None:
             max_new_tokens=args.max_new_tokens,
             prompt_feature_mode=args.prompt_feature_mode,
         )
-        candidate, _format_components = canonical_answer_candidate(prediction)
+        candidate, format_components = canonical_answer_candidate(prediction)
         parsed = parse_answer(row["task_type"], candidate)
         normalized_prediction = normalize_answer(prediction)
         normalized_answer = normalize_answer(row["answer"])
         exact = parsed == row["answer"]
+        format_totals["total"] += 1
+        format_totals["parse_valid"] += int(parsed is not None)
+        format_totals["invalid"] += int(parsed is None)
+        format_totals["parsed_correct"] += int(exact)
+        format_totals["answer_tag"] += int(format_components.get("answer_tag", 0.0) > 0)
+        format_totals["reasoning_format"] += int(format_components.get("reasoning_format", 0.0) > 0)
         by_split[row["split"]]["total"] += 1
         by_split[row["split"]]["correct"] += int(exact)
         by_task[row["task_type"]]["total"] += 1
@@ -108,6 +115,7 @@ def main() -> None:
                 "canonical_answer": row["answer"],
                 "parse_valid": parsed is not None,
                 "correct": exact,
+                "format_components": format_components,
             }
         )
         if len(examples) < 50 and not exact:
@@ -128,6 +136,7 @@ def main() -> None:
         "row_count": len(rows),
         "by_split": summarize(by_split),
         "by_task": summarize(by_task),
+        "format": summarize_format(format_totals),
         "classification_by_task": classification_summary(confusion_by_task, labels_by_task),
         "mismatches": examples,
         "prompt_feature_mode": args.prompt_feature_mode,
@@ -175,6 +184,7 @@ def main() -> None:
                     )
                     + "\n"
                 )
+            handle.write(json.dumps({"scope": "format", **summarize_format(format_totals)}, sort_keys=True) + "\n")
     text = json.dumps(payload, indent=2, sort_keys=True)
     if output_json:
         output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -263,6 +273,21 @@ def summarize(groups: dict[str, Counter]) -> dict[str, dict[str, float | int]]:
             "accuracy": counts["correct"] / counts["total"] if counts["total"] else 0.0,
         }
         for key, counts in sorted(groups.items())
+    }
+
+
+def summarize_format(counts: Counter[str]) -> dict[str, float | int]:
+    total = counts["total"]
+    return {
+        "total": total,
+        "parse_valid": counts["parse_valid"],
+        "invalid": counts["invalid"],
+        "parsed_correct": counts["parsed_correct"],
+        "parse_valid_rate": safe_div(counts["parse_valid"], total),
+        "invalid_rate": safe_div(counts["invalid"], total),
+        "parsed_accuracy": safe_div(counts["parsed_correct"], total),
+        "answer_tag_rate": safe_div(counts["answer_tag"], total),
+        "reasoning_format_rate": safe_div(counts["reasoning_format"], total),
     }
 
 

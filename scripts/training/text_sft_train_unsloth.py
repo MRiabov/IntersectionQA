@@ -156,7 +156,11 @@ def main() -> None:
             args=build_sft_config(args),
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            data_collator=lambda features: causal_lm_collator(features, tokenizer.pad_token_id),
+            data_collator=lambda features: causal_lm_collator(
+                features,
+                tokenizer.pad_token_id,
+                pad_to_length=args.max_seq_length,
+            ),
         )
     else:
         trainer_kwargs: dict[str, Any] = {
@@ -311,31 +315,37 @@ def pack_tokenized_examples(tokenizer: Any, examples: list[dict], max_seq_length
         label_ids = full_token_ids.copy()
         supervised_start = min(len(prompt_token_ids), len(label_ids))
         label_ids[:supervised_start] = [-100] * supervised_start
+        has_supervised_target = any(label != -100 for label in label_ids)
         token_stream.extend(full_token_ids)
         label_stream.extend(label_ids)
         token_stream.append(eos_token_id)
-        label_stream.append(eos_token_id)
+        label_stream.append(eos_token_id if has_supervised_target else -100)
         while len(token_stream) >= max_seq_length:
             chunk = token_stream[:max_seq_length]
             label_chunk = label_stream[:max_seq_length]
-            packed.append(
-                {
-                    "input_ids": chunk,
-                    "attention_mask": [1] * len(chunk),
-                    "labels": label_chunk,
-                }
-            )
+            append_supervised_chunk(packed, chunk, label_chunk)
             token_stream = token_stream[max_seq_length:]
             label_stream = label_stream[max_seq_length:]
     if token_stream:
-        packed.append(
-            {
-                "input_ids": token_stream,
-                "attention_mask": [1] * len(token_stream),
-                "labels": label_stream,
-            }
+        append_supervised_chunk(packed, token_stream, label_stream)
+    if not packed and examples:
+        raise ValueError(
+            "No supervised packed chunks were produced. Increase --max-seq-length "
+            "or reduce prompt length so assistant target tokens fit in context."
         )
     return packed
+
+
+def append_supervised_chunk(packed: list[dict], input_ids: list[int], labels: list[int]) -> None:
+    if not any(label != -100 for label in labels):
+        return
+    packed.append(
+        {
+            "input_ids": list(input_ids),
+            "attention_mask": [1] * len(input_ids),
+            "labels": list(labels),
+        }
+    )
 
 
 def get_text_tokenizer(tokenizer_or_processor: Any) -> Any:
@@ -350,10 +360,19 @@ def encode_text(tokenizer: Any, text: str) -> list[int]:
     return list(input_ids)
 
 
-def causal_lm_collator(features: list[dict], pad_token_id: int | None) -> dict[str, torch.Tensor]:
+def causal_lm_collator(
+    features: list[dict],
+    pad_token_id: int | None,
+    *,
+    pad_to_length: int | None = None,
+) -> dict[str, torch.Tensor]:
     if pad_token_id is None:
         raise ValueError("Tokenizer must define pad_token_id for packed training.")
     max_len = max(len(feature["input_ids"]) for feature in features)
+    if pad_to_length is not None:
+        if max_len > pad_to_length:
+            raise ValueError(f"Packed feature length {max_len} exceeds pad_to_length {pad_to_length}.")
+        max_len = pad_to_length
     batch_input_ids = []
     batch_attention_mask = []
     batch_labels = []
@@ -469,8 +488,11 @@ def evaluate_generation_quality(
 ) -> dict:
     by_split: dict[str, Counter] = defaultdict(Counter)
     by_task: dict[str, Counter] = defaultdict(Counter)
+    parsed_by_split: dict[str, Counter] = defaultdict(Counter)
+    parsed_by_task: dict[str, Counter] = defaultdict(Counter)
     labels_by_task: dict[str, set[str]] = defaultdict(set)
     confusion_by_task: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
+    format_totals: Counter[str] = Counter()
     examples = []
     prediction_records = []
     was_training = bool(getattr(model, "training", False))
@@ -490,6 +512,13 @@ def evaluate_generation_quality(
             exact = normalized_prediction == normalized_answer
             candidate, _format_components = canonical_answer_candidate(prediction)
             parsed = parse_answer(row["task_type"], candidate)
+            parsed_correct = parsed == row["answer"]
+            format_totals["total"] += 1
+            format_totals["parse_valid"] += int(parsed is not None)
+            format_totals["invalid"] += int(parsed is None)
+            format_totals["parsed_correct"] += int(parsed_correct)
+            format_totals["answer_tag"] += int(_format_components.get("answer_tag", 0.0) > 0)
+            format_totals["reasoning_format"] += int(_format_components.get("reasoning_format", 0.0) > 0)
             prediction_records.append(
                 {
                     "id": row["id"],
@@ -502,13 +531,18 @@ def evaluate_generation_quality(
                     "parsed_answer": parsed,
                     "canonical_answer": row["answer"],
                     "parse_valid": parsed is not None,
-                    "correct": parsed == row["answer"],
+                    "correct": parsed_correct,
+                    "format_components": _format_components,
                 }
             )
             by_split[row["split"]]["total"] += 1
             by_split[row["split"]]["correct"] += int(exact)
             by_task[row["task_type"]]["total"] += 1
             by_task[row["task_type"]]["correct"] += int(exact)
+            parsed_by_split[row["split"]]["total"] += 1
+            parsed_by_split[row["split"]]["correct"] += int(parsed_correct)
+            parsed_by_task[row["task_type"]]["total"] += 1
+            parsed_by_task[row["task_type"]]["correct"] += int(parsed_correct)
             labels_by_task[row["task_type"]].add(normalized_answer)
             labels_by_task[row["task_type"]].add(normalized_prediction)
             confusion_by_task[row["task_type"]][(normalized_answer, normalized_prediction)] += 1
@@ -537,8 +571,26 @@ def evaluate_generation_quality(
         "prediction_file": str(prediction_path) if prediction_path is not None else None,
         "by_split": summarize_accuracy(by_split),
         "by_task": summarize_accuracy(by_task),
+        "parsed_by_split": summarize_accuracy(parsed_by_split),
+        "parsed_by_task": summarize_accuracy(parsed_by_task),
+        "format": summarize_quality_format(format_totals),
         "classification_by_task": classification_summary(confusion_by_task, labels_by_task),
         "mismatches": examples,
+    }
+
+
+def summarize_quality_format(counts: Counter[str]) -> dict[str, float | int]:
+    total = counts["total"]
+    return {
+        "total": total,
+        "parse_valid": counts["parse_valid"],
+        "invalid": counts["invalid"],
+        "parsed_correct": counts["parsed_correct"],
+        "parse_valid_rate": safe_div(counts["parse_valid"], total),
+        "invalid_rate": safe_div(counts["invalid"], total),
+        "parsed_accuracy": safe_div(counts["parsed_correct"], total),
+        "answer_tag_rate": safe_div(counts["answer_tag"], total),
+        "reasoning_format_rate": safe_div(counts["reasoning_format"], total),
     }
 
 
