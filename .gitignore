@@ -1,6 +1,7 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+*.tgz
 build/
 dist/
 wheels/
@@ -18,3 +19,4 @@ data/cache/
 data/debug/
 data/eval/
 data/intersectionqa*/
+runs/
